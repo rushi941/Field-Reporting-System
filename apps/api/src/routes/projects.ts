@@ -1,0 +1,592 @@
+import { Router } from "express";
+import {
+  prisma,
+  type Division,
+  type ProjectStatus,
+  type BidItemFormType,
+  Prisma,
+} from "@frs/db";
+import {
+  projectSchema,
+  updateProjectSchema,
+  projectCreateTaskSchema,
+} from "@frs/shared";
+import { AppError } from "../lib/app-error.js";
+import { asyncHandler } from "../lib/async-handler.js";
+import { routeParam } from "../lib/route-param.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requirePermission } from "../middleware/require-permission.js";
+
+export const projectsRouter = Router();
+
+projectsRouter.use(requireAuth, requirePermission("projects.manage"));
+
+const projectInclude = {
+  projectType: { select: { id: true, code: true, name: true } },
+  projectManager: {
+    select: { id: true, firstName: true, lastName: true, email: true },
+  },
+  tasks: {
+    include: {
+      assignedTo: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      taskMaster: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          unit: true,
+          formType: true,
+          parentId: true,
+          division: true,
+          color: true,
+          widthInches: true,
+          conversionFactor: true,
+        },
+      },
+    },
+    orderBy: { sortOrder: "asc" as const },
+  },
+  route: true,
+  _count: { select: { bidItems: true, reports: true } },
+} as const;
+
+type ProjectLoaded = Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
+
+function mapRoute(route: ProjectLoaded["route"]) {
+  if (!route) return null;
+  return {
+    id: route.id,
+    label: route.label,
+    startLat: route.startLat,
+    startLng: route.startLng,
+    startLabel: route.startLabel,
+    endLat: route.endLat,
+    endLng: route.endLng,
+    endLabel: route.endLabel,
+    polyline: (route.polyline as [number, number][] | null) ?? null,
+    distanceMeters: route.distanceMeters,
+  };
+}
+
+function mapProject(p: ProjectLoaded) {
+  const taskDivisions = [
+    ...new Set(p.tasks.map((t) => t.division)),
+  ];
+  return {
+    id: p.id,
+    jobNumber: p.jobNumber,
+    name: p.name,
+    division: p.division,
+    divisions: [...new Set([p.division, ...taskDivisions])],
+    projectTypeId: p.projectTypeId,
+    projectType: p.projectType,
+    projectManagerId: p.projectManagerId,
+    projectManager: p.projectManager
+      ? {
+          id: p.projectManager.id,
+          name: `${p.projectManager.firstName} ${p.projectManager.lastName}`,
+          email: p.projectManager.email,
+        }
+      : null,
+    clientName: p.clientName,
+    generalContractor: p.generalContractor,
+    location: p.location,
+    contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
+    startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : null,
+    endDate: p.endDate ? p.endDate.toISOString().slice(0, 10) : null,
+    notes: p.notes,
+    status: p.status,
+    lastSyncedAt: p.lastSyncedAt,
+    taskIds: p.tasks.map((t) => t.taskMasterId),
+    tasks: p.tasks.map((t) => ({
+      id: t.id,
+      taskMasterId: t.taskMasterId,
+      assignedToId: t.assignedToId,
+      assignedTo: t.assignedTo
+        ? {
+            id: t.assignedTo.id,
+            name: `${t.assignedTo.firstName} ${t.assignedTo.lastName}`,
+            email: t.assignedTo.email,
+          }
+        : null,
+      division: t.division,
+      sortOrder: t.sortOrder,
+      isActive: t.isActive,
+      taskMaster: {
+        ...t.taskMaster,
+        conversionFactor:
+          t.taskMaster.conversionFactor != null
+            ? Number(t.taskMaster.conversionFactor)
+            : null,
+      },
+    })),
+    route: mapRoute(p.route),
+    bidItemCount: p._count.bidItems,
+    reportCount: p._count.reports,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  };
+}
+
+function parseOptionalDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  const d = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) {
+    throw new AppError("VALIDATION_ERROR", "Invalid date", 400);
+  }
+  return d;
+}
+
+async function assertProjectManager(userId: string | null | undefined) {
+  if (!userId) return;
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      isActive: true,
+      roles: {
+        some: {
+          role: { in: ["DIVISION_MANAGER", "PROJECT_ADMIN", "SYSTEM_ADMIN"] },
+        },
+      },
+    },
+  });
+  if (!user) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Project manager must be an active manager or admin user",
+      400,
+    );
+  }
+}
+
+async function assertFieldLead(userId: string | null | undefined) {
+  if (!userId) {
+    throw new AppError("VALIDATION_ERROR", "Field person is required", 400);
+  }
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      isActive: true,
+      roles: { some: { role: "FIELD_LEAD" } },
+    },
+  });
+  if (!user) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Field person must be an active field lead",
+      400,
+    );
+  }
+}
+
+async function syncProjectTasks(projectId: string, taskIds: string[]) {
+  const unique = [...new Set(taskIds)];
+  const masters = await prisma.taskMaster.findMany({
+    where: { id: { in: unique }, isActive: true },
+  });
+  if (masters.length !== unique.length) {
+    throw new AppError("VALIDATION_ERROR", "One or more tasks not found", 400);
+  }
+  for (const m of masters) {
+    if (!m.division) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `Task ${m.code} has no division — set division on the master task`,
+        400,
+      );
+    }
+  }
+
+  await prisma.projectTask.deleteMany({ where: { projectId } });
+  if (masters.length === 0) return;
+
+  await prisma.projectTask.createMany({
+    data: masters.map((m, i) => ({
+      projectId,
+      taskMasterId: m.id,
+      division: m.division as Division,
+      sortOrder: i,
+    })),
+  });
+}
+
+async function syncProjectRoute(
+  projectId: string,
+  route: {
+    label?: string | null;
+    startLat: number;
+    startLng: number;
+    startLabel?: string | null;
+    endLat: number;
+    endLng: number;
+    endLabel?: string | null;
+    polyline?: [number, number][] | null;
+    distanceMeters?: number | null;
+  } | null | undefined,
+) {
+  if (route === undefined) return;
+  if (route === null) {
+    await prisma.projectRoute.deleteMany({ where: { projectId } });
+    return;
+  }
+  await prisma.projectRoute.upsert({
+    where: { projectId },
+    update: {
+      label: route.label ?? null,
+      startLat: route.startLat,
+      startLng: route.startLng,
+      startLabel: route.startLabel ?? null,
+      endLat: route.endLat,
+      endLng: route.endLng,
+      endLabel: route.endLabel ?? null,
+      polyline: route.polyline ?? undefined,
+      distanceMeters: route.distanceMeters ?? null,
+    },
+    create: {
+      projectId,
+      label: route.label ?? null,
+      startLat: route.startLat,
+      startLng: route.startLng,
+      startLabel: route.startLabel ?? null,
+      endLat: route.endLat,
+      endLng: route.endLng,
+      endLabel: route.endLabel ?? null,
+      polyline: route.polyline ?? undefined,
+      distanceMeters: route.distanceMeters ?? null,
+    },
+  });
+}
+
+projectsRouter.get(
+  "/lookups",
+  asyncHandler(async (_req, res) => {
+    const [projectTypes, managers, fieldLeads, taskRows] = await Promise.all([
+      prisma.projectType.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, division: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.user.findMany({
+        where: {
+          isActive: true,
+          roles: {
+            some: {
+              role: { in: ["DIVISION_MANAGER", "PROJECT_ADMIN", "SYSTEM_ADMIN"] },
+            },
+          },
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          division: true,
+          roles: { select: { role: true } },
+        },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+      prisma.user.findMany({
+        where: {
+          isActive: true,
+          roles: { some: { role: "FIELD_LEAD" } },
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          division: true,
+        },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+      prisma.taskMaster.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          unit: true,
+          formType: true,
+          division: true,
+          parentId: true,
+          sortOrder: true,
+          color: true,
+          widthInches: true,
+          conversionFactor: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      }),
+    ]);
+
+    const childrenByParent = new Map<string, typeof taskRows>();
+    for (const t of taskRows) {
+      if (!t.parentId) continue;
+      const list = childrenByParent.get(t.parentId) ?? [];
+      list.push(t);
+      childrenByParent.set(t.parentId, list);
+    }
+
+    const taskTree = taskRows
+      .filter((t) => !t.parentId)
+      .map((parent) => ({
+        ...parent,
+        conversionFactor:
+          parent.conversionFactor != null ? Number(parent.conversionFactor) : null,
+        children: (childrenByParent.get(parent.id) ?? []).map((child) => ({
+          ...child,
+          conversionFactor:
+            child.conversionFactor != null
+              ? Number(child.conversionFactor)
+              : null,
+        })),
+      }));
+
+    res.json({
+      projectTypes,
+      managers: managers.map((m) => ({
+        id: m.id,
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        division: m.division,
+        roles: m.roles.map((r) => r.role),
+      })),
+      fieldLeads: fieldLeads.map((u) => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`,
+        email: u.email,
+        division: u.division,
+      })),
+      taskTree,
+    });
+  }),
+);
+
+projectsRouter.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const status =
+      typeof req.query.status === "string" ? req.query.status : undefined;
+    const projects = await prisma.project.findMany({
+      where: status ? { status: status as ProjectStatus } : undefined,
+      include: projectInclude,
+      orderBy: { jobNumber: "asc" },
+    });
+
+    res.json({ projects: projects.map(mapProject) });
+  }),
+);
+
+projectsRouter.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: projectInclude,
+    });
+    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+    res.json({ project: mapProject(project) });
+  }),
+);
+
+projectsRouter.post(
+  "/",
+  asyncHandler(async (req, res) => {
+    const body = projectSchema.parse(req.body);
+    const jobNumber = body.jobNumber.trim().toUpperCase();
+    const exists = await prisma.project.findUnique({ where: { jobNumber } });
+    if (exists) throw new AppError("CONFLICT", "Job number already exists", 409);
+
+    if (body.projectTypeId) {
+      const type = await prisma.projectType.findUnique({
+        where: { id: body.projectTypeId },
+      });
+      if (!type) throw new AppError("NOT_FOUND", "Project type not found", 404);
+    }
+
+    await assertProjectManager(body.projectManagerId);
+
+    const project = await prisma.project.create({
+      data: {
+        jobNumber,
+        name: body.name,
+        division: body.division as Division,
+        projectTypeId: body.projectTypeId ?? null,
+        projectManagerId: body.projectManagerId ?? null,
+        clientName: body.clientName ?? null,
+        generalContractor: body.generalContractor ?? null,
+        location: body.location ?? null,
+        contractAmount: body.contractAmount ?? null,
+        startDate: parseOptionalDate(body.startDate) ?? null,
+        endDate: parseOptionalDate(body.endDate) ?? null,
+        notes: body.notes ?? null,
+        status: (body.status as ProjectStatus) ?? "ACTIVE",
+      },
+    });
+
+    await syncProjectTasks(project.id, body.taskIds ?? []);
+    await syncProjectRoute(project.id, body.route);
+
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id: project.id },
+      include: projectInclude,
+    });
+    res.status(201).json({ project: mapProject(full) });
+  }),
+);
+
+/** Create a work task (line code + CF) and attach it to the project */
+projectsRouter.post(
+  "/:id/tasks",
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.id);
+    const body = projectCreateTaskSchema.parse(req.body);
+
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+    await assertFieldLead(body.assignedToId);
+
+    const code = (body.code ?? body.name).trim().toUpperCase().replace(/\s+/g, "-");
+    if (!code) {
+      throw new AppError("VALIDATION_ERROR", "Task code is required", 400);
+    }
+
+    let master = await prisma.taskMaster.findUnique({ where: { code } });
+    if (!master) {
+      master = await prisma.taskMaster.create({
+        data: {
+          code,
+          name: body.name,
+          unit: body.unit ?? "LF",
+          formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
+          division: project.division,
+          color: body.color ?? null,
+          widthInches: body.widthInches ?? null,
+          conversionFactor: body.conversionFactor,
+          description: body.description ?? null,
+          projectTypeId: project.projectTypeId,
+          isActive: true,
+          sortOrder: 0,
+        },
+      });
+    }
+
+    const existing = await prisma.projectTask.findUnique({
+      where: {
+        projectId_taskMasterId: {
+          projectId,
+          taskMasterId: master.id,
+        },
+      },
+    });
+    if (existing) {
+      throw new AppError(
+        "CONFLICT",
+        "This task is already on the project",
+        409,
+      );
+    }
+
+    const count = await prisma.projectTask.count({ where: { projectId } });
+    await prisma.projectTask.create({
+      data: {
+        projectId,
+        taskMasterId: master.id,
+        assignedToId: body.assignedToId,
+        division: project.division,
+        sortOrder: count,
+      },
+    });
+
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: projectInclude,
+    });
+    res.status(201).json({ project: mapProject(full) });
+  }),
+);
+
+projectsRouter.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const body = updateProjectSchema.parse(req.body);
+    const id = routeParam(req.params.id);
+    const existing = await prisma.project.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+    if (body.jobNumber) {
+      const jobNumber = body.jobNumber.trim().toUpperCase();
+      const clash = await prisma.project.findFirst({
+        where: { jobNumber, NOT: { id } },
+      });
+      if (clash) throw new AppError("CONFLICT", "Job number already exists", 409);
+    }
+
+    if (body.projectTypeId) {
+      const type = await prisma.projectType.findUnique({
+        where: { id: body.projectTypeId },
+      });
+      if (!type) throw new AppError("NOT_FOUND", "Project type not found", 404);
+    }
+
+    if (body.projectManagerId !== undefined) {
+      await assertProjectManager(body.projectManagerId);
+    }
+
+    await prisma.project.update({
+      where: { id },
+      data: {
+        ...(body.jobNumber
+          ? { jobNumber: body.jobNumber.trim().toUpperCase() }
+          : {}),
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.division !== undefined
+          ? { division: body.division as Division }
+          : {}),
+        ...(body.projectTypeId !== undefined
+          ? { projectTypeId: body.projectTypeId }
+          : {}),
+        ...(body.projectManagerId !== undefined
+          ? { projectManagerId: body.projectManagerId }
+          : {}),
+        ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
+        ...(body.generalContractor !== undefined
+          ? { generalContractor: body.generalContractor }
+          : {}),
+        ...(body.location !== undefined ? { location: body.location } : {}),
+        ...(body.contractAmount !== undefined
+          ? { contractAmount: body.contractAmount }
+          : {}),
+        ...(body.startDate !== undefined
+          ? { startDate: parseOptionalDate(body.startDate) ?? null }
+          : {}),
+        ...(body.endDate !== undefined
+          ? { endDate: parseOptionalDate(body.endDate) ?? null }
+          : {}),
+        ...(body.notes !== undefined ? { notes: body.notes } : {}),
+        ...(body.status !== undefined
+          ? { status: body.status as ProjectStatus }
+          : {}),
+      },
+    });
+
+    if (body.taskIds !== undefined) {
+      await syncProjectTasks(id, body.taskIds);
+    }
+    if (body.route !== undefined) {
+      await syncProjectRoute(id, body.route);
+    }
+
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id },
+      include: projectInclude,
+    });
+    res.json({ project: mapProject(full) });
+  }),
+);

@@ -1,0 +1,38 @@
+---
+description: FRS domain rules from FRD — reports, STA, approvals, billing
+alwaysApply: true
+---
+
+# FRS Domain Rules
+
+## Report lifecycle
+
+`Draft → Submitted (locked) → Returned | Approved | ApprovedWithNotes`
+
+- Submit locks the report.
+- Only manager return unlocks edit for the original submitter.
+- Resubmit re-enters the manager queue.
+- Preserve full audit/correction history.
+
+## Forms
+
+- **STA Range** — Begin STA, End STA, conversion factor → calculated LF; accept `142+50` and `142.50`, normalize to plus-sign.
+- **Manual Footage** — raw LF; STA not required; tag as Manual Footage.
+- **Single Location** — location/station, symbol type, quantity; multiple locations per report.
+
+## Permissions snapshot
+
+| Action | Field Lead | Manager | Project Admin | System Admin |
+|--------|------------|---------|---------------|--------------|
+| Submit report | Yes | Optional | No | No |
+| Approve / return | No | Yes | No | No |
+| Approved detail | Own/limited | Assigned | Yes | Yes |
+| Export billing CSV | No | Optional | Yes | Yes |
+| Manage users / CSV import | No | No | Optional | Yes |
+
+## Business rules
+
+- BR-004: Return comment is mandatory.
+- BR-005: `Reported LF = Physical LF × Conversion Factor`.
+- BR-007: Tag each line as station-calculated or manual.
+- BR-008: Estimated quantity is read-only for field users.

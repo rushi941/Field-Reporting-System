@@ -1,0 +1,11 @@
+---
+description: Keep FRS UI copy minimal — no role/permission essays on screens
+alwaysApply: true
+---
+
+# UI Copy Rules
+
+- Do not add banners listing roles (Field Lead, Manager, Admin, etc.) on login or app chrome.
+- Do not explain RBAC or workflows in the UI unless the user is blocked and needs a short error.
+- Login: brand + Sign in + Email + Password + actions only.
+- Roles, home routes, and permissions are documented in `AGENTS.md` and enforced in API middleware.

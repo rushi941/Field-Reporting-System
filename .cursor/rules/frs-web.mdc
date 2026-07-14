@@ -1,0 +1,13 @@
+---
+description: React + shadcn frontend conventions for apps/web
+globs: apps/web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web Frontend Rules
+
+- Use shadcn components from `src/components/ui`
+- Forms: react-hook-form + Zod schemas from `@frs/shared`
+- Data fetching: TanStack React Query
+- Mobile-first for Field Lead and Manager screens
+- No inline business validation that diverges from shared Zod schemas

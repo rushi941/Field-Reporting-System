@@ -1,0 +1,31 @@
+---
+description: FRS stack conventions — React, Node, PostgreSQL, shadcn/ui
+alwaysApply: true
+---
+
+# FRS Stack Rules
+
+## Stack
+
+- Frontend: React + TypeScript + Vite + Tailwind + shadcn/ui
+- Backend: Node + TypeScript + Express
+- DB: PostgreSQL + Prisma
+- Validation: Zod in `packages/shared`
+- Tests: Vitest + Testing Library + Supertest
+
+## Must follow
+
+- Use TypeScript strict mode; no `any` unless justified with a comment.
+- Put domain types and Zod schemas in `packages/shared`.
+- Use Prisma for all DB access; no raw SQL unless performance-critical and reviewed.
+- Use shadcn/ui components from `apps/web/src/components/ui`.
+- Mobile-first UI for Field Lead and Manager flows.
+- Server-side RBAC on every protected route.
+- Log audit events for submit, approve, return, resubmit, export, import.
+
+## Do not
+
+- Add Foundation live API sync or write-back without explicit approval.
+- Build native mobile apps in Phase 1.
+- Allow field users to edit estimated quantities or form types.
+- Expose pending/returned report details to Project Admin.

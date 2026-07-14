@@ -1,0 +1,13 @@
+---
+description: Node API + Prisma conventions for apps/api and packages/db
+globs: "{apps/api,packages/db,packages/shared}/**/*.{ts,js}"
+alwaysApply: false
+---
+
+# API & Data Rules
+
+- Validate bodies/queries with Zod from `@frs/shared`
+- Enforce RBAC in middleware on every protected route
+- Use Prisma transactions for report status change + audit log
+- Never expose pending/returned report detail to Project Admin
+- CSV import/export only for Foundation sync in Phase 1

@@ -1,0 +1,495 @@
+// Field Reporting System — PostgreSQL schema (FRD §11 + roles/routing)
+// Phase 1: CSV Foundation import; no live write-back
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  FIELD_LEAD
+  DIVISION_MANAGER
+  PROJECT_ADMIN
+  SYSTEM_ADMIN
+}
+
+enum Division {
+  PAVEMENT_MARKING
+  TRAFFIC_CONTROL
+  PERMANENT_SIGNS
+}
+
+enum ProjectStatus {
+  ACTIVE
+  INACTIVE
+  COMPLETED
+}
+
+enum BidItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BidItemFormType {
+  STA_RANGE
+  SINGLE_LOCATION
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  APPROVED
+  APPROVED_WITH_NOTES
+}
+
+enum LineEntryType {
+  STA_RANGE
+  SINGLE_LOCATION
+  MANUAL_FOOTAGE
+}
+
+enum QuantitySource {
+  STATION_CALCULATED
+  MANUAL
+}
+
+enum AttachmentCategory {
+  TICKET
+  RECEIPT
+  CERTIFICATION
+  PHOTO
+  OTHER
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  SUBMITTED
+  RETURNED
+  RESUBMITTED
+  APPROVED
+  APPROVED_WITH_NOTES
+  EXPORTED
+  IMPORTED
+}
+
+enum ImportRunStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+/// FRD §7.2 matrix cell values (dynamic, editable by System Admin)
+enum PermissionAccess {
+  NO
+  YES
+  OPTIONAL
+  LIMITED
+  SUMMARY
+  ASSIGNED
+  APPROVED_ONLY
+}
+
+// ─── Auth & assignment ────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  isActive     Boolean   @default(true)
+  /// Primary division for field/manager users (approval routing)
+  division     Division?
+  /// Field leads report to this manager when set
+  managerId    String?
+  manager      User?     @relation("ManagerReports", fields: [managerId], references: [id])
+  directReports User[]   @relation("ManagerReports")
+  crewId       String?
+  crew         Crew?     @relation(fields: [crewId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  roles UserRole[]
+
+  reportsSubmitted Report[]      @relation("ReportSubmitter")
+  reportsApproved  Report[]      @relation("ReportApprover")
+  attachments      Attachment[]
+  auditLogs        AuditLog[]
+  importRuns       FoundationImportRun[]
+  systemSettingsUpdated SystemSetting[] @relation("SettingUpdatedBy")
+  crewsManaged     Crew[]        @relation("CrewManager")
+  projectsManaged  Project[]     @relation("ProjectManager")
+  projectTasksAssigned ProjectTask[] @relation("ProjectTaskAssignee")
+
+  @@index([managerId])
+  @@index([crewId])
+  @@index([division, isActive])
+  @@index([lastName, firstName])
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([role])
+}
+
+model Crew {
+  id        String    @id @default(cuid())
+  name      String
+  division  Division
+  managerId String?
+  manager   User?     @relation("CrewManager", fields: [managerId], references: [id])
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  members User[]
+
+  @@index([division, isActive])
+  @@index([managerId])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String           @id @default(cuid())
+  role         Role
+  permissionId String
+  access       PermissionAccess @default(NO)
+  updatedAt    DateTime         @updatedAt
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+}
+
+// ─── Projects & bid items (Foundation CSV / manual) ───────────────────────────
+
+model ProjectType {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  division    Division?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projects Project[]
+  tasks    TaskMaster[]
+
+  @@index([isActive, sortOrder])
+}
+
+/// Catalog of standard roadway contractor work items (task master)
+/// Parent rows are master tasks; children are sub-tasks (`parentId`).
+model TaskMaster {
+  id                String          @id @default(cuid())
+  code              String          @unique
+  name              String
+  description       String?
+  unit              String
+  formType          BidItemFormType @default(STA_RANGE)
+  projectTypeId     String?
+  projectType       ProjectType?    @relation(fields: [projectTypeId], references: [id])
+  division          Division?
+  parentId          String?
+  parent            TaskMaster?     @relation("TaskHierarchy", fields: [parentId], references: [id])
+  children          TaskMaster[]    @relation("TaskHierarchy")
+  /// Pavement marking: White / Yellow / Blk/Wht
+  color             String?
+  /// Line width in inches (4, 6, 10, 24)
+  widthInches       Int?
+  /// Conversion factor — Reported LF = (End STA − Begin STA) × 100 × CF
+  conversionFactor  Decimal?        @db.Decimal(12, 6)
+  isActive          Boolean         @default(true)
+  sortOrder         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  projectTasks ProjectTask[]
+
+  @@index([projectTypeId, isActive])
+  @@index([division, isActive])
+  @@index([parentId, sortOrder])
+  @@index([formType])
+  @@index([widthInches])
+}
+
+model Project {
+  id                String        @id @default(cuid())
+  jobNumber         String        @unique
+  name              String
+  /// Primary division (approval routing default)
+  division          Division
+  projectTypeId     String?
+  projectType       ProjectType?  @relation(fields: [projectTypeId], references: [id])
+  /// Internal project manager (division manager / project admin)
+  projectManagerId  String?
+  projectManager    User?         @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  /// Owner / agency (e.g. TxDOT, City of Dallas)
+  clientName        String?
+  generalContractor String?
+  /// Work location — route, city, county, state
+  location          String?
+  contractAmount    Decimal?      @db.Decimal(14, 2)
+  startDate         DateTime?     @db.Date
+  endDate           DateTime?     @db.Date
+  notes             String?
+  status            ProjectStatus @default(ACTIVE)
+  /// Last Foundation import or manual update (BR-010)
+  lastSyncedAt      DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  bidItems    BidItem[]
+  reports     Report[]
+  attachments Attachment[]
+  tasks       ProjectTask[]
+  route       ProjectRoute?
+
+  @@index([status])
+  @@index([division, status])
+  @@index([projectTypeId])
+  @@index([projectManagerId])
+  @@index([name])
+  @@index([jobNumber])
+}
+
+/// Selected master / sub-tasks for a job (supports multi-division work)
+model ProjectTask {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskMasterId String
+  taskMaster   TaskMaster @relation(fields: [taskMasterId], references: [id])
+  /// Field lead assigned to this work task
+  assignedToId String?
+  assignedTo   User?    @relation("ProjectTaskAssignee", fields: [assignedToId], references: [id])
+  /// Division for this task (may differ from project.primary division)
+  division     Division
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([projectId, taskMasterId])
+  @@index([projectId, division, isActive])
+  @@index([taskMasterId])
+  @@index([assignedToId])
+
+  lineItems ReportLineItem[]
+}
+
+/// Pinned work route (from → to) for field crews
+model ProjectRoute {
+  id              String   @id @default(cuid())
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label           String?
+  startLat        Float
+  startLng        Float
+  startLabel      String?
+  endLat          Float
+  endLng          Float
+  endLabel        String?
+  /// Encoded polyline points [[lat, lng], ...]
+  polyline        Json?
+  distanceMeters  Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BidItem {
+  id                String          @id @default(cuid())
+  projectId         String
+  itemNumber        String
+  description       String
+  unit              String
+  estimatedQuantity Decimal         @db.Decimal(14, 4)
+  formType          BidItemFormType
+  status            BidItemStatus   @default(ACTIVE)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, itemNumber])
+  @@index([projectId, status])
+  @@index([formType])
+}
+
+// ─── Daily reports ────────────────────────────────────────────────────────────
+
+model Report {
+  id               String       @id @default(cuid())
+  /// Human-readable unique report ID for queues/UI (FR-FLD-010)
+  reportNumber     String       @unique
+  projectId        String
+  reportDate       DateTime     @db.Date
+  submittedById    String
+  division         Division
+  status           ReportStatus @default(DRAFT)
+  /// Field crew size for the day
+  crewSize         Int?
+  notes            String?
+  /// Manager note when approving with notes (FR-MGR-004)
+  approvalNotes    String?
+  /// Mandatory when returned (BR-004)
+  returnComment    String?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  approvedById     String?
+  returnedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id])
+  submittedBy User             @relation("ReportSubmitter", fields: [submittedById], references: [id])
+  approvedBy  User?            @relation("ReportApprover", fields: [approvedById], references: [id])
+  lineItems   ReportLineItem[]
+  attachments Attachment[]
+  auditLogs   AuditLog[]
+
+  @@index([status, submittedAt])
+  @@index([projectId, status])
+  @@index([submittedById, status])
+  @@index([division, status])
+  @@index([reportDate])
+  @@index([approvedById])
+}
+
+model ReportLineItem {
+  id                  String         @id @default(cuid())
+  reportId            String
+  projectTaskId       String
+  entryType           LineEntryType
+  quantitySource      QuantitySource
+  /// Normalized plus-sign format e.g. 142+50 (FR-FLD-005)
+  beginSta            String?
+  endSta              String?
+  conversionFactor    Decimal?       @db.Decimal(12, 6)
+  calculatedLf        Decimal?       @db.Decimal(14, 4)
+  manualLf            Decimal?       @db.Decimal(14, 4)
+  finalQuantity       Decimal        @db.Decimal(14, 4)
+  locationDescription String?
+  symbolItemType      String?
+  sortOrder           Int            @default(0)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  projectTask ProjectTask @relation(fields: [projectTaskId], references: [id])
+
+  @@index([reportId])
+  @@index([projectTaskId])
+}
+
+// ─── Attachments ──────────────────────────────────────────────────────────────
+
+model Attachment {
+  id           String              @id @default(cuid())
+  reportId     String
+  projectId    String
+  fileName     String
+  fileType     String
+  fileSizeBytes Int
+  category     AttachmentCategory  @default(OTHER)
+  storageUrl   String
+  uploadedById String
+  uploadedAt   DateTime            @default(now())
+
+  report     Report  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  project    Project @relation(fields: [projectId], references: [id])
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
+  @@index([reportId])
+  @@index([projectId])
+  @@index([uploadedById])
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  reportId  String?
+  userId    String
+  action    AuditAction
+  comment   String?
+  /// Optional JSON snapshot / metadata (export filters, import stats, etc.)
+  metadata  Json?
+  createdAt DateTime    @default(now())
+
+  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([reportId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ─── Foundation CSV import ────────────────────────────────────────────────────
+
+model FoundationImportRun {
+  id             String          @id @default(cuid())
+  fileName       String
+  status         ImportRunStatus @default(PENDING)
+  importedById   String
+  projectsUpsert Int             @default(0)
+  bidItemsUpsert Int             @default(0)
+  errorCount     Int             @default(0)
+  /// Row-level validation errors / summary
+  details        Json?
+  startedAt      DateTime        @default(now())
+  completedAt    DateTime?
+
+  importedBy User @relation(fields: [importedById], references: [id])
+
+  @@index([startedAt])
+  @@index([importedById])
+}
+
+// ─── System config (key/value settings) ───────────────────────────────────────
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  updatedBy User? @relation("SettingUpdatedBy", fields: [updatedById], references: [id])
+}
+
+/// Suggested keys:
+/// - billing_readiness_mode ("auto" | "manual")

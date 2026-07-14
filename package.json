@@ -1,0 +1,25 @@
+{
+  "name": "frs-advance-traffic",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev -w @frs/api\" \"npm run dev -w @frs/web\"",
+    "dev:api": "npm run dev -w @frs/api",
+    "dev:web": "npm run dev -w @frs/web",
+    "build": "npm run build -w @frs/web",
+    "db:generate": "npm run db:generate -w @frs/db",
+    "db:migrate": "npm run db:migrate -w @frs/db",
+    "db:seed": "npm run db:seed -w @frs/db",
+    "stop": "node scripts/stop-dev.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "playwright": "^1.61.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
