@@ -10,7 +10,7 @@
     "dev:api": "npm run dev -w @frs/api",
     "dev:web": "npm run dev -w @frs/web",
     "build": "npm run db:generate -w @frs/db && npm run build -w @frs/web",
-    "start": "npm run start -w @frs/api",
+    "start": "npm run db:migrate:deploy -w @frs/db && npm run start -w @frs/api",
     "db:generate": "npm run db:generate -w @frs/db",
     "db:migrate": "npm run db:migrate -w @frs/db",
     "db:migrate:deploy": "npm run db:migrate:deploy -w @frs/db",
@@ -22,6 +22,6 @@
     "playwright": "^1.61.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x"
   }
 }

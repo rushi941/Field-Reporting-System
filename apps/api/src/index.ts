@@ -29,7 +29,7 @@ app.use(
 );
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? "http://localhost:5174",
+    origin: process.env.CORS_ORIGIN ?? true,
     credentials: true,
   }),
 );
@@ -61,6 +61,31 @@ app.use("/api/v1/billing", billingRouter);
 app.use("/api/v1/project-types", projectTypesRouter);
 app.use("/api/v1/tasks", tasksRouter);
 app.use("/api/v1/projects", projectsRouter);
+
+/** Serve Vite production build (same Render service hosts UI + API) */
+const webDist = path.resolve(process.cwd(), "apps/web/dist");
+app.use(
+  express.static(webDist, {
+    index: false,
+    fallthrough: true,
+    maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
+  }),
+);
+
+/** SPA fallback — React Router routes */
+app.get("*", (req, res, next) => {
+  if (
+    req.path.startsWith("/api") ||
+    req.path.startsWith("/uploads") ||
+    req.path === "/health"
+  ) {
+    next();
+    return;
+  }
+  res.sendFile(path.join(webDist, "index.html"), (err) => {
+    if (err) next(err);
+  });
+});
 
 app.use(errorHandler);
 
