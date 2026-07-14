@@ -18,10 +18,10 @@
   },
   "dependencies": {
     "@frs/shared": "*",
-    "@prisma/client": "^6.5.0"
+    "@prisma/client": "^6.5.0",
+    "prisma": "^6.5.0"
   },
   "devDependencies": {
-    "prisma": "^6.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "bcryptjs": "^3.0.2",
