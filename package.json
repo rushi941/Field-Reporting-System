@@ -9,7 +9,7 @@
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev -w @frs/api\" \"npm run dev -w @frs/web\"",
     "dev:api": "npm run dev -w @frs/api",
     "dev:web": "npm run dev -w @frs/web",
-    "build": "npm run db:generate -w @frs/db && npm run build -w @frs/web",
+    "build": "npm run db:generate -w @frs/db && npm run build -w @frs/web && node scripts/copy-web-to-api.mjs",
     "start": "node scripts/start-prod.mjs",
     "db:generate": "npm run db:generate -w @frs/db",
     "db:migrate": "npm run db:migrate -w @frs/db",

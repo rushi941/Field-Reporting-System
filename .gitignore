@@ -14,6 +14,7 @@ out/
 .next/
 .turbo/
 *.tsbuildinfo
+apps/api/public/
 
 # Env & secrets (keep *.example tracked)
 .env

@@ -23,20 +23,35 @@ import { mountSwagger } from "./swagger/setup.js";
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
-/** Resolve web/dist whether cwd is monorepo root or apps/api (npm workspace start) */
+/**
+ * Prefer apps/api/public (copied at build). Fall back to monorepo apps/web/dist.
+ * Never join process.cwd() + "apps/web/..." (npm -w sets cwd to apps/api).
+ */
 function resolveWebDist(): string | null {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    path.resolve(here, "../../web/dist"), // apps/api/src → apps/web/dist
-    path.resolve(process.cwd(), "apps/web/dist"),
-    path.resolve(process.cwd(), "../web/dist"),
-  ];
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, "index.html"))) return dir;
+  const apiSrcDir = path.dirname(fileURLToPath(import.meta.url)); // .../apps/api/src
+  const apiRoot = path.resolve(apiSrcDir, ".."); // .../apps/api
+  const preferred = path.join(apiRoot, "public");
+
+  const candidates: string[] = [preferred];
+
+  let dir = apiRoot;
+  for (let i = 0; i < 5; i++) {
+    dir = path.dirname(dir);
+    const pkg = path.join(dir, "package.json");
+    const webDist = path.join(dir, "apps", "web", "dist");
+    if (fs.existsSync(pkg) && fs.existsSync(path.join(webDist, "index.html"))) {
+      candidates.push(webDist);
+      break;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "index.html"))) {
+      return candidate;
+    }
   }
   return null;
 }
-
 
 app.use(
   helmet({
@@ -79,30 +94,34 @@ app.use("/api/v1/project-types", projectTypesRouter);
 app.use("/api/v1/tasks", tasksRouter);
 app.use("/api/v1/projects", projectsRouter);
 
-/** Serve Vite production build (same Render service hosts UI + API) */
-const webDist = path.resolve(process.cwd(), "apps/web/dist");
-app.use(
-  express.static(webDist, {
-    index: false,
-    fallthrough: true,
-    maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
-  }),
-);
+const webDist = resolveWebDist();
+if (webDist) {
+  app.use(
+    express.static(webDist, {
+      index: false,
+      fallthrough: true,
+      maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
+    }),
+  );
 
-/** SPA fallback — React Router routes */
-app.get("*", (req, res, next) => {
-  if (
-    req.path.startsWith("/api") ||
-    req.path.startsWith("/uploads") ||
-    req.path === "/health"
-  ) {
-    next();
-    return;
-  }
-  res.sendFile(path.join(webDist, "index.html"), (err) => {
-    if (err) next(err);
+  app.get("*", (req, res, next) => {
+    if (
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/uploads") ||
+      req.path === "/health"
+    ) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(webDist, "index.html"), (err) => {
+      if (err) next(err);
+    });
   });
-});
+} else {
+  console.warn(
+    "Web UI not found. Expected apps/api/public (after build) or apps/web/dist.",
+  );
+}
 
 app.use(errorHandler);
 
@@ -110,6 +129,8 @@ app.listen(port, () => {
   console.log(`FRS API listening on http://localhost:${port}`);
   console.log(`Swagger UI: http://localhost:${port}/api/docs`);
   console.log(`Uploads dir: ${path.resolve(getUploadRoot())}`);
+  if (webDist) console.log(`Web UI: ${webDist}`);
+  else console.warn("Web UI: not mounted");
 });
 
 export { app };
