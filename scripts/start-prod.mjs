@@ -6,6 +6,11 @@
  */
 import { spawnSync } from "node:child_process";
 
+/** Neon / Prisma: if only DATABASE_URL is set, reuse it for migrations */
+if (process.env.DATABASE_URL && !process.env.DIRECT_URL) {
+  process.env.DIRECT_URL = process.env.DATABASE_URL;
+}
+
 function run(cmd, args) {
   const result = spawnSync(cmd, args, {
     stdio: "inherit",
@@ -19,14 +24,14 @@ if (!process.env.DATABASE_URL) {
   console.error("");
   console.error("══════════════════════════════════════════════════════════");
   console.error(" DATABASE_URL is not set on this service.");
-  console.error(" On Render: create PostgreSQL → copy Internal Database URL");
-  console.error(" → Web Service → Environment → add DATABASE_URL → Redeploy");
+  console.error(" Neon: paste the connection string (add ?sslmode=require).");
+  console.error(" Also set JWT_SECRET, then Redeploy. After up: npm run db:seed");
   console.error("══════════════════════════════════════════════════════════");
   console.error("");
 } else {
   const migrate = run("npm", ["run", "db:migrate:deploy", "-w", "@frs/db"]);
   if (migrate !== 0) {
-    console.error("Prisma migrate deploy failed. Check DATABASE_URL and DB access.");
+    console.error("Prisma migrate deploy failed. Check DATABASE_URL / DIRECT_URL.");
     process.exit(migrate);
   }
 }
