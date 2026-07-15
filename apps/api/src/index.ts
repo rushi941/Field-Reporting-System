@@ -1,5 +1,7 @@
 import "dotenv/config";
+import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -20,6 +22,21 @@ import { mountSwagger } from "./swagger/setup.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
+
+/** Resolve web/dist whether cwd is monorepo root or apps/api (npm workspace start) */
+function resolveWebDist(): string | null {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.resolve(here, "../../web/dist"), // apps/api/src → apps/web/dist
+    path.resolve(process.cwd(), "apps/web/dist"),
+    path.resolve(process.cwd(), "../web/dist"),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "index.html"))) return dir;
+  }
+  return null;
+}
+
 
 app.use(
   helmet({
