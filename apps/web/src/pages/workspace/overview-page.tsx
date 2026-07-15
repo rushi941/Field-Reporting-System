@@ -106,7 +106,7 @@ export function WorkspaceOverviewPage({
           {
             to: "/system/users",
             title: "Users",
-            body: "Accounts, roles, division, and manager assignment.",
+            body: "Accounts, roles, and active status.",
             icon: Users,
             permission: "users.manage",
           },
