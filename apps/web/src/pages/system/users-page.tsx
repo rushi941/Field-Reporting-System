@@ -7,14 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const divisions = [
-  { value: "PAVEMENT_MARKING", label: "Pavement Marking" },
-  { value: "TRAFFIC_CONTROL", label: "Traffic Control" },
-  { value: "PERMANENT_SIGNS", label: "Permanent Signs" },
-] as const;
-
-type ManagerOption = { id: string; name: string; email: string };
-
 type FormState = {
   email: string;
   password: string;
@@ -22,8 +14,6 @@ type FormState = {
   lastName: string;
   phone: string;
   isActive: boolean;
-  division: string;
-  managerId: string;
   roles: AppRole[];
 };
 
@@ -34,17 +24,11 @@ const emptyForm: FormState = {
   lastName: "",
   phone: "",
   isActive: true,
-  division: "",
-  managerId: "",
   roles: ["FIELD_LEAD"],
 };
 
-const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
 export function SystemUsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -59,12 +43,8 @@ export function SystemUsersPage() {
   async function load() {
     setLoading(true);
     try {
-      const [u, m] = await Promise.all([
-        apiFetch<{ users: ManagedUser[] }>("/api/v1/users"),
-        apiFetch<{ managers: ManagerOption[] }>("/api/v1/users/managers"),
-      ]);
+      const u = await apiFetch<{ users: ManagedUser[] }>("/api/v1/users");
       setUsers(u.users);
-      setManagers(m.managers);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load users");
     } finally {
@@ -91,8 +71,6 @@ export function SystemUsersPage() {
       lastName: user.lastName,
       phone: user.phone ?? "",
       isActive: user.isActive,
-      division: user.division ?? "",
-      managerId: user.managerId ?? "",
       roles: user.roles as AppRole[],
     });
     setOpen(true);
@@ -118,8 +96,6 @@ export function SystemUsersPage() {
         lastName: form.lastName,
         phone: form.phone || null,
         isActive: form.isActive,
-        division: form.division || null,
-        managerId: form.managerId || null,
         roles: form.roles,
         ...(form.password ? { password: form.password } : {}),
       };
@@ -192,13 +168,11 @@ export function SystemUsersPage() {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
+            <table className="w-full min-w-[520px] text-left text-sm">
               <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Roles</th>
-                  <th className="px-4 py-3">Division</th>
-                  <th className="px-4 py-3">Manager</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -219,12 +193,6 @@ export function SystemUsersPage() {
                       {u.roles
                         .map((r) => roleLabels[r as AppRole] ?? r)
                         .join(", ")}
-                    </td>
-                    <td className="px-4 py-3.5 text-xs">
-                      {divisions.find((d) => d.value === u.division)?.label ?? "—"}
-                    </td>
-                    <td className="px-4 py-3.5 text-xs">
-                      {u.manager?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3.5">
                       <span
@@ -319,40 +287,6 @@ export function SystemUsersPage() {
                   required={!editingId}
                   minLength={editingId && !form.password ? undefined : 8}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Division</Label>
-                <select
-                  className={selectClass}
-                  value={form.division}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, division: e.target.value }))
-                  }
-                >
-                  <option value="">—</option>
-                  {divisions.map((d) => (
-                    <option key={d.value} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Manager</Label>
-                <select
-                  className={selectClass}
-                  value={form.managerId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, managerId: e.target.value }))
-                  }
-                >
-                  <option value="">—</option>
-                  {managers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Roles</Label>
