@@ -23,6 +23,10 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  ModalCloseButton,
+  UnsavedCloseDialog,
+} from "@/components/unsaved-close-dialog";
 
 type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
 
@@ -150,6 +154,15 @@ export function ProjectDetailPage() {
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyTaskForm);
+  const [formBaseline, setFormBaseline] = useState("");
+  const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+
+  function snapshotForm(next: typeof emptyTaskForm) {
+    return JSON.stringify(next);
+  }
+
+  const isDirty =
+    addOpen && formBaseline !== "" && snapshotForm(form) !== formBaseline;
 
   async function load() {
     if (!projectId) return;
@@ -209,7 +222,25 @@ export function ProjectDetailPage() {
 
   function openCreate() {
     setForm(emptyTaskForm);
+    setFormBaseline(snapshotForm(emptyTaskForm));
+    setUnsavedPrompt(false);
     setAddOpen(true);
+  }
+
+  function closeTaskForm() {
+    setAddOpen(false);
+    setUnsavedPrompt(false);
+    setFormBaseline("");
+    setForm(emptyTaskForm);
+  }
+
+  function requestCloseTaskForm() {
+    if (saving) return;
+    if (isDirty) {
+      setUnsavedPrompt(true);
+      return;
+    }
+    closeTaskForm();
   }
 
   function onLineTypeChange(key: string) {
@@ -328,8 +359,7 @@ export function ProjectDetailPage() {
         },
       );
       setProject(data.project);
-      setAddOpen(false);
-      setForm(emptyTaskForm);
+      closeTaskForm();
       toast.success("Task created", { id: "project-tasks" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Create failed", {
@@ -468,17 +498,40 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
+      <UnsavedCloseDialog
+        open={unsavedPrompt}
+        saving={saving}
+        onStay={() => setUnsavedPrompt(false)}
+        onDiscard={closeTaskForm}
+        onSave={() => {
+          setUnsavedPrompt(false);
+          const formEl = document.getElementById(
+            "project-task-form-modal",
+          ) as HTMLFormElement | null;
+          formEl?.requestSubmit();
+        }}
+      />
+
       {addOpen && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/50 p-4">
           <form
+            id="project-task-form-modal"
             onSubmit={onCreateTask}
             className="relative z-[2001] max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border bg-card p-6 shadow-2xl"
           >
-            <h2 className="text-lg font-semibold">Create task</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Line code is built as type + color + width. Reported LF = (End STA
-              − Begin STA) × 100 × CF.
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Create task</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Line code is built as type + color + width. Reported LF = (End
+                  STA − Begin STA) × 100 × CF.
+                </p>
+              </div>
+              <ModalCloseButton
+                onClick={requestCloseTaskForm}
+                disabled={saving}
+              />
+            </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
@@ -697,7 +750,8 @@ export function ProjectDetailPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setAddOpen(false)}
+                disabled={saving}
+                onClick={requestCloseTaskForm}
               >
                 Cancel
               </Button>

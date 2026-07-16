@@ -162,6 +162,39 @@ async function assertProjectManager(userId: string | null | undefined) {
   }
 }
 
+/** Use provided job # or allocate JOB-YYYY-NNNN (unique). */
+async function resolveJobNumber(
+  raw: string | null | undefined,
+  excludeProjectId?: string,
+): Promise<string> {
+  const trimmed = raw?.trim();
+  if (trimmed) {
+    const jobNumber = trimmed.toUpperCase();
+    const clash = await prisma.project.findFirst({
+      where: {
+        jobNumber,
+        ...(excludeProjectId ? { NOT: { id: excludeProjectId } } : {}),
+      },
+    });
+    if (clash) throw new AppError("CONFLICT", "Job number already exists", 409);
+    return jobNumber;
+  }
+
+  const year = new Date().getFullYear();
+  const prefix = `JOB-${year}-`;
+  for (let seq = 1; seq < 10_000; seq++) {
+    const jobNumber = `${prefix}${String(seq).padStart(4, "0")}`;
+    const clash = await prisma.project.findFirst({
+      where: {
+        jobNumber,
+        ...(excludeProjectId ? { NOT: { id: excludeProjectId } } : {}),
+      },
+    });
+    if (!clash) return jobNumber;
+  }
+  throw new AppError("INTERNAL_ERROR", "Could not allocate job number", 500);
+}
+
 async function assertFieldLead(userId: string | null | undefined) {
   if (!userId) {
     throw new AppError("VALIDATION_ERROR", "Field person is required", 400);
@@ -396,9 +429,7 @@ projectsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const body = projectSchema.parse(req.body);
-    const jobNumber = body.jobNumber.trim().toUpperCase();
-    const exists = await prisma.project.findUnique({ where: { jobNumber } });
-    if (exists) throw new AppError("CONFLICT", "Job number already exists", 409);
+    const jobNumber = await resolveJobNumber(body.jobNumber);
 
     if (body.projectTypeId) {
       const type = await prisma.projectType.findUnique({
@@ -520,12 +551,9 @@ projectsRouter.patch(
     });
     if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
 
-    if (body.jobNumber) {
-      const jobNumber = body.jobNumber.trim().toUpperCase();
-      const clash = await prisma.project.findFirst({
-        where: { jobNumber, NOT: { id } },
-      });
-      if (clash) throw new AppError("CONFLICT", "Job number already exists", 409);
+    let resolvedJobNumber: string | undefined;
+    if (body.jobNumber !== undefined) {
+      resolvedJobNumber = await resolveJobNumber(body.jobNumber, id);
     }
 
     if (body.projectTypeId) {
@@ -542,8 +570,8 @@ projectsRouter.patch(
     await prisma.project.update({
       where: { id },
       data: {
-        ...(body.jobNumber
-          ? { jobNumber: body.jobNumber.trim().toUpperCase() }
+        ...(resolvedJobNumber !== undefined
+          ? { jobNumber: resolvedJobNumber }
           : {}),
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.division !== undefined
@@ -588,5 +616,33 @@ projectsRouter.patch(
       include: projectInclude,
     });
     res.json({ project: mapProject(full) });
+  }),
+);
+
+projectsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const existing = await prisma.project.findUnique({ where: { id } });
+    if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+    const reportCount = await prisma.report.count({ where: { projectId: id } });
+    if (reportCount > 0) {
+      throw new AppError(
+        "CONFLICT",
+        "Cannot delete a project that has reports. Set status to Inactive instead.",
+        409,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.projectRoute.deleteMany({ where: { projectId: id } });
+      await tx.projectTask.deleteMany({ where: { projectId: id } });
+      await tx.bidItem.deleteMany({ where: { projectId: id } });
+      await tx.attachment.deleteMany({ where: { projectId: id } });
+      await tx.project.delete({ where: { id } });
+    });
+
+    res.json({ ok: true });
   }),
 );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, UserX } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 import { roles, roleLabels, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ export function SystemUsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [statusConfirm, setStatusConfirm] = useState<ManagedUser | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -127,17 +129,31 @@ export function SystemUsersPage() {
     }
   }
 
-  async function deactivate(user: ManagedUser) {
-    if (!confirm(`Deactivate ${user.email}?`)) {
-      toast.message("Deactivate cancelled");
-      return;
-    }
+  async function confirmToggleActive() {
+    if (!statusConfirm || togglingId) return;
+    const user = statusConfirm;
+    const next = !user.isActive;
+    setTogglingId(user.id);
     try {
-      await apiFetch(`/api/v1/users/${user.id}`, { method: "DELETE" });
-      toast.success("User deactivated");
-      await load();
+      await apiFetch(`/api/v1/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: next }),
+      });
+      setUsers((list) =>
+        list.map((u) => (u.id === user.id ? { ...u, isActive: next } : u)),
+      );
+      setStatusConfirm(null);
+      toast.success(
+        next
+          ? `${user.firstName} ${user.lastName} is now active`
+          : `${user.firstName} ${user.lastName} is now inactive`,
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to deactivate user");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update status",
+      );
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -195,15 +211,25 @@ export function SystemUsersPage() {
                         .join(", ")}
                     </td>
                     <td className="px-4 py-3.5">
-                      <span
+                      <button
+                        type="button"
+                        disabled={togglingId === u.id}
+                        onClick={() => setStatusConfirm(u)}
+                        title="Click to change active status"
                         className={
                           u.isActive
-                            ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                            : "inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200"
+                            ? "inline-flex cursor-pointer rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200 transition hover:bg-emerald-100 disabled:opacity-60"
+                            : "inline-flex cursor-pointer rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-200 disabled:opacity-60"
                         }
                       >
-                        {u.isActive ? "Active" : "Inactive"}
-                      </span>
+                        {togglingId === u.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : u.isActive ? (
+                          "Active"
+                        ) : (
+                          "Inactive"
+                        )}
+                      </button>
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex justify-end gap-1">
@@ -215,22 +241,67 @@ export function SystemUsersPage() {
                         >
                           <Pencil className="size-4" />
                         </Button>
-                        {u.isActive && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deactivate(u)}
-                            aria-label="Deactivate"
-                          >
-                            <UserX className="size-4" />
-                          </Button>
-                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="status-confirm-title"
+            className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl"
+          >
+            <h2
+              id="status-confirm-title"
+              className="text-lg font-semibold tracking-tight"
+            >
+              {statusConfirm.isActive
+                ? "Deactivate user?"
+                : "Activate user?"}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {statusConfirm.isActive
+                ? `Are you sure you want to deactivate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
+                : `Are you sure you want to activate ${statusConfirm.firstName} ${statusConfirm.lastName}?`}
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={togglingId === statusConfirm.id}
+                onClick={() => setStatusConfirm(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className={
+                  statusConfirm.isActive
+                    ? "bg-slate-700 text-white hover:bg-slate-800"
+                    : "bg-asphalt-mid text-white hover:bg-asphalt"
+                }
+                disabled={togglingId === statusConfirm.id}
+                onClick={() => void confirmToggleActive()}
+              >
+                {togglingId === statusConfirm.id ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Updating…
+                  </>
+                ) : statusConfirm.isActive ? (
+                  "Deactivate"
+                ) : (
+                  "Activate"
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}

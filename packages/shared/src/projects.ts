@@ -57,7 +57,15 @@ export const projectRouteSchema = z.object({
 });
 
 export const projectSchema = z.object({
-  jobNumber: z.string().min(1).max(40),
+  jobNumber: z
+    .string()
+    .max(40)
+    .optional()
+    .nullable()
+    .transform((v) => {
+      const trimmed = v?.trim();
+      return trimmed ? trimmed : undefined;
+    }),
   name: z.string().min(1).max(200),
   division: divisionEnum,
   /// Extra divisions on this job (tasks can span multiple)

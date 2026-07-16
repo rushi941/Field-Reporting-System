@@ -13,6 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  ModalCloseButton,
+  UnsavedCloseDialog,
+} from "@/components/unsaved-close-dialog";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type Bid = {
@@ -76,6 +80,15 @@ export function TasksPage() {
   const [mode, setMode] = useState<"master" | "sub">("master");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState(emptyForm);
+  const [formBaseline, setFormBaseline] = useState("");
+  const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+
+  function snapshotForm(next: typeof emptyForm) {
+    return JSON.stringify(next);
+  }
+
+  const isDirty =
+    open && formBaseline !== "" && snapshotForm(form) !== formBaseline;
 
   async function load() {
     setLoading(true);
@@ -130,28 +143,34 @@ export function TasksPage() {
   function openCreateMaster() {
     setEditingId(null);
     setMode("master");
-    setForm({ ...emptyForm, parentId: "" });
+    const next = { ...emptyForm, parentId: "" };
+    setForm(next);
+    setFormBaseline(snapshotForm(next));
+    setUnsavedPrompt(false);
     setOpen(true);
   }
 
   function openCreateSub(parent: Bid) {
     setEditingId(null);
     setMode("sub");
-    setForm({
+    const next = {
       ...emptyForm,
       parentId: parent.id,
       division: parent.division ?? "PAVEMENT_MARKING",
       projectTypeId: parent.projectType?.id ?? "",
       unit: parent.unit || "LF",
       formType: parent.formType || "STA_RANGE",
-    });
+    };
+    setForm(next);
+    setFormBaseline(snapshotForm(next));
+    setUnsavedPrompt(false);
     setOpen(true);
   }
 
   function openEdit(bid: Bid) {
     setEditingId(bid.id);
     setMode(bid.parentId ? "sub" : "master");
-    setForm({
+    const next = {
       code: bid.code,
       name: bid.name,
       unit: bid.unit,
@@ -161,8 +180,26 @@ export function TasksPage() {
       division: bid.division ?? "PAVEMENT_MARKING",
       description: bid.description ?? "",
       isActive: bid.isActive,
-    });
+    };
+    setForm(next);
+    setFormBaseline(snapshotForm(next));
+    setUnsavedPrompt(false);
     setOpen(true);
+  }
+
+  function closeForm() {
+    setOpen(false);
+    setUnsavedPrompt(false);
+    setFormBaseline("");
+  }
+
+  function requestCloseForm() {
+    if (saving) return;
+    if (isDirty) {
+      setUnsavedPrompt(true);
+      return;
+    }
+    closeForm();
   }
 
   async function onSave(e: React.FormEvent) {
@@ -205,7 +242,7 @@ export function TasksPage() {
           id: "bid-master",
         });
       }
-      setOpen(false);
+      closeForm();
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed", {
@@ -457,18 +494,38 @@ export function TasksPage() {
         </div>
       )}
 
+      <UnsavedCloseDialog
+        open={unsavedPrompt}
+        saving={saving}
+        onStay={() => setUnsavedPrompt(false)}
+        onDiscard={closeForm}
+        onSave={() => {
+          setUnsavedPrompt(false);
+          const formEl = document.getElementById(
+            "bid-form-modal",
+          ) as HTMLFormElement | null;
+          formEl?.requestSubmit();
+        }}
+      />
+
       {open && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
           <form
+            id="bid-form-modal"
             onSubmit={onSave}
             className="relative z-[2001] max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
           >
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {mode === "sub"
-                ? "Sub-bid inherits context from its master — set division clearly."
-                : "Create a master bid, then add sub-bids under it."}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {mode === "sub"
+                    ? "Sub-bid inherits context from its master — set division clearly."
+                    : "Create a master bid, then add sub-bids under it."}
+                </p>
+              </div>
+              <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {mode === "sub" && (
                 <div className="space-y-1.5 sm:col-span-2">
@@ -598,7 +655,8 @@ export function TasksPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                disabled={saving}
+                onClick={requestCloseForm}
               >
                 Cancel
               </Button>
@@ -607,7 +665,11 @@ export function TasksPage() {
                 className="bg-asphalt-mid text-white hover:bg-asphalt"
                 disabled={saving}
               >
-                {saving ? "Saving…" : "Save"}
+                {saving
+                  ? "Saving…"
+                  : editingId
+                    ? "Save changes"
+                    : "Save"}
               </Button>
             </div>
           </form>

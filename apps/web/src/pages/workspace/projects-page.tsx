@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { roleLabels, type AppRole } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +11,18 @@ import {
   RouteMapPicker,
   type RouteValue,
 } from "@/components/route-map-picker";
+import {
+  ModalCloseButton,
+  UnsavedCloseDialog,
+} from "@/components/unsaved-close-dialog";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
-type ManagerOpt = { id: string; name: string; email: string };
+type ManagerOpt = {
+  id: string;
+  name: string;
+  email: string;
+  roles?: string[];
+};
 type Project = {
   id: string;
   jobNumber: string;
@@ -67,6 +77,14 @@ function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
 }
 
+function managerOptionLabel(m: ManagerOpt): string {
+  const primary = (["SYSTEM_ADMIN", "PROJECT_ADMIN", "DIVISION_MANAGER"] as const).find(
+    (r) => m.roles?.includes(r),
+  );
+  const role = primary ? roleLabels[primary as AppRole] : "PM";
+  return `${m.name} · ${role}`;
+}
+
 export function ProjectsPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -79,8 +97,19 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [routeDraft, setRouteDraft] = useState<RouteValue | null>(null);
+  const [formBaseline, setFormBaseline] = useState("");
+  const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+
+  function snapshotForm(nextForm: typeof emptyForm, nextRoute: RouteValue | null) {
+    return JSON.stringify({ form: nextForm, route: nextRoute });
+  }
+
+  const isDirty =
+    open && formBaseline !== "" && snapshotForm(form, routeDraft) !== formBaseline;
 
   async function load() {
     setLoading(true);
@@ -110,12 +139,14 @@ export function ProjectsPage() {
     setEditingId(null);
     setForm(emptyForm);
     setRouteDraft(null);
+    setFormBaseline(snapshotForm(emptyForm, null));
+    setUnsavedPrompt(false);
     setOpen(true);
   }
 
   function openEdit(p: Project) {
     setEditingId(p.id);
-    setForm({
+    const nextForm = {
       jobNumber: p.jobNumber,
       name: p.name,
       division: p.division,
@@ -129,9 +160,27 @@ export function ProjectsPage() {
       endDate: p.endDate ?? "",
       notes: p.notes ?? "",
       status: p.status,
-    });
+    };
+    setForm(nextForm);
     setRouteDraft(p.route);
+    setFormBaseline(snapshotForm(nextForm, p.route));
+    setUnsavedPrompt(false);
     setOpen(true);
+  }
+
+  function closeForm() {
+    setOpen(false);
+    setUnsavedPrompt(false);
+    setFormBaseline("");
+  }
+
+  function requestCloseForm() {
+    if (saving) return;
+    if (isDirty) {
+      setUnsavedPrompt(true);
+      return;
+    }
+    closeForm();
   }
 
   function openDetail(id: string) {
@@ -144,14 +193,10 @@ export function ProjectsPage() {
       toast.error("Select a project manager", { id: "project-form" });
       return;
     }
-    if (!routeDraft) {
-      toast.error("Pin work route A → B on the map", { id: "project-form" });
-      return;
-    }
     setSaving(true);
     try {
       const payload = {
-        jobNumber: form.jobNumber,
+        jobNumber: form.jobNumber.trim() || null,
         name: form.name,
         division: form.division,
         projectTypeId: form.projectTypeId || null,
@@ -164,7 +209,7 @@ export function ProjectsPage() {
         endDate: form.endDate || null,
         notes: form.notes || null,
         status: form.status,
-        route: routeDraft,
+        route: routeDraft ?? null,
         taskIds: [] as string[],
       };
       if (editingId) {
@@ -179,12 +224,12 @@ export function ProjectsPage() {
           body: JSON.stringify(payload),
         });
         toast.success("Project created", { id: "project-form" });
-        setOpen(false);
+        closeForm();
         await load();
         navigate(`${base}/projects/${created.project.id}`);
         return;
       }
-      setOpen(false);
+      closeForm();
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed", {
@@ -192,6 +237,23 @@ export function ProjectsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/projects/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      setProjects((list) => list.filter((p) => p.id !== deleteTarget.id));
+      toast.success(`Deleted ${deleteTarget.jobNumber}`);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -261,14 +323,24 @@ export function ProjectsPage() {
                       className="px-4 py-3 text-right"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Edit project"
-                        onClick={() => openEdit(p)}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Edit project"
+                          onClick={() => openEdit(p)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Delete project"
+                          onClick={() => setDeleteTarget(p)}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -278,29 +350,97 @@ export function ProjectsPage() {
         </div>
       )}
 
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="project-delete-title"
+            className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl"
+          >
+            <h2
+              id="project-delete-title"
+              className="text-lg font-semibold tracking-tight"
+            >
+              Delete project?
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget.jobNumber} — {deleteTarget.name}
+              </span>
+              ? This cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Deleting…
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <UnsavedCloseDialog
+        open={unsavedPrompt}
+        saving={saving}
+        onStay={() => setUnsavedPrompt(false)}
+        onDiscard={closeForm}
+        onSave={() => {
+          setUnsavedPrompt(false);
+          const formEl = document.getElementById(
+            "project-form-modal",
+          ) as HTMLFormElement | null;
+          formEl?.requestSubmit();
+        }}
+      />
+
       {open && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
           <form
+            id="project-form-modal"
             onSubmit={onSave}
             className="relative z-[2001] max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
           >
-            <h2 className="text-lg font-semibold">
-              {editingId ? "Edit project" : "New project"}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Set PM, division, job details, and pin the work route (A → B) on
-              the map.
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {editingId ? "Edit project" : "New project"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Set PM, division, and job details. Route is optional.
+                </p>
+              </div>
+              <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
+            </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Job number</Label>
                 <Input
                   value={form.jobNumber}
+                  placeholder="Auto if blank (e.g. JOB-2026-0001)"
                   onChange={(e) =>
                     setForm((f) => ({ ...f, jobNumber: e.target.value }))
                   }
-                  required
                 />
               </div>
               <div className="space-y-1.5">
@@ -373,7 +513,7 @@ export function ProjectsPage() {
                   <option value="">— Select PM —</option>
                   {managers.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} ({m.email})
+                      {managerOptionLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -451,7 +591,7 @@ export function ProjectsPage() {
 
             <div className="mt-5 space-y-2 border-t border-border pt-4">
               <div>
-                <Label>Work route *</Label>
+                <Label>Work route (optional)</Label>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Search or click the map to set start (A) and end (B)
                 </p>
@@ -460,7 +600,12 @@ export function ProjectsPage() {
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={requestCloseForm}
+              >
                 Cancel
               </Button>
               <Button
@@ -468,7 +613,11 @@ export function ProjectsPage() {
                 className="bg-asphalt-mid text-white hover:bg-asphalt"
                 disabled={saving}
               >
-                {saving ? "Saving…" : editingId ? "Save" : "Create project"}
+                {saving
+                  ? "Saving…"
+                  : editingId
+                    ? "Save changes"
+                    : "Create project"}
               </Button>
             </div>
           </form>

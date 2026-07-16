@@ -58,41 +58,48 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-grid-noise grid min-h-svh lg:grid-cols-2">
-      <section className="relative flex flex-col justify-center px-5 py-8 sm:px-10 lg:px-14 xl:px-20">
-        <div className="animate-fade-up mx-auto w-full max-w-md">
-          <div className="mb-8 lg:mb-10">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center bg-asphalt shadow-[3px_3px_0_0_var(--color-lane)]">
-                <span className="font-display text-lg font-bold text-lane">AT</span>
+    <div className="auth-grid-noise grid min-h-svh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <section className="relative flex flex-col px-6 py-8 sm:px-10 lg:px-16 xl:px-24">
+        <div className="animate-fade-up mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center">
+          <header className="mb-10">
+            <div className="flex items-center gap-3.5">
+              <div className="flex size-12 shrink-0 items-center justify-center bg-asphalt shadow-[3px_3px_0_0_var(--color-lane)]">
+                <span className="font-display text-xl font-bold leading-none text-lane">
+                  AT
+                </span>
               </div>
-              <div>
-                <p className="font-display text-xl font-semibold tracking-wide text-asphalt-mid sm:text-2xl">
+              <div className="min-w-0">
+                <p className="font-display text-2xl font-semibold tracking-tight text-asphalt-mid sm:text-[1.75rem]">
                   Advance Traffic
                 </p>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   Field Reporting System
                 </p>
               </div>
             </div>
 
-            <h1 className="font-display text-3xl font-semibold text-asphalt-mid sm:text-4xl">
-              Sign in
-            </h1>
-          </div>
+            <div className="mt-10 border-t border-border/80 pt-8">
+              <h1 className="font-display text-4xl font-semibold tracking-tight text-asphalt-mid sm:text-[2.75rem]">
+                Sign in
+              </h1>
+            </div>
+          </header>
 
           <form
-            className="space-y-5 rounded-md border border-border bg-card/90 p-5 shadow-sm backdrop-blur-sm sm:p-6"
+            className="space-y-6"
             onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
           >
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium text-foreground">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
                 autoComplete="username"
                 placeholder="you@company.com"
-                className="h-11 bg-background"
+                className="h-12 rounded-md border-border bg-card px-3.5 text-[15px] shadow-none transition-shadow focus-visible:border-asphalt-mid focus-visible:ring-asphalt-mid/20"
                 disabled={submitting}
                 {...form.register("email")}
               />
@@ -104,19 +111,24 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label
+                htmlFor="password"
+                className="text-sm font-medium text-foreground"
+              >
+                Password
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  className="h-11 bg-background pr-11"
+                  className="h-12 rounded-md border-border bg-card px-3.5 pr-12 text-[15px] shadow-none transition-shadow focus-visible:border-asphalt-mid focus-visible:ring-asphalt-mid/20"
                   disabled={submitting}
                   {...form.register("password")}
                 />
                 <button
                   type="button"
-                  className="absolute right-1.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   tabIndex={-1}
@@ -136,7 +148,7 @@ export function LoginPage() {
             </div>
 
             <Button
-              className="h-11 w-full bg-asphalt-mid font-semibold text-lane hover:bg-asphalt hover:text-lane"
+              className="mt-1 h-12 w-full rounded-md bg-asphalt-mid text-[15px] font-semibold tracking-wide text-lane shadow-[0_1px_0_0_rgba(0,0,0,0.2)] transition hover:bg-asphalt hover:text-lane"
               type="submit"
               disabled={submitting}
             >
