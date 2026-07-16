@@ -6,6 +6,7 @@ import {
   FolderKanban,
   ListChecks,
   Loader2,
+  Ruler,
   Shield,
   Tags,
   Users,
@@ -85,6 +86,13 @@ export function WorkspaceOverviewPage({
       title: "Project types",
       body: "Master list for pavement marking, traffic control, signs, and more.",
       icon: Tags,
+      permission: "projects.manage",
+    },
+    {
+      to: `${base}/units`,
+      title: "Units",
+      body: "Units of measure — LF, EA, LS, and more for bids and reporting.",
+      icon: Ruler,
       permission: "projects.manage",
     },
     {

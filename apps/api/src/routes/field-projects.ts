@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@frs/db";
+import { projectDivisions } from "@frs/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
@@ -68,9 +69,7 @@ fieldProjectsRouter.get(
         generalContractor: p.generalContractor,
         location: p.location,
         projectType: p.projectType,
-        divisions: [
-          ...new Set([p.division, ...p.tasks.map((t) => t.division)]),
-        ],
+        divisions: projectDivisions(p.division, p.extraDivisions),
         tasks: p.tasks.map((t) => ({
           id: t.id,
           division: t.division,

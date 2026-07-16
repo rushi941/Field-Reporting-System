@@ -27,8 +27,10 @@ import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
+import type { TaskNode } from "@/components/project-task-picker";
 
 type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
+type UnitOpt = { id: string; code: string; name: string };
 
 type ProjectTask = {
   id: string;
@@ -57,6 +59,7 @@ type ProjectDetail = {
   jobNumber: string;
   name: string;
   division: string;
+  divisions: string[];
   location: string | null;
   status: string;
   projectType: { id: string; code: string; name: string } | null;
@@ -69,6 +72,7 @@ type TableRow = {
   taskMasterId: string;
   code: string;
   name: string;
+  division: string;
   unit: string;
   formType: string;
   color: string | null;
@@ -92,7 +96,9 @@ const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const emptyTaskForm = {
+  division: "",
   lineTypeKey: "",
+  taskTemplateId: "",
   name: "",
   color: "W" as LineColorCode,
   widthInches: 4 as LineWidth,
@@ -119,6 +125,7 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
     taskMasterId: t.taskMasterId,
     code: t.taskMaster.code,
     name: t.taskMaster.name,
+    division: t.division,
     unit: t.taskMaster.unit,
     formType: t.taskMaster.formType,
     color: t.taskMaster.color,
@@ -150,6 +157,8 @@ export function ProjectDetailPage() {
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [fieldLeads, setFieldLeads] = useState<FieldLeadOpt[]>([]);
+  const [units, setUnits] = useState<UnitOpt[]>([]);
+  const [taskTree, setTaskTree] = useState<TaskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -170,10 +179,16 @@ export function ProjectDetailPage() {
     try {
       const [p, lookups] = await Promise.all([
         apiFetch<{ project: ProjectDetail }>(`/api/v1/projects/${projectId}`),
-        apiFetch<{ fieldLeads: FieldLeadOpt[] }>("/api/v1/projects/lookups"),
+        apiFetch<{
+          fieldLeads: FieldLeadOpt[];
+          taskTree: TaskNode[];
+          units: UnitOpt[];
+        }>("/api/v1/projects/lookups"),
       ]);
       setProject(p.project);
       setFieldLeads(lookups.fieldLeads);
+      setTaskTree(lookups.taskTree);
+      setUnits(lookups.units);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load project");
       navigate(`${base}/projects`);
@@ -191,7 +206,37 @@ export function ProjectDetailPage() {
     [project],
   );
 
-  const projectFieldLeads = useMemo(() => fieldLeads, [fieldLeads]);
+  const projectDivisions = useMemo(
+    () =>
+      project && project.divisions.length > 0
+        ? project.divisions
+        : project
+          ? [project.division]
+          : [],
+    [project],
+  );
+
+  const projectFieldLeads = useMemo(() => {
+    if (!form.division) return fieldLeads;
+    return fieldLeads.filter(
+      (u) => !u.division || u.division === form.division,
+    );
+  }, [fieldLeads, form.division]);
+
+  const isPavementTask = form.division === "PAVEMENT_MARKING";
+
+  const divisionTaskOptions = useMemo(() => {
+    if (!form.division || isPavementTask) return [];
+    return taskTree
+      .filter((t) => t.division === form.division)
+      .flatMap((master) => [
+        master,
+        ...master.children.map((child) => ({
+          ...child,
+          children: [],
+        })),
+      ]);
+  }, [taskTree, form.division, isPavementTask]);
 
   const selectedLineType = useMemo(
     () =>
@@ -221,8 +266,10 @@ export function ProjectDetailPage() {
   }, [form.beginSta, form.endSta, form.conversionFactor]);
 
   function openCreate() {
-    setForm(emptyTaskForm);
-    setFormBaseline(snapshotForm(emptyTaskForm));
+    const defaultDivision = projectDivisions[0] ?? "PAVEMENT_MARKING";
+    const next = { ...emptyTaskForm, division: defaultDivision };
+    setForm(next);
+    setFormBaseline(snapshotForm(next));
     setUnsavedPrompt(false);
     setAddOpen(true);
   }
@@ -241,6 +288,37 @@ export function ProjectDetailPage() {
       return;
     }
     closeTaskForm();
+  }
+
+  function onDivisionChange(division: string) {
+    setForm((f) => ({
+      ...f,
+      division,
+      lineTypeKey: "",
+      taskTemplateId: "",
+      name: "",
+      assignedToId: "",
+      conversionFactor: "1.00",
+    }));
+  }
+
+  function onTaskTemplateChange(id: string) {
+    const template = divisionTaskOptions.find((t) => t.id === id);
+    if (!template) {
+      setForm((f) => ({ ...f, taskTemplateId: id }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      taskTemplateId: id,
+      name: template.name,
+      unit: template.unit,
+      formType: template.formType,
+      conversionFactor:
+        template.conversionFactor != null
+          ? Number(template.conversionFactor).toFixed(2)
+          : "1.00",
+    }));
   }
 
   function onLineTypeChange(key: string) {
@@ -353,6 +431,7 @@ export function ProjectDetailPage() {
             conversionFactor: cf,
             description: form.description.trim() || null,
             assignedToId: form.assignedToId,
+            division: form.division,
             beginSta: parseStaInput(form.beginSta),
             endSta: parseStaInput(form.endSta),
           }),
@@ -399,7 +478,9 @@ export function ProjectDetailPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {[
               project.projectType?.name,
-              divisionLabels[project.division] ?? project.division,
+              projectDivisions
+                .map((d) => divisionLabels[d] ?? d)
+                .join(", "),
               project.location,
               project.status,
             ]
@@ -434,6 +515,7 @@ export function ProjectDetailPage() {
                 <th className="w-20 px-4 py-3">WBS</th>
                 <th className="w-28 px-4 py-3">Code</th>
                 <th className="px-4 py-3">Task name</th>
+                <th className="w-36 px-4 py-3">Division</th>
                 <th className="w-20 px-4 py-3">Unit</th>
                 <th className="w-28 px-4 py-3">Form</th>
                 <th className="w-20 px-4 py-3">Color</th>
@@ -447,7 +529,7 @@ export function ProjectDetailPage() {
               {taskRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={11}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> to create work
@@ -465,6 +547,9 @@ export function ProjectDetailPage() {
                   </td>
                   <td className="px-4 py-2.5 font-mono text-xs">{row.code}</td>
                   <td className="px-4 py-2.5">{row.name}</td>
+                  <td className="px-4 py-2.5 text-xs">
+                    {divisionLabels[row.division] ?? row.division}
+                  </td>
                   <td className="px-4 py-2.5 text-xs">{row.unit}</td>
                   <td className="px-4 py-2.5 text-xs">
                     {formLabels[row.formType] ?? row.formType}
@@ -534,22 +619,63 @@ export function ProjectDetailPage() {
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Line type</Label>
-                <select
-                  className={selectClass}
-                  value={form.lineTypeKey}
-                  onChange={(e) => onLineTypeChange(e.target.value)}
-                >
-                  <option value="">— Select line type —</option>
-                  {pavementLineTypes.map((d) => (
-                    <option key={lineTypeKey(d)} value={lineTypeKey(d)}>
-                      {d.prefix}
-                      {d.color} — {d.name} ({LINE_COLORS[d.color]})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {projectDivisions.length > 1 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Division *</Label>
+                  <select
+                    className={selectClass}
+                    value={form.division}
+                    onChange={(e) => onDivisionChange(e.target.value)}
+                    required
+                  >
+                    {projectDivisions.map((d) => (
+                      <option key={d} value={d}>
+                        {divisionLabels[d] ?? d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {isPavementTask ? (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Line type</Label>
+                  <select
+                    className={selectClass}
+                    value={form.lineTypeKey}
+                    onChange={(e) => onLineTypeChange(e.target.value)}
+                  >
+                    <option value="">— Select line type —</option>
+                    {pavementLineTypes.map((d) => (
+                      <option key={lineTypeKey(d)} value={lineTypeKey(d)}>
+                        {d.prefix}
+                        {d.color} — {d.name} ({LINE_COLORS[d.color]})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Task type</Label>
+                  <select
+                    className={selectClass}
+                    value={form.taskTemplateId}
+                    onChange={(e) => onTaskTemplateChange(e.target.value)}
+                  >
+                    <option value="">— Select task type —</option>
+                    {divisionTaskOptions.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} — {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  {divisionTaskOptions.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No master tasks for this division yet — enter a name below
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Task name *</Label>
@@ -576,7 +702,7 @@ export function ProjectDetailPage() {
                   <option value="">— Select field person —</option>
                   {projectFieldLeads.length === 0 ? (
                     <option value="" disabled>
-                      No field leads found — add users with Field Lead role
+                      No field leads for this division — add users with Field Lead role
                     </option>
                   ) : (
                     projectFieldLeads.map((u) => (
@@ -594,6 +720,8 @@ export function ProjectDetailPage() {
                 </p>
               </div>
 
+              {isPavementTask && (
+                <>
               <div className="space-y-1.5">
                 <Label>Color</Label>
                 <select
@@ -633,9 +761,11 @@ export function ProjectDetailPage() {
                 <Input
                   value={lineCode || "—"}
                   readOnly
-                  className="bg-muted font-mono"
+                  className="bg-card font-mono"
                 />
               </div>
+                </>
+              )}
 
               <div className="space-y-1.5">
                 <Label>Conversion factor (CF) *</Label>
@@ -656,12 +786,24 @@ export function ProjectDetailPage() {
 
               <div className="space-y-1.5">
                 <Label>Unit</Label>
-                <Input
+                <select
+                  className={selectClass}
                   value={form.unit}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, unit: e.target.value }))
                   }
-                />
+                  required
+                >
+                  {units.length === 0 ? (
+                    <option value={form.unit}>{form.unit}</option>
+                  ) : (
+                    units.map((u) => (
+                      <option key={u.id} value={u.code}>
+                        {u.code} — {u.name}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -712,7 +854,7 @@ export function ProjectDetailPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+            <div className="mt-4 rounded-md border border-border bg-card px-4 py-3 text-sm">
               <p className="font-medium">Calculation</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Physical LF = (End STA − Begin STA) × 100 · Reported LF =

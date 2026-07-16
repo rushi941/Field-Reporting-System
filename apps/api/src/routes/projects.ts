@@ -10,6 +10,7 @@ import {
   projectSchema,
   updateProjectSchema,
   projectCreateTaskSchema,
+  projectDivisions,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -71,15 +72,14 @@ function mapRoute(route: ProjectLoaded["route"]) {
 }
 
 function mapProject(p: ProjectLoaded) {
-  const taskDivisions = [
-    ...new Set(p.tasks.map((t) => t.division)),
-  ];
+  const configured = projectDivisions(p.division, p.extraDivisions);
   return {
     id: p.id,
     jobNumber: p.jobNumber,
     name: p.name,
     division: p.division,
-    divisions: [...new Set([p.division, ...taskDivisions])],
+    extraDivisions: p.extraDivisions,
+    divisions: configured,
     projectTypeId: p.projectTypeId,
     projectType: p.projectType,
     projectManagerId: p.projectManagerId,
@@ -195,7 +195,10 @@ async function resolveJobNumber(
   throw new AppError("INTERNAL_ERROR", "Could not allocate job number", 500);
 }
 
-async function assertFieldLead(userId: string | null | undefined) {
+async function assertFieldLead(
+  userId: string | null | undefined,
+  taskDivision?: Division,
+) {
   if (!userId) {
     throw new AppError("VALIDATION_ERROR", "Field person is required", 400);
   }
@@ -205,6 +208,7 @@ async function assertFieldLead(userId: string | null | undefined) {
       isActive: true,
       roles: { some: { role: "FIELD_LEAD" } },
     },
+    select: { id: true, division: true },
   });
   if (!user) {
     throw new AppError(
@@ -213,6 +217,48 @@ async function assertFieldLead(userId: string | null | undefined) {
       400,
     );
   }
+  if (taskDivision && user.division && user.division !== taskDivision) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Field person must belong to the task division",
+      400,
+    );
+  }
+}
+
+function storedExtraDivisions(
+  division: Division,
+  divisions: Division[] | undefined,
+): Division[] {
+  return [...new Set((divisions ?? []).filter((d) => d !== division))];
+}
+
+/** Remove project and all dependent rows (reports, tasks, attachments, etc.) */
+async function deleteProjectCascade(
+  projectId: string,
+  tx: Prisma.TransactionClient,
+) {
+  const reports = await tx.report.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+  const reportIds = reports.map((r) => r.id);
+
+  if (reportIds.length > 0) {
+    await tx.auditLog.deleteMany({
+      where: { reportId: { in: reportIds } },
+    });
+    await tx.reportLineItem.deleteMany({
+      where: { reportId: { in: reportIds } },
+    });
+    await tx.report.deleteMany({ where: { projectId } });
+  }
+
+  await tx.attachment.deleteMany({ where: { projectId } });
+  await tx.projectRoute.deleteMany({ where: { projectId } });
+  await tx.projectTask.deleteMany({ where: { projectId } });
+  await tx.bidItem.deleteMany({ where: { projectId } });
+  await tx.project.delete({ where: { id: projectId } });
 }
 
 async function syncProjectTasks(projectId: string, taskIds: string[]) {
@@ -233,16 +279,44 @@ async function syncProjectTasks(projectId: string, taskIds: string[]) {
     }
   }
 
+  const existing = await prisma.projectTask.findMany({
+    where: { projectId },
+    select: {
+      id: true,
+      taskMasterId: true,
+      assignedToId: true,
+      division: true,
+    },
+  });
+  const keepByMaster = new Map(
+    existing.map((t) => [
+      t.taskMasterId,
+      { assignedToId: t.assignedToId, division: t.division },
+    ]),
+  );
+  const nextMasterIds = new Set(unique);
+  const toRemove = existing.filter((t) => !nextMasterIds.has(t.taskMasterId));
+
+  if (toRemove.length > 0) {
+    await prisma.reportLineItem.deleteMany({
+      where: { projectTaskId: { in: toRemove.map((t) => t.id) } },
+    });
+  }
+
   await prisma.projectTask.deleteMany({ where: { projectId } });
   if (masters.length === 0) return;
 
   await prisma.projectTask.createMany({
-    data: masters.map((m, i) => ({
-      projectId,
-      taskMasterId: m.id,
-      division: m.division as Division,
-      sortOrder: i,
-    })),
+    data: masters.map((m, i) => {
+      const kept = keepByMaster.get(m.id);
+      return {
+        projectId,
+        taskMasterId: m.id,
+        division: (kept?.division ?? m.division) as Division,
+        assignedToId: kept?.assignedToId ?? null,
+        sortOrder: i,
+      };
+    }),
   });
 }
 
@@ -296,7 +370,7 @@ async function syncProjectRoute(
 projectsRouter.get(
   "/lookups",
   asyncHandler(async (_req, res) => {
-    const [projectTypes, managers, fieldLeads, taskRows] = await Promise.all([
+    const [projectTypes, managers, fieldLeads, taskRows, units] = await Promise.all([
       prisma.projectType.findMany({
         where: { isActive: true },
         select: { id: true, code: true, name: true, division: true },
@@ -352,6 +426,11 @@ projectsRouter.get(
         },
         orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       }),
+      prisma.unitMaster.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true },
+        orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+      }),
     ]);
 
     const childrenByParent = new Map<string, typeof taskRows>();
@@ -393,6 +472,7 @@ projectsRouter.get(
         division: u.division,
       })),
       taskTree,
+      units,
     });
   }),
 );
@@ -445,6 +525,10 @@ projectsRouter.post(
         jobNumber,
         name: body.name,
         division: body.division as Division,
+        extraDivisions: storedExtraDivisions(
+          body.division as Division,
+          body.divisions as Division[] | undefined,
+        ),
         projectTypeId: body.projectTypeId ?? null,
         projectManagerId: body.projectManagerId ?? null,
         clientName: body.clientName ?? null,
@@ -479,7 +563,20 @@ projectsRouter.post(
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
 
-    await assertFieldLead(body.assignedToId);
+    const allowedDivisions = projectDivisions(
+      project.division,
+      project.extraDivisions,
+    );
+    const taskDivision = (body.division ?? project.division) as Division;
+    if (!allowedDivisions.includes(taskDivision)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Task division must be on the project",
+        400,
+      );
+    }
+
+    await assertFieldLead(body.assignedToId, taskDivision);
 
     const code = (body.code ?? body.name).trim().toUpperCase().replace(/\s+/g, "-");
     if (!code) {
@@ -494,7 +591,7 @@ projectsRouter.post(
           name: body.name,
           unit: body.unit ?? "LF",
           formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
-          division: project.division,
+          division: taskDivision,
           color: body.color ?? null,
           widthInches: body.widthInches ?? null,
           conversionFactor: body.conversionFactor,
@@ -528,7 +625,7 @@ projectsRouter.post(
         projectId,
         taskMasterId: master.id,
         assignedToId: body.assignedToId,
-        division: project.division,
+        division: taskDivision,
         sortOrder: count,
       },
     });
@@ -567,6 +664,15 @@ projectsRouter.patch(
       await assertProjectManager(body.projectManagerId);
     }
 
+    const nextDivision = (body.division ?? existing.division) as Division;
+    const nextExtras =
+      body.divisions !== undefined || body.division !== undefined
+        ? storedExtraDivisions(
+            nextDivision,
+            (body.divisions ?? existing.extraDivisions) as Division[],
+          )
+        : undefined;
+
     await prisma.project.update({
       where: { id },
       data: {
@@ -577,6 +683,7 @@ projectsRouter.patch(
         ...(body.division !== undefined
           ? { division: body.division as Division }
           : {}),
+        ...(nextExtras !== undefined ? { extraDivisions: nextExtras } : {}),
         ...(body.projectTypeId !== undefined
           ? { projectTypeId: body.projectTypeId }
           : {}),
@@ -626,22 +733,7 @@ projectsRouter.delete(
     const existing = await prisma.project.findUnique({ where: { id } });
     if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
 
-    const reportCount = await prisma.report.count({ where: { projectId: id } });
-    if (reportCount > 0) {
-      throw new AppError(
-        "CONFLICT",
-        "Cannot delete a project that has reports. Set status to Inactive instead.",
-        409,
-      );
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.projectRoute.deleteMany({ where: { projectId: id } });
-      await tx.projectTask.deleteMany({ where: { projectId: id } });
-      await tx.bidItem.deleteMany({ where: { projectId: id } });
-      await tx.attachment.deleteMany({ where: { projectId: id } });
-      await tx.project.delete({ where: { id } });
-    });
+    await prisma.$transaction((tx) => deleteProjectCascade(id, tx));
 
     res.json({ ok: true });
   }),

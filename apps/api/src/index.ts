@@ -14,6 +14,7 @@ import { fieldReportsRouter } from "./routes/field-reports.js";
 import { approvalsRouter } from "./routes/approvals.js";
 import { billingRouter } from "./routes/billing.js";
 import { projectTypesRouter } from "./routes/project-types.js";
+import { unitsRouter } from "./routes/units.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { projectsRouter } from "./routes/projects.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -91,6 +92,7 @@ app.use("/api/v1/field/reports", fieldReportsRouter);
 app.use("/api/v1/approvals", approvalsRouter);
 app.use("/api/v1/billing", billingRouter);
 app.use("/api/v1/project-types", projectTypesRouter);
+app.use("/api/v1/units", unitsRouter);
 app.use("/api/v1/tasks", tasksRouter);
 app.use("/api/v1/projects", projectsRouter);
 

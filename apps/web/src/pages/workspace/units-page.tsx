@@ -1,0 +1,186 @@
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Loader2, Pencil, Plus } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+type UnitRow = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export function UnitsPage() {
+  const [rows, setRows] = useState<UnitRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ code: "", name: "" });
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ units: UnitRow[] }>("/api/v1/units?active=true");
+      setRows(data.units);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load units");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  function openCreate() {
+    setEditingId(null);
+    setForm({ code: "", name: "" });
+    setOpen(true);
+  }
+
+  function openEdit(row: UnitRow) {
+    setEditingId(row.id);
+    setForm({ code: row.code, name: row.name });
+    setOpen(true);
+  }
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { code: form.code, name: form.name };
+      if (editingId) {
+        await apiFetch(`/api/v1/units/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        toast.success("Unit updated");
+      } else {
+        await apiFetch("/api/v1/units", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        toast.success("Unit created");
+      }
+      setOpen(false);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Masters
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Units
+          </h1>
+        </div>
+        <Button
+          className="bg-asphalt-mid text-white hover:bg-asphalt"
+          onClick={openCreate}
+        >
+          <Plus className="size-4" /> Add unit
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <table className="w-full min-w-[400px] text-left text-sm">
+            <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-b last:border-0 hover:bg-muted/30"
+                >
+                  <td className="px-4 py-3 font-medium">{r.code}</td>
+                  <td className="px-4 py-3">{r.name}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                      <Pencil className="size-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <form
+            onSubmit={onSave}
+            className="w-full max-w-md rounded-lg border bg-card p-6 shadow-xl"
+          >
+            <h2 className="text-lg font-semibold">
+              {editingId ? "Edit unit" : "New unit"}
+            </h2>
+            <div className="mt-4 space-y-3">
+              <div className="space-y-1.5">
+                <Label>Code</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, code: e.target.value }))
+                  }
+                  placeholder="LF"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  placeholder="Linear Feet"
+                  required
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-asphalt-mid text-white hover:bg-asphalt"
+                disabled={saving}
+              >
+                {saving ? "Saving…" : editingId ? "Save changes" : "Create"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

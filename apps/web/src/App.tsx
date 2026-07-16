@@ -14,6 +14,7 @@ import { WorkspaceOverviewPage } from "@/pages/workspace/overview-page";
 import { ProjectsPage } from "@/pages/workspace/projects-page";
 import { ProjectDetailPage } from "@/pages/workspace/project-detail-page";
 import { ProjectTypesPage } from "@/pages/workspace/project-types-page";
+import { UnitsPage } from "@/pages/workspace/units-page";
 import { TasksPage } from "@/pages/workspace/tasks-page";
 import { BillingRollupPage } from "@/pages/workspace/billing-rollup-page";
 import { BillingDrilldownPage } from "@/pages/workspace/billing-drilldown-page";
@@ -64,6 +65,14 @@ function projectRoutes(base: "system" | "office") {
         element={
           <RequirePermission permission="projects.manage">
             <ProjectTypesPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="units"
+        element={
+          <RequirePermission permission="projects.manage">
+            <UnitsPage />
           </RequirePermission>
         }
       />

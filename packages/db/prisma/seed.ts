@@ -15,6 +15,7 @@ import {
   roles as appRoles,
   seedProjectTypes,
   seedTaskMasters,
+  seedUnitMasters,
   type AppRole,
   type PermissionAccessValue,
   type PermissionKey,
@@ -62,6 +63,27 @@ async function seedPermissions() {
 
 async function seedMasters() {
   const typeIds: Record<string, string> = {};
+
+  for (const u of seedUnitMasters) {
+    await prisma.unitMaster.upsert({
+      where: { code: u.code },
+      update: {
+        name: u.name,
+        sortOrder: u.sortOrder,
+        isActive: true,
+      },
+      create: {
+        code: u.code,
+        name: u.name,
+        sortOrder: u.sortOrder,
+      },
+    });
+  }
+
+  await prisma.unitMaster.updateMany({
+    where: { code: { in: ["DAY", "HR"] } },
+    data: { isActive: false },
+  });
 
   for (const t of seedProjectTypes) {
     const row = await prisma.projectType.upsert({

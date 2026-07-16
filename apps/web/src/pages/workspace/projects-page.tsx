@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { roleLabels, type AppRole } from "@frs/shared";
+import { roleLabels, splitProjectDivisions, type AppRole } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
+import { DivisionMultiSelect } from "@/components/division-multi-select";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type ManagerOpt = {
@@ -49,7 +50,7 @@ type Project = {
 const emptyForm = {
   jobNumber: "",
   name: "",
-  division: "PAVEMENT_MARKING",
+  selectedDivisions: ["PAVEMENT_MARKING"] as string[],
   projectTypeId: "",
   projectManagerId: "",
   clientName: "",
@@ -67,6 +68,15 @@ const divisionLabels: Record<string, string> = {
   TRAFFIC_CONTROL: "Traffic Control",
   PERMANENT_SIGNS: "Permanent Signs",
 };
+
+const divisionOptions = Object.entries(divisionLabels).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+function formatDivisions(divisions: string[]) {
+  return divisions.map((d) => divisionLabels[d] ?? d).join(", ");
+}
 
 const statuses = ["ACTIVE", "INACTIVE", "COMPLETED"] as const;
 
@@ -149,7 +159,8 @@ export function ProjectsPage() {
     const nextForm = {
       jobNumber: p.jobNumber,
       name: p.name,
-      division: p.division,
+      selectedDivisions:
+        p.divisions.length > 0 ? p.divisions : [p.division],
       projectTypeId: p.projectTypeId ?? "",
       projectManagerId: p.projectManagerId ?? "",
       clientName: p.clientName ?? "",
@@ -193,12 +204,22 @@ export function ProjectsPage() {
       toast.error("Select a project manager", { id: "project-form" });
       return;
     }
+    if (form.selectedDivisions.length === 0) {
+      toast.error("Select at least one division", { id: "project-form" });
+      return;
+    }
     setSaving(true);
     try {
+      const { division, divisions } = splitProjectDivisions(
+        form.selectedDivisions as Array<
+          "PAVEMENT_MARKING" | "TRAFFIC_CONTROL" | "PERMANENT_SIGNS"
+        >,
+      );
       const payload = {
         jobNumber: form.jobNumber.trim() || null,
         name: form.name,
-        division: form.division,
+        division,
+        divisions,
         projectTypeId: form.projectTypeId || null,
         projectManagerId: form.projectManagerId || null,
         clientName: form.clientName || null,
@@ -310,7 +331,9 @@ export function ProjectsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {divisionLabels[p.division] ?? p.division}
+                      {formatDivisions(
+                        p.divisions.length > 0 ? p.divisions : [p.division],
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {p.route ? "Pinned" : "—"}
@@ -369,7 +392,8 @@ export function ProjectsPage() {
               <span className="font-medium text-foreground">
                 {deleteTarget.jobNumber} — {deleteTarget.name}
               </span>
-              ? This cannot be undone.
+              ? All tasks, field assignments, and reports on this job will be
+              removed. This cannot be undone.
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <Button
@@ -426,7 +450,7 @@ export function ProjectsPage() {
                   {editingId ? "Edit project" : "New project"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Set PM, division, and job details. Route is optional.
+                  Set PM, divisions, and job details. Route is optional.
                 </p>
               </div>
               <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
@@ -484,21 +508,19 @@ export function ProjectsPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Division</Label>
-                <select
-                  className={selectClass}
-                  value={form.division}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, division: e.target.value }))
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Divisions</Label>
+                <p className="text-xs text-muted-foreground">
+                  Select one or more — tasks can be created for each division
+                </p>
+                <DivisionMultiSelect
+                  value={form.selectedDivisions}
+                  onChange={(selectedDivisions) =>
+                    setForm((f) => ({ ...f, selectedDivisions }))
                   }
-                >
-                  {Object.entries(divisionLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  options={divisionOptions}
+                  disabled={saving}
+                />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Project manager *</Label>

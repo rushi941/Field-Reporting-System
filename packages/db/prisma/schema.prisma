@@ -209,6 +209,20 @@ model ProjectType {
   @@index([isActive, sortOrder])
 }
 
+/// Units of measure for bid items and field reporting (LF, EA, etc.)
+model UnitMaster {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 /// Catalog of standard roadway contractor work items (task master)
 /// Parent rows are master tasks; children are sub-tasks (`parentId`).
 model TaskMaster {
@@ -250,6 +264,8 @@ model Project {
   name              String
   /// Primary division (approval routing default)
   division          Division
+  /// Additional divisions on this job (multi-discipline work)
+  extraDivisions    Division[]    @default([])
   projectTypeId     String?
   projectType       ProjectType?  @relation(fields: [projectTypeId], references: [id])
   /// Internal project manager (division manager / project admin)

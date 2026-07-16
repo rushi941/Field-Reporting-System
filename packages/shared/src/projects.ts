@@ -93,6 +93,7 @@ export const projectCreateTaskSchema = z.object({
   code: z.string().min(1).max(40).optional(),
   unit: z.string().min(1).max(20).optional().default("LF"),
   formType: formTypeEnum.optional().default("STA_RANGE"),
+  division: divisionEnum.optional(),
   color: z.string().max(40).optional().nullable(),
   widthInches: z.number().int().positive().optional().nullable(),
   conversionFactor: z.number().nonnegative(),
@@ -102,6 +103,25 @@ export const projectCreateTaskSchema = z.object({
   beginSta: z.number().optional().nullable(),
   endSta: z.number().optional().nullable(),
 });
+
+/** All divisions on a project (primary + extras, deduped). */
+export function projectDivisions(
+  division: z.infer<typeof divisionEnum>,
+  extraDivisions: z.infer<typeof divisionEnum>[] = [],
+): z.infer<typeof divisionEnum>[] {
+  return [...new Set([division, ...extraDivisions])];
+}
+
+/** Split selected divisions into primary + extras for persistence. */
+export function splitProjectDivisions(
+  selected: z.infer<typeof divisionEnum>[],
+): { division: z.infer<typeof divisionEnum>; divisions: z.infer<typeof divisionEnum>[] } {
+  const unique = [...new Set(selected)];
+  if (unique.length === 0) {
+    throw new Error("At least one division is required");
+  }
+  return { division: unique[0], divisions: unique.slice(1) };
+}
 
 export type ProjectCreateTaskInput = z.infer<typeof projectCreateTaskSchema>;
 
