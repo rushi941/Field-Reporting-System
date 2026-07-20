@@ -10,6 +10,7 @@ type UnitRow = {
   id: string;
   code: string;
   name: string;
+  isActive: boolean;
 };
 
 export function UnitsPage() {
@@ -18,12 +19,12 @@ export function UnitsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ code: "", name: "" });
+  const [form, setForm] = useState({ code: "", name: "", isActive: true });
 
   async function load() {
     setLoading(true);
     try {
-      const data = await apiFetch<{ units: UnitRow[] }>("/api/v1/units?active=true");
+      const data = await apiFetch<{ units: UnitRow[] }>("/api/v1/units");
       setRows(data.units);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load units");
@@ -38,13 +39,13 @@ export function UnitsPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ code: "", name: "" });
+    setForm({ code: "", name: "", isActive: true });
     setOpen(true);
   }
 
   function openEdit(row: UnitRow) {
     setEditingId(row.id);
-    setForm({ code: row.code, name: row.name });
+    setForm({ code: row.code, name: row.name, isActive: row.isActive });
     setOpen(true);
   }
 
@@ -52,7 +53,11 @@ export function UnitsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { code: form.code, name: form.name };
+      const payload = {
+        code: form.code,
+        name: form.name,
+        isActive: form.isActive,
+      };
       if (editingId) {
         await apiFetch(`/api/v1/units/${editingId}`, {
           method: "PATCH",
@@ -85,6 +90,10 @@ export function UnitsPage() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
             Units
           </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Used as the Unit dropdown on Bid master. Deactivate to hide from new
+            bids without deleting history.
+          </p>
         </div>
         <Button
           className="bg-asphalt-mid text-white hover:bg-asphalt"
@@ -100,15 +109,26 @@ export function UnitsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[400px] text-left text-sm">
+          <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-10 text-center text-sm text-muted-foreground"
+                  >
+                    No units yet. Add LF, EA, and other codes used on bids.
+                  </td>
+                </tr>
+              )}
               {rows.map((r) => (
                 <tr
                   key={r.id}
@@ -116,6 +136,9 @@ export function UnitsPage() {
                 >
                   <td className="px-4 py-3 font-medium">{r.code}</td>
                   <td className="px-4 py-3">{r.name}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {r.isActive ? "Active" : "Inactive"}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
                       <Pencil className="size-4" />
@@ -160,6 +183,16 @@ export function UnitsPage() {
                   required
                 />
               </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, isActive: e.target.checked }))
+                  }
+                />
+                Active
+              </label>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button

@@ -58,12 +58,3 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     next(new AppError("UNAUTHORIZED", "Invalid or expired token", 401));
   }
 }
-
-export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
-  const roles = req.user?.roles ?? [];
-  const ok = roles.includes("SYSTEM_ADMIN") || roles.includes("PROJECT_ADMIN");
-  if (!ok) {
-    return next(new AppError("FORBIDDEN", "Admin access required", 403));
-  }
-  next();
-}

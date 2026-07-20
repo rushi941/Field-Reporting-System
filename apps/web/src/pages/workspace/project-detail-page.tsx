@@ -27,7 +27,7 @@ import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
-import type { TaskNode } from "@/components/project-task-picker";
+import type { TaskNode } from "@/types/task-tree";
 
 type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
 type UnitOpt = { id: string; code: string; name: string };

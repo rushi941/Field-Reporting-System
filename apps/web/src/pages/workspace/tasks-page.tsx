@@ -19,6 +19,7 @@ import {
 } from "@/components/unsaved-close-dialog";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
+type UnitOpt = { id: string; code: string; name: string; isActive?: boolean };
 type Bid = {
   id: string;
   code: string;
@@ -71,6 +72,7 @@ const emptyForm = {
 export function TasksPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [types, setTypes] = useState<ProjectTypeOpt[]>([]);
+  const [units, setUnits] = useState<UnitOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -93,14 +95,16 @@ export function TasksPage() {
   async function load() {
     setLoading(true);
     try {
-      const [t, pt] = await Promise.all([
+      const [t, pt, u] = await Promise.all([
         apiFetch<{ tasks: Bid[] }>("/api/v1/tasks"),
         apiFetch<{ projectTypes: ProjectTypeOpt[] }>(
           "/api/v1/project-types?active=true",
         ),
+        apiFetch<{ units: UnitOpt[] }>("/api/v1/units?active=true"),
       ]);
       setBids(t.tasks);
       setTypes(pt.projectTypes);
+      setUnits(u.units);
       const exp: Record<string, boolean> = {};
       t.tasks.filter((b) => !b.parentId).forEach((b) => {
         exp[b.id] = true;
@@ -114,6 +118,22 @@ export function TasksPage() {
       setLoading(false);
     }
   }
+
+  const defaultUnitCode = useMemo(() => {
+    const lf = units.find((u) => u.code.toUpperCase() === "LF");
+    return lf?.code ?? units[0]?.code ?? "LF";
+  }, [units]);
+
+  const unitOptions = useMemo(() => {
+    const opts = [...units];
+    if (
+      form.unit &&
+      !opts.some((u) => u.code.toUpperCase() === form.unit.toUpperCase())
+    ) {
+      opts.push({ id: `legacy-${form.unit}`, code: form.unit, name: form.unit });
+    }
+    return opts;
+  }, [units, form.unit]);
 
   useEffect(() => {
     void load();
@@ -143,7 +163,7 @@ export function TasksPage() {
   function openCreateMaster() {
     setEditingId(null);
     setMode("master");
-    const next = { ...emptyForm, parentId: "" };
+    const next = { ...emptyForm, parentId: "", unit: defaultUnitCode };
     setForm(next);
     setFormBaseline(snapshotForm(next));
     setUnsavedPrompt(false);
@@ -158,7 +178,7 @@ export function TasksPage() {
       parentId: parent.id,
       division: parent.division ?? "PAVEMENT_MARKING",
       projectTypeId: parent.projectType?.id ?? "",
-      unit: parent.unit || "LF",
+      unit: parent.unit || defaultUnitCode,
       formType: parent.formType || "STA_RANGE",
     };
     setForm(next);
@@ -210,6 +230,10 @@ export function TasksPage() {
     }
     if (mode === "sub" && !form.parentId) {
       toast.error("Select a master bid for this sub-bid", { id: "bid-master" });
+      return;
+    }
+    if (!form.unit.trim()) {
+      toast.error("Select a unit", { id: "bid-master" });
       return;
     }
     setSaving(true);
@@ -541,6 +565,7 @@ export function TasksPage() {
                         division:
                           parent?.division ?? f.division ?? "PAVEMENT_MARKING",
                         projectTypeId: parent?.projectType?.id ?? f.projectTypeId,
+                        unit: parent?.unit || f.unit || defaultUnitCode,
                       }));
                     }}
                     required
@@ -582,17 +607,30 @@ export function TasksPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Unit</Label>
-                <Input
+                <Label>Unit *</Label>
+                <select
+                  className={selectClass}
                   value={form.unit}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, unit: e.target.value }))
                   }
                   required
-                />
+                >
+                  <option value="">— Select unit —</option>
+                  {unitOptions.map((u) => (
+                    <option key={u.id} value={u.code}>
+                      {u.code} — {u.name}
+                    </option>
+                  ))}
+                </select>
+                {units.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No active units. Add units under Masters → Units first.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Name</Label>
+                <Label>Generic name *</Label>
                 <Input
                   value={form.name}
                   onChange={(e) =>
