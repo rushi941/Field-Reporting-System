@@ -25,7 +25,7 @@ export type UploadInput = {
  * - local (default) — writes under UPLOAD_DIR, served at /uploads
  * - s3 — production; requires AWS_S3_BUCKET + credentials (not fully wired yet)
  */
-export type StorageDriver = "local" | "s3";
+type StorageDriver = "local" | "s3";
 
 function driver(): StorageDriver {
   const d = (process.env.STORAGE_DRIVER ?? "local").toLowerCase();
@@ -92,8 +92,4 @@ export async function storeUpload(input: UploadInput): Promise<StoredFile> {
 
 export function getUploadRoot() {
   return uploadRoot();
-}
-
-export function getStorageDriver() {
-  return driver();
 }

@@ -189,8 +189,3 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
     </div>
   );
 }
-
-/** @deprecated use WorkspaceLayout */
-export function SystemLayout() {
-  return <WorkspaceLayout kind="system" />;
-}

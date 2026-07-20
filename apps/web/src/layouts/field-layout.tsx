@@ -1,7 +1,7 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, FolderKanban, LogOut, Menu, X } from "lucide-react";
+import { ClipboardList, FolderKanban, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,20 @@ const navItems = [
   { to: "/field/reports", label: "Reports", icon: ClipboardList },
 ];
 
+function isFieldListPage(pathname: string) {
+  return (
+    pathname === "/field" ||
+    pathname === "/field/projects" ||
+    pathname === "/field/reports"
+  );
+}
+
 export function FieldLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const showBottomNav = isFieldListPage(location.pathname);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -56,7 +65,6 @@ export function FieldLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
@@ -107,40 +115,98 @@ export function FieldLayout() {
     <div className="flex min-h-svh bg-background">
       <div className="sticky top-0 hidden h-svh shrink-0 md:block">{sidebar}</div>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50"
-            aria-label="Close menu"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="relative h-full w-72 shadow-xl">{sidebar}</div>
-        </div>
-      )}
-
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 backdrop-blur md:h-14 md:bg-card/95 md:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt md:hidden">
+              AT
+            </div>
+            <div className="min-w-0 md:hidden">
+              {showBottomNav ? (
+                <>
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    Field Reporting
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                </>
+              ) : (
+                <p className="truncate text-sm font-semibold text-foreground">
+                  Daily report
+                </p>
+              )}
+            </div>
+            <p className="hidden truncate text-sm font-semibold text-foreground md:block">
+              Field Reporting
+            </p>
+          </div>
+
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setMobileOpen((o) => !o)}
-            aria-label="Open menu"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground md:hidden"
+            onClick={handleLogout}
+            disabled={loggingOut}
           >
-            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            <LogOut className="size-4" />
+            <span className="sr-only sm:not-sr-only">
+              {loggingOut ? "…" : "Log out"}
+            </span>
           </Button>
-          <p className="truncate text-sm font-semibold text-foreground">
-            Field Reporting
-          </p>
         </header>
 
-        <main className="flex-1 px-4 py-5">
+        <main
+          className={cn(
+            "flex-1 px-3 py-4 md:px-4 md:py-5",
+            showBottomNav ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-5" : "pb-4",
+          )}
+        >
           <div className="mx-auto w-full max-w-lg">
             <Outlet />
           </div>
         </main>
+
+        {showBottomNav && (
+          <nav
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+            aria-label="Field navigation"
+          >
+            <div className="mx-auto flex max-w-lg">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/field/projects" || item.to === "/field/reports"}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold transition-colors",
+                        isActive
+                          ? "text-asphalt-mid"
+                          : "text-muted-foreground",
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          className={cn(
+                            "size-5",
+                            isActive ? "text-asphalt-mid" : "text-muted-foreground",
+                          )}
+                        />
+                        {item.label}
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </div>
     </div>
   );

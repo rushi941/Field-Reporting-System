@@ -222,12 +222,12 @@ export function FieldProjectDetailPage() {
     !report || report.status === "DRAFT" || report.status === "RETURNED";
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-5 pb-6">
       <Link
         to="/field/projects"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-sm font-medium text-sky-800 hover:text-sky-900"
       >
-        <ArrowLeft className="size-4" /> Projects
+        <ArrowLeft className="size-5" /> All projects
       </Link>
 
       <div>
@@ -261,7 +261,7 @@ export function FieldProjectDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label className="text-xs" htmlFor="report-date">
             Report date
@@ -321,9 +321,9 @@ export function FieldProjectDetailPage() {
         </p>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Tap a task to enter quantities, then save or submit for approval from
-        the task screen.
+      <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
+        Tap a task below to enter quantities. Save or submit from the task
+        screen.
       </p>
 
       <ul className="space-y-2">
@@ -344,9 +344,9 @@ export function FieldProjectDetailPage() {
                   )
                 }
                 className={cn(
-                  "w-full rounded-lg border border-border bg-card px-4 py-3 text-left shadow-sm transition",
+                  "min-h-[4.5rem] w-full rounded-xl border border-border bg-card px-4 py-4 text-left shadow-sm transition",
                   editable
-                    ? "hover:border-sky-300 hover:bg-sky-50/40"
+                    ? "active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                     : "opacity-70",
                   busy && "opacity-60",
                 )}

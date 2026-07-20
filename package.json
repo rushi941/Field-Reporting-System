@@ -16,7 +16,8 @@
     "db:migrate:deploy": "npm run db:migrate:deploy -w @frs/db",
     "db:seed": "npm run db:seed -w @frs/db",
     "db:seed:admin": "npm run db:seed:admin -w @frs/db",
-    "stop": "node scripts/stop-dev.mjs"
+    "stop": "node scripts/stop-dev.mjs",
+    "smoke": "node scripts/smoke-browser.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

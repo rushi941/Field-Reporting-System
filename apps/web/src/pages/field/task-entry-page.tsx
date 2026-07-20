@@ -85,6 +85,11 @@ const formLabels: Record<string, string> = {
   SINGLE_LOCATION: "Single Location",
 };
 
+const selectClass =
+  "flex h-12 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+
+const inputClass = "h-12 text-base";
+
 function emptySta(cf: number): StaSeg {
   return {
     beginSta: "",
@@ -121,10 +126,21 @@ function calcPreview(seg: StaSeg): string {
   }
 }
 
+function TaskMetaBadge({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold leading-snug">{value}</p>
+    </div>
+  );
+}
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p className="text-[11px] text-destructive" role="alert">
+    <p className="text-xs text-destructive" role="alert">
       {message}
     </p>
   );
@@ -473,122 +489,113 @@ export function FieldTaskEntryPage() {
   }
 
   return (
-    <div className="space-y-4 pb-10">
+    <div className={cn("space-y-5", editable && "pb-36 md:pb-10")}>
       <Link
         to={`/field/projects/${projectId}`}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-sm font-medium text-sky-800 hover:text-sky-900"
       >
-        <ArrowLeft className="size-4" /> Back
+        <ArrowLeft className="size-5" /> Back to tasks
       </Link>
 
-      <div>
-        <h1 className="text-lg font-semibold text-sky-900">
-          {task.taskMaster.code} — {task.taskMaster.name}
-        </h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {project.jobNumber} · {project.name}
-          {project.location ? ` — ${project.location}` : ""}
+      <div className="space-y-2">
+        <p className="font-mono text-sm font-bold text-sky-900">
+          {task.taskMaster.code}
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">
+        <h1 className="text-base font-semibold leading-snug text-foreground sm:text-lg">
+          {task.taskMaster.name}
+        </h1>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {project.jobNumber} · {project.name}
+          {project.location ? ` · ${project.location}` : ""}
+        </p>
+        <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
           {isSta
-            ? "Add a row for each line segment. All rows submit as one entry under this task."
-            : "Enter each location / symbol quantity for this task."}
+            ? "Add one row per line segment. All rows save together under this task."
+            : "Add each location and quantity for this task."}
         </p>
         {!editable && (
-          <p className="mt-2 rounded-md border bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground">
+          <p className="rounded-lg border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
             Report is {report.status.replaceAll("_", " ").toLowerCase()} and
             locked.
           </p>
         )}
       </div>
 
-      <div className="rounded-lg border border-border bg-sky-50/50 p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          From task (editable)
-        </p>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <p className="text-[11px] text-muted-foreground">Line code</p>
-            <p className="font-mono font-medium">{task.taskMaster.code}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground">Form</p>
-            <p className="font-medium">
-              {formLabels[task.taskMaster.formType] ?? task.taskMaster.formType}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground">Color</p>
-            <p className="font-medium">{task.taskMaster.color ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground">Width</p>
-            <p className="font-medium">
-              {task.taskMaster.widthInches != null
+      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+        <h2 className="text-sm font-semibold text-foreground">Task details</h2>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <TaskMetaBadge label="Line code" value={task.taskMaster.code} />
+          <TaskMetaBadge
+            label="Form"
+            value={
+              formLabels[task.taskMaster.formType] ?? task.taskMaster.formType
+            }
+          />
+          <TaskMetaBadge label="Unit" value={defaultUnit || task.taskMaster.unit} />
+          <TaskMetaBadge label="Color" value={task.taskMaster.color ?? "—"} />
+          <TaskMetaBadge
+            label="Width"
+            value={
+              task.taskMaster.widthInches != null
                 ? `${task.taskMaster.widthInches}"`
-                : "—"}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]" htmlFor="default-cf">
-              Conv. Factor
+                : "—"
+            }
+          />
+        </div>
+
+        {isSta && (
+          <div className="space-y-2 border-t border-border pt-3">
+            <Label className="text-sm" htmlFor="default-cf">
+              Conversion factor (all segments)
             </Label>
-            <div className="flex gap-2">
+            <p className="text-xs text-muted-foreground">
+              1.0 = single line · 2.0 = double line
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="default-cf"
                 type="number"
                 min={0}
                 step="0.01"
+                inputMode="decimal"
                 disabled={!editable || busy}
                 aria-invalid={Boolean(defaultCfError)}
-                className={cn(defaultCfError && "border-destructive")}
+                className={cn(inputClass, "sm:max-w-[140px]", defaultCfError && "border-destructive")}
                 value={defaultCf}
                 onChange={(e) => {
                   setDefaultCf(e.target.value);
                   setDefaultCfError(undefined);
                 }}
               />
-              {isSta && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={!editable || busy}
-                  onClick={applyDefaultCfToSegments}
-                >
-                  Apply
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full sm:w-auto sm:px-6"
+                disabled={!editable || busy}
+                onClick={applyDefaultCfToSegments}
+              >
+                Apply to all segments
+              </Button>
             </div>
             <FieldError message={defaultCfError} />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]" htmlFor="default-unit">
-              Unit
+        )}
+
+        {!isSta && (
+          <div className="space-y-2 border-t border-border pt-3">
+            <Label className="text-sm" htmlFor="default-symbol">
+              Default symbol / item
             </Label>
             <Input
-              id="default-unit"
+              id="default-symbol"
               disabled={!editable || busy}
-              value={defaultUnit}
-              onChange={(e) => setDefaultUnit(e.target.value)}
+              className={inputClass}
+              value={defaultSymbol}
+              onChange={(e) => setDefaultSymbol(e.target.value)}
             />
           </div>
-          {!isSta && (
-            <div className="col-span-2 space-y-1">
-              <Label className="text-[11px]" htmlFor="default-symbol">
-                Default symbol / item
-              </Label>
-              <Input
-                id="default-symbol"
-                disabled={!editable || busy}
-                value={defaultSymbol}
-                onChange={(e) => setDefaultSymbol(e.target.value)}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </section>
 
       {isSta ? (
         <div className="space-y-3">
@@ -597,10 +604,10 @@ export function FieldTaskEntryPage() {
             return (
               <div
                 key={i}
-                className="space-y-3 rounded-lg border border-border bg-muted/30 p-3"
+                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     Segment {i + 1}
                   </p>
                   {staSegs.length > 1 && editable && (
@@ -621,9 +628,9 @@ export function FieldTaskEntryPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs" htmlFor={`begin-${i}`}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor={`begin-${i}`}>
                       Begin STA
                     </Label>
                     <Input
@@ -631,7 +638,7 @@ export function FieldTaskEntryPage() {
                       placeholder="e.g. 1+00"
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.beginSta)}
-                      className={cn(err.beginSta && "border-destructive")}
+                      className={cn(inputClass, err.beginSta && "border-destructive")}
                       value={seg.beginSta}
                       onChange={(e) =>
                         updateSta(i, { beginSta: e.target.value }, "beginSta")
@@ -639,8 +646,8 @@ export function FieldTaskEntryPage() {
                     />
                     <FieldError message={err.beginSta} />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs" htmlFor={`end-${i}`}>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor={`end-${i}`}>
                       End STA
                     </Label>
                     <Input
@@ -648,7 +655,7 @@ export function FieldTaskEntryPage() {
                       placeholder="e.g. 6+00"
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.endSta)}
-                      className={cn(err.endSta && "border-destructive")}
+                      className={cn(inputClass, err.endSta && "border-destructive")}
                       value={seg.endSta}
                       onChange={(e) =>
                         updateSta(i, { endSta: e.target.value }, "endSta")
@@ -658,10 +665,10 @@ export function FieldTaskEntryPage() {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-xs">
+                <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 text-sm">
                   <input
                     type="checkbox"
-                    className="size-4"
+                    className="size-5 shrink-0"
                     disabled={!editable || busy}
                     checked={seg.useManualLf}
                     onChange={(e) =>
@@ -675,19 +682,21 @@ export function FieldTaskEntryPage() {
                   Enter footage directly (manual LF)
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs" htmlFor={`cf-${i}`}>
-                      Conv. Factor
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor={`cf-${i}`}>
+                      Conv. factor
                     </Label>
                     <Input
                       id={`cf-${i}`}
                       type="number"
                       min={0}
                       step="0.01"
+                      inputMode="decimal"
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.conversionFactor)}
                       className={cn(
+                        inputClass,
                         err.conversionFactor && "border-destructive",
                       )}
                       value={seg.conversionFactor}
@@ -700,12 +709,9 @@ export function FieldTaskEntryPage() {
                       }
                     />
                     <FieldError message={err.conversionFactor} />
-                    <p className="text-[10px] text-muted-foreground">
-                      1.0 = single · 2.0 = double line
-                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs" htmlFor={`lf-${i}`}>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor={`lf-${i}`}>
                       {seg.useManualLf ? "Manual LF" : "Calculated LF"}
                     </Label>
                     {seg.useManualLf ? (
@@ -715,9 +721,10 @@ export function FieldTaskEntryPage() {
                           type="number"
                           min={0}
                           step="0.01"
+                          inputMode="decimal"
                           disabled={!editable || busy}
                           aria-invalid={Boolean(err.manualLf)}
-                          className={cn(err.manualLf && "border-destructive")}
+                          className={cn(inputClass, err.manualLf && "border-destructive")}
                           value={seg.manualLf}
                           onChange={(e) =>
                             updateSta(
@@ -733,7 +740,7 @@ export function FieldTaskEntryPage() {
                       <Input
                         id={`lf-${i}`}
                         readOnly
-                        className="bg-muted"
+                        className={cn(inputClass, "bg-muted font-semibold")}
                         value={calcPreview(seg)}
                       />
                     )}
@@ -747,7 +754,7 @@ export function FieldTaskEntryPage() {
             <button
               type="button"
               disabled={busy}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
               onClick={() =>
                 setStaSegs((rows) => [
                   ...rows,
@@ -755,7 +762,7 @@ export function FieldTaskEntryPage() {
                 ])
               }
             >
-              <Plus className="size-4" /> Add Line Segment
+              <Plus className="size-5" /> Add line segment
             </button>
           )}
         </div>
@@ -766,10 +773,10 @@ export function FieldTaskEntryPage() {
             return (
               <div
                 key={i}
-                className="space-y-3 rounded-lg border border-border bg-muted/30 p-3"
+                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     Location {i + 1}
                   </p>
                   {locSegs.length > 1 && editable && (
@@ -789,8 +796,8 @@ export function FieldTaskEntryPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs" htmlFor={`loc-${i}`}>
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`loc-${i}`}>
                     Station / location
                   </Label>
                   <Input
@@ -799,6 +806,7 @@ export function FieldTaskEntryPage() {
                     disabled={!editable || busy}
                     aria-invalid={Boolean(err.locationDescription)}
                     className={cn(
+                      inputClass,
                       err.locationDescription && "border-destructive",
                     )}
                     value={seg.locationDescription}
@@ -812,8 +820,8 @@ export function FieldTaskEntryPage() {
                   />
                   <FieldError message={err.locationDescription} />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs" htmlFor={`sym-${i}`}>
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`sym-${i}`}>
                     Symbol / item type
                   </Label>
                   <Input
@@ -821,7 +829,7 @@ export function FieldTaskEntryPage() {
                     placeholder="e.g. Left turn arrow"
                     disabled={!editable || busy}
                     aria-invalid={Boolean(err.symbolItemType)}
-                    className={cn(err.symbolItemType && "border-destructive")}
+                    className={cn(inputClass, err.symbolItemType && "border-destructive")}
                     value={seg.symbolItemType}
                     onChange={(e) =>
                       updateLoc(
@@ -833,8 +841,8 @@ export function FieldTaskEntryPage() {
                   />
                   <FieldError message={err.symbolItemType} />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs" htmlFor={`qty-${i}`}>
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`qty-${i}`}>
                     Quantity ({defaultUnit || task.taskMaster.unit})
                   </Label>
                   <Input
@@ -842,9 +850,10 @@ export function FieldTaskEntryPage() {
                     type="number"
                     min={0}
                     step="0.01"
+                    inputMode="decimal"
                     disabled={!editable || busy}
                     aria-invalid={Boolean(err.quantity)}
-                    className={cn(err.quantity && "border-destructive")}
+                    className={cn(inputClass, err.quantity && "border-destructive")}
                     value={seg.quantity}
                     onChange={(e) =>
                       updateLoc(i, { quantity: e.target.value }, "quantity")
@@ -870,18 +879,18 @@ export function FieldTaskEntryPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-border">
-        <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-2">
-          <p className="text-sm font-medium">Report total</p>
-          <p className="tabular-nums text-sm font-semibold">
+      <div className="rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
+          <p className="text-sm font-semibold">Report total</p>
+          <p className="tabular-nums text-base font-bold">
             {reportTotal > 0
               ? `${reportTotal.toLocaleString()} ${defaultUnit || task.taskMaster.unit}`
               : "—"}
           </p>
         </div>
-        <div className="space-y-3 p-3">
-          <div className="space-y-1">
-            <Label className="text-xs" htmlFor="entry-notes">
+        <div className="space-y-4 p-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm" htmlFor="entry-notes">
               Notes
             </Label>
             <textarea
@@ -889,7 +898,7 @@ export function FieldTaskEntryPage() {
               disabled={!editable || busy}
               aria-invalid={Boolean(notesError)}
               className={cn(
-                "min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                "min-h-24 w-full rounded-lg border border-input bg-card px-3 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                 notesError && "border-destructive",
               )}
               placeholder="Conditions, partial work, issues…"
@@ -904,7 +913,7 @@ export function FieldTaskEntryPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Attachments</Label>
+            <Label className="text-sm">Attachments</Label>
             {report.attachments.length > 0 && (
               <ul className="space-y-2">
                 {report.attachments.map((a) => {
@@ -947,7 +956,7 @@ export function FieldTaskEntryPage() {
             {editable && (
               <div className="space-y-2">
                 <select
-                  className="flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm disabled:opacity-50"
+                  className={selectClass}
                   value={attachCategory}
                   disabled={busy}
                   onChange={(e) => setAttachCategory(e.target.value)}
@@ -992,36 +1001,38 @@ export function FieldTaskEntryPage() {
       </div>
 
       {editable && (
-        <div className="sticky bottom-0 z-10 -mx-1 space-y-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 w-full"
-            disabled={busy}
-            onClick={() => void saveToReport()}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Saving…
-              </>
-            ) : (
-              "Save"
-            )}
-          </Button>
-          <Button
-            type="button"
-            className="h-12 w-full bg-sky-800 text-white hover:bg-sky-900"
-            disabled={busy}
-            onClick={() => void saveAndSubmit()}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Submitting…
-              </>
-            ) : (
-              "Submit for approval"
-            )}
-          </Button>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 py-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+          <div className="mx-auto flex max-w-lg flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 w-full text-base"
+              disabled={busy}
+              onClick={() => void saveToReport()}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                "Save & go back"
+              )}
+            </Button>
+            <Button
+              type="button"
+              className="h-12 w-full bg-sky-800 text-base text-white hover:bg-sky-900"
+              disabled={busy}
+              onClick={() => void saveAndSubmit()}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Submitting…
+                </>
+              ) : (
+                "Submit for approval"
+              )}
+            </Button>
+          </div>
         </div>
       )}
     </div>
