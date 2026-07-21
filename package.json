@@ -21,7 +21,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "daily:work": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/daily-work-flow.ps1",
+    "daily:schedule": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-daily-task.ps1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
