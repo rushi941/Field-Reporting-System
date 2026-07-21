@@ -4,6 +4,7 @@ import { prisma, type Division, type Role } from "@frs/db";
 import { createUserSchema, updateUserSchema } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
+import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
 
@@ -190,21 +191,70 @@ usersRouter.patch(
 usersRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const id = routeParam(req.params.id);
     if (req.user?.id === id) {
-      throw new AppError("BAD_REQUEST", "You cannot deactivate your own account here", 400);
+      throw new AppError("BAD_REQUEST", "You cannot delete your own account", 400);
     }
 
-    const existing = await prisma.user.findUnique({ where: { id } });
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            reportsSubmitted: true,
+            reportsApproved: true,
+            projectsManaged: true,
+            projectTasksAssigned: true,
+            directReports: true,
+            crewsManaged: true,
+            attachments: true,
+            auditLogs: true,
+            importRuns: true,
+          },
+        },
+      },
+    });
     if (!existing) throw new AppError("NOT_FOUND", "User not found", 404);
 
-    // Soft-delete: deactivate (keeps audit history)
-    const user = await prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-      include: userInclude,
+    const inUse =
+      existing._count.reportsSubmitted > 0 ||
+      existing._count.reportsApproved > 0 ||
+      existing._count.projectsManaged > 0 ||
+      existing._count.projectTasksAssigned > 0 ||
+      existing._count.directReports > 0 ||
+      existing._count.crewsManaged > 0 ||
+      existing._count.attachments > 0 ||
+      existing._count.auditLogs > 0 ||
+      existing._count.importRuns > 0;
+
+    if (inUse) {
+      const user = await prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+        include: userInclude,
+      });
+      res.json({
+        user: mapUser(user),
+        mode: "deactivated" as const,
+        message:
+          "User has history on reports or projects and was deactivated instead of removed.",
+      });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { managerId: id },
+        data: { managerId: null },
+      });
+      await tx.crew.updateMany({
+        where: { managerId: id },
+        data: { managerId: null },
+      });
+      await tx.userRole.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
     });
 
-    res.json({ user: mapUser(user) });
+    res.json({ ok: true, mode: "deleted" as const });
   }),
 );

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { roles, roleLabels, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
+import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,11 +29,14 @@ const emptyForm: FormState = {
 };
 
 export function SystemUsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [statusConfirm, setStatusConfirm] = useState<ManagedUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -157,6 +161,33 @@ export function SystemUsersPage() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      const result = await apiFetch<{
+        mode?: "deleted" | "deactivated";
+        message?: string;
+      }>(`/api/v1/users/${deleteTarget.id}`, { method: "DELETE" });
+      if (result.mode === "deactivated") {
+        toast.success(
+          result.message ??
+            `${deleteTarget.firstName} ${deleteTarget.lastName} deactivated`,
+        );
+      } else {
+        toast.success(
+          `Deleted ${deleteTarget.firstName} ${deleteTarget.lastName}`,
+        );
+      }
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -241,6 +272,16 @@ export function SystemUsersPage() {
                         >
                           <Pencil className="size-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Delete user"
+                          aria-label="Delete user"
+                          disabled={currentUser?.id === u.id}
+                          onClick={() => setDeleteTarget(u)}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -299,6 +340,46 @@ export function SystemUsersPage() {
                   "Deactivate"
                 ) : (
                   "Activate"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h2 className="text-lg font-semibold tracking-tight">Delete user?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget.firstName} {deleteTarget.lastName} ({deleteTarget.email})
+              </span>
+              ? Users with report or project history are deactivated instead of
+              permanently removed.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Deleting…
+                  </>
+                ) : (
+                  "Delete"
                 )}
               </Button>
             </div>
