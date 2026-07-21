@@ -1,0 +1,98 @@
+[
+  {
+    "id": "login",
+    "file": "01-login.png",
+    "role": "Public",
+    "route": "/login"
+  },
+  {
+    "id": "field-projects",
+    "file": "02-field-projects.png",
+    "role": "Field Lead",
+    "route": "/field/projects"
+  },
+  {
+    "id": "field-reports",
+    "file": "03-field-reports.png",
+    "role": "Field Lead",
+    "route": "/field/reports"
+  },
+  {
+    "id": "field-report-detail",
+    "file": "06-field-report-detail.png",
+    "role": "Field Lead",
+    "route": "/field/reports/cmru6iawf0001trh8lqtrm177"
+  },
+  {
+    "id": "approvals-queue",
+    "file": "07-approvals-queue.png",
+    "role": "Division Manager",
+    "route": "/approvals"
+  },
+  {
+    "id": "approvals-history",
+    "file": "08-approvals-history.png",
+    "role": "Division Manager",
+    "route": "/approvals/history"
+  },
+  {
+    "id": "office-overview",
+    "file": "10-office-overview.png",
+    "role": "Project Admin",
+    "route": "/office"
+  },
+  {
+    "id": "office-projects",
+    "file": "11-office-projects.png",
+    "role": "Project Admin",
+    "route": "/office/projects"
+  },
+  {
+    "id": "office-project-types",
+    "file": "12-office-project-types.png",
+    "role": "Project Admin",
+    "route": "/office/project-types"
+  },
+  {
+    "id": "office-units",
+    "file": "13-office-units.png",
+    "role": "Project Admin",
+    "route": "/office/units"
+  },
+  {
+    "id": "office-bids",
+    "file": "14-office-bids.png",
+    "role": "Project Admin",
+    "route": "/office/bids"
+  },
+  {
+    "id": "office-billing",
+    "file": "15-office-billing.png",
+    "role": "Project Admin",
+    "route": "/office/billing"
+  },
+  {
+    "id": "office-billing-drilldown",
+    "file": "17-office-billing-drilldown.png",
+    "role": "Project Admin",
+    "route": "/office/billing/cmrt3qr5y0005trisi699gy84"
+  },
+  {
+    "id": "system-overview",
+    "file": "18-system-overview.png",
+    "role": "System Admin",
+    "route": "/system"
+  },
+  {
+    "id": "system-users",
+    "file": "19-system-users.png",
+    "role": "System Admin",
+    "route": "/system/users"
+  },
+  {
+    "id": "system-permissions",
+    "file": "20-system-permissions.png",
+    "role": "System Admin",
+    "route": "/system/permissions"
+  }
+]

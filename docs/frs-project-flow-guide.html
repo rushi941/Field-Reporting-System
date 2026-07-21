@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Advance Traffic · Field Reporting System — Project Flow Guide</title>
+  <style>
+    :root {
+      --asphalt: #1a2332;
+      --asphalt-mid: #243044;
+      --lane: #f5c518;
+      --steel: #94a3b8;
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --field: #fff7ed;
+      --field-border: #ea580c;
+      --approve: #f5f3ff;
+      --approve-border: #7c3aed;
+      --office: #eff6ff;
+      --office-border: #2563eb;
+      --system: #ecfdf5;
+      --system-border: #059669;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--asphalt) 0%, var(--asphalt-mid) 60%, #2d3f56 100%);
+      color: #fff;
+      padding: 3rem 1.5rem 4rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0);
+      background-size: 22px 22px;
+      pointer-events: none;
+    }
+    .hero-inner { max-width: 960px; margin: 0 auto; position: relative; z-index: 1; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--lane);
+      margin-bottom: 1rem;
+    }
+    .badge::before { content: ""; width: 2rem; height: 3px; background: var(--lane); }
+    .hero h1 {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      max-width: 18ch;
+    }
+    .hero .tagline {
+      margin-top: 1rem;
+      font-size: 1.05rem;
+      color: var(--steel);
+      max-width: 42rem;
+    }
+    .motto-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .motto-strip span { color: var(--lane); }
+    .motto-strip .arrow { color: rgba(255,255,255,0.25); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.5rem; }
+    .pill {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+    section { margin-top: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--lane);
+    }
+    h3 { font-size: 1rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+    p, li { color: var(--muted); font-size: 0.92rem; }
+    p + p { margin-top: 0.5rem; }
+    ul, ol { padding-left: 1.25rem; margin-top: 0.5rem; }
+    li + li { margin-top: 0.25rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .grid-2 { display: grid; gap: 1rem; }
+    @media (min-width: 640px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+    .grid-3 { display: grid; gap: 1rem; }
+    @media (min-width: 768px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+    .grid-4 { display: grid; gap: 1rem; }
+    @media (min-width: 768px) { .grid-4 { grid-template-columns: repeat(4, 1fr); } }
+    .role-card {
+      border-radius: 10px;
+      padding: 1rem;
+      border: 1px solid var(--border);
+    }
+    .role-card.field { background: var(--field); border-color: var(--field-border); }
+    .role-card.approve { background: var(--approve); border-color: var(--approve-border); }
+    .role-card.office { background: var(--office); border-color: var(--office-border); }
+    .role-card.system { background: var(--system); border-color: var(--system-border); }
+    .role-card strong { display: block; font-size: 0.85rem; color: var(--text); margin-bottom: 0.25rem; }
+    .role-card span { font-size: 0.8rem; color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      background: var(--card);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th, td { padding: 0.65rem 0.85rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+    .flow-step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .flow-arrow { color: var(--muted); font-size: 1.1rem; }
+    .setup-flow ol { counter-reset: step; list-style: none; padding: 0; }
+    .setup-flow li {
+      counter-increment: step;
+      display: flex;
+      gap: 1rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px dashed var(--border);
+      align-items: flex-start;
+    }
+    .setup-flow li:last-child { border-bottom: 0; }
+    .setup-flow li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background: var(--asphalt);
+      color: var(--lane);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .screen-block {
+      margin-top: 2rem;
+      scroll-margin-top: 1rem;
+    }
+    .screen-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .screen-header h3 { margin: 0; font-size: 1.05rem; }
+    .screen-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+    .role-tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      margin-right: 0.35rem;
+    }
+    .role-tag.public { background: #f1f5f9; color: #475569; }
+    .role-tag.field { background: #ffedd5; color: #c2410c; }
+    .role-tag.manager { background: #ede9fe; color: #6d28d9; }
+    .role-tag.office { background: #dbeafe; color: #1d4ed8; }
+    .role-tag.system { background: #d1fae5; color: #047857; }
+    .screen-shot {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .screen-shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .screen-desc {
+      margin-top: 0.65rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .no-shot {
+      padding: 3rem 1.5rem;
+      text-align: center;
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+    }
+    .toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-top: -2rem;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    .toc h2 { border: 0; margin-bottom: 0.75rem; font-size: 1rem; }
+    .toc-columns { display: grid; gap: 1rem; }
+    @media (min-width: 640px) { .toc-columns { grid-template-columns: 1fr 1fr; } }
+    .toc a {
+      display: block;
+      font-size: 0.82rem;
+      color: #2563eb;
+      text-decoration: none;
+      padding: 0.2rem 0;
+    }
+    .toc a:hover { text-decoration: underline; }
+    .motivation {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (min-width: 768px) { .motivation { grid-template-columns: repeat(3, 1fr); } }
+    .motivation article {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem;
+    }
+    .motivation .eyebrow {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #2563eb;
+      margin-bottom: 0.35rem;
+    }
+    .motivation h4 { font-size: 0.95rem; color: var(--text); margin-bottom: 0.35rem; }
+    .motivation p { font-size: 0.82rem; }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    @media print {
+      .hero { padding: 1.5rem; }
+      .screen-shot { break-inside: avoid; }
+      .toc { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="badge">USA Road Contractors</div>
+      <h1>Advance Traffic · Field Reporting System</h1>
+      <p class="tagline">
+        Mobile-first daily quantity reporting for specialty roadway contractors —
+        pavement marking, traffic control, and permanent signs. From the field
+        truck to manager approval to pay-app billing backup.
+      </p>
+      <div class="motto-strip">
+        <span>Field</span><span class="arrow">→</span>
+        <span>Approve</span><span class="arrow">→</span>
+        <span>Bill</span>
+      </div>
+      <div class="pill-row">
+        <span class="pill">React + Vite</span>
+        <span class="pill">Node + Express</span>
+        <span class="pill">PostgreSQL + Prisma</span>
+        <span class="pill">Role-based access</span>
+        <span class="pill">Mobile-first field UI</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <nav class="toc">
+      <h2>Contents</h2>
+      <div class="toc-columns">
+        <div>
+          <strong style="font-size:0.75rem;color:var(--muted);">Overview</strong>
+          <a href="#mission">Mission &amp; motto</a>
+          <a href="#roles">User roles</a>
+          <a href="#workflow">End-to-end workflow</a>
+          <a href="#setup">Admin setup order</a>
+          <a href="#lifecycle">Report lifecycle</a>
+          <a href="#logins">Dev login accounts</a>
+        </div>
+        <div>
+          <strong style="font-size:0.75rem;color:var(--muted);">Screenshots</strong>
+          <a href="#screen-login">Login</a>
+          <a href="#screen-field">Field Lead pages</a>
+          <a href="#screen-manager">Manager approvals</a>
+          <a href="#screen-office">Project Admin / Office</a>
+          <a href="#screen-system">System Admin</a>
+        </div>
+      </div>
+    </nav>
+
+    <section id="mission">
+      <h2>Our mission &amp; motto</h2>
+      <p>
+        <strong style="color:var(--text);">Core motto:</strong>
+        <em>Field → Approve → Bill</em> — capture trustworthy quantities in the field,
+        lock them through manager approval, and export clean billing backup for pay applications.
+      </p>
+      <div class="motivation">
+        <article>
+          <p class="eyebrow">Pavement Marking</p>
+          <h4>Lane lines that keep America moving</h4>
+          <p>Capture daily LF, STA ranges, and tickets from the stripe truck — ready for pay-app backup.</p>
+        </article>
+        <article>
+          <p class="eyebrow">Traffic Control</p>
+          <h4>Work zones, certified and accountable</h4>
+          <p>Log setups, certifications, and crew notes so office billing never chases missing docs.</p>
+        </article>
+        <article>
+          <p class="eyebrow">Permanent Signs</p>
+          <h4>Every post, every station, verified</h4>
+          <p>Point-location quantities and photos tied to bid items for clean progress billing.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="roles">
+      <h2>User roles</h2>
+      <div class="grid-4">
+        <div class="role-card field">
+          <strong>Field Lead</strong>
+          <span>Home: /field — submit daily reports, enter quantities, upload photos</span>
+        </div>
+        <div class="role-card approve">
+          <strong>Division Manager</strong>
+          <span>Home: /approvals — approve, approve with notes, or return reports</span>
+        </div>
+        <div class="role-card office">
+          <strong>Project Admin</strong>
+          <span>Home: /office — projects, masters, billing rollup &amp; CSV export</span>
+        </div>
+        <div class="role-card system">
+          <strong>System Admin</strong>
+          <span>Home: /system — everything Project Admin has + users &amp; permissions</span>
+        </div>
+      </div>
+      <table style="margin-top:1rem;">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Email (dev)</th>
+            <th>Password</th>
+            <th>Primary permissions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Field Lead</td>
+            <td>lead@frs.local</td>
+            <td>ChangeMe123!</td>
+            <td>Submit reports, edit drafts, search projects</td>
+          </tr>
+          <tr>
+            <td>Division Manager</td>
+            <td>manager@frs.local</td>
+            <td>ChangeMe123!</td>
+            <td>Approval queue, approve/return, project history</td>
+          </tr>
+          <tr>
+            <td>Project Admin</td>
+            <td>padmin@frs.local</td>
+            <td>ChangeMe123!</td>
+            <td>Manage projects &amp; masters, billing view/export</td>
+          </tr>
+          <tr>
+            <td>System Admin</td>
+            <td>admin@frs.local</td>
+            <td>ChangeMe123!</td>
+            <td>Users, permission matrix, full system access</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="workflow">
+      <h2>End-to-end workflow</h2>
+      <div class="flow">
+        <div class="flow-step">1. Setup masters</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">2. Create project</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">3. Assign tasks</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">4. Field daily report</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">5. Manager approval</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">6. Billing CSV export</div>
+      </div>
+      <div class="card" style="margin-top:1rem;">
+        <p><strong style="color:var(--text);">Daily field cycle</strong></p>
+        <ol>
+          <li>Field Lead opens assigned project → picks report date &amp; crew size</li>
+          <li>Enters quantities per bid line (STA range, manual LF, or single location)</li>
+          <li>Attaches photos / tickets / certifications</li>
+          <li>Saves draft or submits — report locks on submit</li>
+          <li>Manager reviews pending queue → approves or returns with mandatory comment</li>
+          <li>Project Admin opens Billing when job is <em>billing ready</em> (approved + no pending)</li>
+          <li>Exports CSV backup for pay application</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="setup">
+      <h2>Admin setup order (before first field report)</h2>
+      <div class="card setup-flow">
+        <ol>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Units</strong>
+              <p>LF, EA, LS, etc. — used on bid master dropdown</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Project types</strong>
+              <p>Pavement marking, traffic control, signs, combined scopes</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Bid master</strong>
+              <p>Master bids + sub-bids by division; CSV import supported</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Users</strong>
+              <p>Field leads, managers, project admins — assign roles</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Project</strong>
+              <p>Job number, name, divisions, PM, route map, bid lines</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong style="color:var(--text);">Project tasks</strong>
+              <p>Line code, conversion factor, assigned field person per task</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="lifecycle">
+      <h2>Report lifecycle</h2>
+      <div class="grid-2">
+        <div class="card">
+          <p><strong style="color:var(--text);">Statuses</strong></p>
+          <p>Draft → Submitted (locked) → Returned | Approved | Approved with notes</p>
+        </div>
+        <div class="card">
+          <p><strong style="color:var(--text);">Business rules</strong></p>
+          <ul>
+            <li>Return comment is mandatory</li>
+            <li>Reported LF = Physical LF × Conversion Factor</li>
+            <li>Billing export only when zero pending approvals</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="logins">
+      <h2>Local development</h2>
+      <div class="grid-2">
+        <div class="card">
+          <p><strong style="color:var(--text);">URLs</strong></p>
+          <ul>
+            <li>Web: <code>http://localhost:5174</code></li>
+            <li>API: <code>http://localhost:4000</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <p><strong style="color:var(--text);">Start</strong></p>
+          <p><code>npm run dev</code> from <code>source/</code></p>
+          <p>Refresh screenshots: <code>node scripts/capture-flow-screenshots.mjs</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SCREENSHOTS ========== -->
+
+    <section id="screens">
+      <h2 style="margin-top:3rem;">Page-wise screenshots</h2>
+      <p>Captured from local dev environment. Open this file from <code>docs/</code> so images load from <code>docs/screenshots/</code>.</p>
+
+      <div class="screen-block" id="screen-login">
+        <div class="screen-header">
+          <h3><span class="role-tag public">Public</span> Login</h3>
+          <span class="screen-meta">/login</span>
+        </div>
+        <div class="screen-shot">
+          <img src="screenshots/01-login.png" alt="Login page" loading="lazy" />
+        </div>
+        <p class="screen-desc">Shared login for all roles. Redirects to role home after sign-in.</p>
+      </div>
+
+      <div class="screen-block" id="screen-field">
+        <h3 style="margin-top:2rem;"><span class="role-tag field">Field Lead</span> Field workspace</h3>
+
+        <div class="screen-block" id="field-projects">
+          <div class="screen-header">
+            <h3>Projects list</h3>
+            <span class="screen-meta">/field/projects</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/02-field-projects.png" alt="Field projects" loading="lazy" />
+          </div>
+          <p class="screen-desc">Mobile-first project cards. Search and division filter. Bottom nav: Projects | Reports.</p>
+        </div>
+
+        <div class="screen-block" id="field-project-detail">
+          <div class="screen-header">
+            <h3>Project detail &amp; daily report meta</h3>
+            <span class="screen-meta">/field/projects/:projectId</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/04-field-project-detail.png" alt="Field project detail" loading="lazy" />
+          </div>
+          <p class="screen-desc">Set report date and crew size. Tap a task to enter quantities.</p>
+        </div>
+
+        <div class="screen-block" id="field-task-entry">
+          <div class="screen-header">
+            <h3>Task entry (quantities &amp; photos)</h3>
+            <span class="screen-meta">/field/projects/:projectId/tasks/:taskId</span>
+          </div>
+          <div class="no-shot">Screenshot: STA range / single location forms, sticky Save &amp; Submit on mobile</div>
+          <p class="screen-desc">Enter STA segments or single locations, attach photos, save draft or submit report.</p>
+        </div>
+
+        <div class="screen-block" id="field-reports">
+          <div class="screen-header">
+            <h3>Reports list</h3>
+            <span class="screen-meta">/field/reports</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/03-field-reports.png" alt="Field reports list" loading="lazy" />
+          </div>
+          <p class="screen-desc">All reports by status — draft, submitted, returned, approved.</p>
+        </div>
+
+        <div class="screen-block" id="field-report-detail">
+          <div class="screen-header">
+            <h3>Report detail</h3>
+            <span class="screen-meta">/field/reports/:reportId</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/06-field-report-detail.png" alt="Field report detail" loading="lazy" />
+          </div>
+          <p class="screen-desc">Line items, notes, approval status. Submit when ready.</p>
+        </div>
+      </div>
+
+      <div class="screen-block" id="screen-manager">
+        <h3 style="margin-top:2rem;"><span class="role-tag manager">Division Manager</span> Approvals</h3>
+
+        <div class="screen-block" id="approvals-queue">
+          <div class="screen-header">
+            <h3>Pending approval queue</h3>
+            <span class="screen-meta">/approvals</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/07-approvals-queue.png" alt="Approvals queue" loading="lazy" />
+          </div>
+          <p class="screen-desc">Submitted reports waiting for review. Shows age and project.</p>
+        </div>
+
+        <div class="screen-block" id="approvals-detail">
+          <div class="screen-header">
+            <h3>Report review &amp; actions</h3>
+            <span class="screen-meta">/approvals/:reportId</span>
+          </div>
+          <div class="no-shot">Screenshot: approve, approve with notes, or return with mandatory comment</div>
+          <p class="screen-desc">Full report detail with line quantities and attachments.</p>
+        </div>
+
+        <div class="screen-block" id="approvals-history">
+          <div class="screen-header">
+            <h3>Project history</h3>
+            <span class="screen-meta">/approvals/history</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/08-approvals-history.png" alt="Approvals history" loading="lazy" />
+          </div>
+          <p class="screen-desc">Filter by project — view all past reports and statuses.</p>
+        </div>
+      </div>
+
+      <div class="screen-block" id="screen-office">
+        <h3 style="margin-top:2rem;"><span class="role-tag office">Project Admin</span> Office workspace</h3>
+
+        <div class="screen-block" id="office-overview">
+          <div class="screen-header">
+            <h3>Dashboard / Overview</h3>
+            <span class="screen-meta">/office</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/10-office-overview.png" alt="Office overview" loading="lazy" />
+          </div>
+          <p class="screen-desc">Billing metrics, quick links to projects, masters, and billing.</p>
+        </div>
+
+        <div class="screen-block" id="office-projects">
+          <div class="screen-header">
+            <h3>Projects</h3>
+            <span class="screen-meta">/office/projects</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/11-office-projects.png" alt="Office projects" loading="lazy" />
+          </div>
+          <p class="screen-desc">Create and manage jobs — PM, divisions, status, route map.</p>
+        </div>
+
+        <div class="screen-block" id="office-project-detail">
+          <div class="screen-header">
+            <h3>Project detail &amp; tasks</h3>
+            <span class="screen-meta">/office/projects/:projectId</span>
+          </div>
+          <div class="no-shot">Screenshot: bid assignment, create task modal, field person assignment</div>
+        </div>
+
+        <div class="screen-block" id="office-project-types">
+          <div class="screen-header">
+            <h3>Project types</h3>
+            <span class="screen-meta">/office/project-types</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/12-office-project-types.png" alt="Project types" loading="lazy" />
+          </div>
+        </div>
+
+        <div class="screen-block" id="office-units">
+          <div class="screen-header">
+            <h3>Units</h3>
+            <span class="screen-meta">/office/units</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/13-office-units.png" alt="Units master" loading="lazy" />
+          </div>
+        </div>
+
+        <div class="screen-block" id="office-bids">
+          <div class="screen-header">
+            <h3>Bid master</h3>
+            <span class="screen-meta">/office/bids</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/14-office-bids.png" alt="Bid master" loading="lazy" />
+          </div>
+          <p class="screen-desc">Master + sub-bids by division. CSV import. Generic name auto-generates code.</p>
+        </div>
+
+        <div class="screen-block" id="office-billing">
+          <div class="screen-header">
+            <h3>Billing rollup</h3>
+            <span class="screen-meta">/office/billing</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/15-office-billing.png" alt="Billing rollup" loading="lazy" />
+          </div>
+          <p class="screen-desc">All active jobs — approved/pending counts, billing-ready status, CSV export.</p>
+        </div>
+
+        <div class="screen-block" id="office-billing-drilldown">
+          <div class="screen-header">
+            <h3>Billing drilldown</h3>
+            <span class="screen-meta">/office/billing/:projectId</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/17-office-billing-drilldown.png" alt="Billing drilldown" loading="lazy" />
+          </div>
+          <p class="screen-desc">Approved quantities by bid item, report list, attachments, export CSV.</p>
+        </div>
+      </div>
+
+      <div class="screen-block" id="screen-system">
+        <h3 style="margin-top:2rem;"><span class="role-tag system">System Admin</span> System workspace</h3>
+        <p class="screen-desc" style="margin-bottom:1rem;">Same as Project Admin for projects, masters, and billing — plus users and permissions below.</p>
+
+        <div class="screen-block" id="system-overview">
+          <div class="screen-header">
+            <h3>System overview</h3>
+            <span class="screen-meta">/system</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/18-system-overview.png" alt="System overview" loading="lazy" />
+          </div>
+        </div>
+
+        <div class="screen-block" id="system-users">
+          <div class="screen-header">
+            <h3>Users</h3>
+            <span class="screen-meta">/system/users</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/19-system-users.png" alt="System users" loading="lazy" />
+          </div>
+          <p class="screen-desc">Create, edit, activate/deactivate, delete users. Role checkboxes.</p>
+        </div>
+
+        <div class="screen-block" id="system-permissions">
+          <div class="screen-header">
+            <h3>Permission matrix</h3>
+            <span class="screen-meta">/system/permissions</span>
+          </div>
+          <div class="screen-shot">
+            <img src="screenshots/20-system-permissions.png" alt="Permissions matrix" loading="lazy" />
+          </div>
+          <p class="screen-desc">Yes/No grid per role and feature — stored in database.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="routes">
+      <h2>Full route map</h2>
+      <table>
+        <thead>
+          <tr><th>Route</th><th>Role</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>/login</td><td>Public</td><td>Sign in</td></tr>
+          <tr><td>/field/projects</td><td>Field Lead</td><td>Assigned projects</td></tr>
+          <tr><td>/field/projects/:id</td><td>Field Lead</td><td>Report meta + tasks</td></tr>
+          <tr><td>/field/projects/:id/tasks/:taskId</td><td>Field Lead</td><td>Quantity entry</td></tr>
+          <tr><td>/field/reports</td><td>Field Lead</td><td>Report list</td></tr>
+          <tr><td>/field/reports/:id</td><td>Field Lead</td><td>Report detail / submit</td></tr>
+          <tr><td>/approvals</td><td>Manager</td><td>Pending queue</td></tr>
+          <tr><td>/approvals/:reportId</td><td>Manager</td><td>Review &amp; action</td></tr>
+          <tr><td>/approvals/history</td><td>Manager</td><td>Project history</td></tr>
+          <tr><td>/office/*</td><td>Project Admin</td><td>Projects, masters, billing</td></tr>
+          <tr><td>/system/users</td><td>System Admin</td><td>User management</td></tr>
+          <tr><td>/system/permissions</td><td>System Admin</td><td>Permission matrix</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      <p>Advance Traffic · Field Reporting System (FRS) — Project flow guide</p>
+      <p>Generated July 2026 · Repository: Field-Reporting-System</p>
+      <p>Open <strong>docs/frs-project-flow-guide.html</strong> in a browser · Screenshots in <strong>docs/screenshots/</strong></p>
+    </footer>
+  </main>
+
+</body>
+</html>
