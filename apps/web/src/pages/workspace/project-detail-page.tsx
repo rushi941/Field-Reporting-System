@@ -15,11 +15,13 @@ import {
   pavementLineTypes,
   physicalLf,
   reportedLf,
+  projectCreateTaskSchema,
   type LineColorCode,
   type LineTypeDef,
   type LineWidth,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -410,47 +412,37 @@ export function ProjectDetailPage() {
   async function onCreateTask(e: React.FormEvent) {
     e.preventDefault();
     if (!projectId) return;
-    if (!form.name.trim()) {
-      toast.error("Enter a task name", { id: "project-tasks" });
-      return;
-    }
-    if (!form.assignedToId) {
-      toast.error("Select a field person", { id: "project-tasks" });
-      return;
-    }
     const cf = Number(form.conversionFactor);
-    if (Number.isNaN(cf) || cf < 0) {
-      toast.error("Enter a valid conversion factor", { id: "project-tasks" });
-      return;
-    }
     const code =
       lineCode ||
       form.name.trim().toUpperCase().replace(/\s+/g, "-").slice(0, 40);
-    if (!code) {
-      toast.error("Select a line type or enter a name", { id: "project-tasks" });
-      return;
-    }
 
     setSaving(true);
     try {
+      const raw = {
+        name: form.name.trim(),
+        code,
+        unit: form.unit,
+        formType: form.formType,
+        color: LINE_COLORS[form.color],
+        widthInches: form.widthInches,
+        conversionFactor: cf,
+        description: form.description.trim() || null,
+        assignedToId: form.assignedToId,
+        division: form.division,
+        beginSta: parseStaInput(form.beginSta),
+        endSta: parseStaInput(form.endSta),
+      };
+      const parsed = projectCreateTaskSchema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error), { id: "project-tasks" });
+        return;
+      }
       const data = await apiFetch<{ project: ProjectDetail }>(
         `/api/v1/projects/${projectId}/tasks`,
         {
           method: "POST",
-          body: JSON.stringify({
-            name: form.name.trim(),
-            code,
-            unit: form.unit,
-            formType: form.formType,
-            color: LINE_COLORS[form.color],
-            widthInches: form.widthInches,
-            conversionFactor: cf,
-            description: form.description.trim() || null,
-            assignedToId: form.assignedToId,
-            division: form.division,
-            beginSta: parseStaInput(form.beginSta),
-            endSta: parseStaInput(form.endSta),
-          }),
+          body: JSON.stringify(parsed.data),
         },
       );
       setProject(data.project);

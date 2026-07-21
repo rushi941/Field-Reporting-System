@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { roles, roleLabels, type AppRole } from "@frs/shared";
+import { roles, roleLabels, createUserSchema, updateUserSchema, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,31 +97,44 @@ export function SystemUsersPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = {
-        email: form.email,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phone: form.phone || null,
-        isActive: form.isActive,
-        roles: form.roles,
-        ...(form.password ? { password: form.password } : {}),
-      };
-
       if (editingId) {
+        const raw = {
+          email: form.email.trim(),
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim() || null,
+          isActive: form.isActive,
+          roles: form.roles,
+          ...(form.password ? { password: form.password } : {}),
+        };
+        const parsed = updateUserSchema.safeParse(raw);
+        if (!parsed.success) {
+          toast.error(firstZodIssueMessage(parsed.error));
+          return;
+        }
         await apiFetch(`/api/v1/users/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("User updated successfully");
       } else {
-        if (!form.password) {
-          toast.error("Password is required");
-          setSaving(false);
+        const raw = {
+          email: form.email.trim(),
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim() || null,
+          isActive: form.isActive,
+          roles: form.roles,
+          password: form.password,
+        };
+        const parsed = createUserSchema.safeParse(raw);
+        if (!parsed.success) {
+          toast.error(firstZodIssueMessage(parsed.error));
           return;
         }
         await apiFetch("/api/v1/users", {
           method: "POST",
-          body: JSON.stringify({ ...payload, password: form.password }),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("User created successfully");
       }

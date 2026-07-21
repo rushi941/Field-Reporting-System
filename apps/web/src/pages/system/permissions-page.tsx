@@ -5,10 +5,12 @@ import {
   roles,
   roleLabels,
   toYesNoAccess,
+  updatePermissionMatrixSchema,
   type AppRole,
   type PermissionAccessValue,
 } from "@frs/shared";
 import { apiFetch, type PermissionMatrixRow } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 
 const yesNoOptions: { value: PermissionAccessValue; label: string }[] = [
@@ -84,11 +86,16 @@ export function SystemPermissionsPage() {
           access: toYesNoAccess(row.accessByRole[role] ?? "NO"),
         })),
       );
+      const parsed = updatePermissionMatrixSchema.safeParse({ cells });
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error));
+        return;
+      }
       const data = await apiFetch<{ matrix: PermissionMatrixRow[] }>(
         "/api/v1/permissions/matrix",
         {
           method: "PUT",
-          body: JSON.stringify({ cells }),
+          body: JSON.stringify(parsed.data),
         },
       );
       setMatrix(normalizeMatrix(data.matrix));

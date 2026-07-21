@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { roleLabels, splitProjectDivisions, type AppRole } from "@frs/shared";
+import { roleLabels, projectSchema, updateProjectSchema, splitProjectDivisions, type AppRole } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,10 +201,6 @@ export function ProjectsPage() {
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.projectManagerId) {
-      toast.error("Select a project manager", { id: "project-form" });
-      return;
-    }
     if (form.selectedDivisions.length === 0) {
       toast.error("Select at least one division", { id: "project-form" });
       return;
@@ -215,24 +212,31 @@ export function ProjectsPage() {
           "PAVEMENT_MARKING" | "TRAFFIC_CONTROL" | "PERMANENT_SIGNS"
         >,
       );
-      const payload = {
+      const raw = {
         jobNumber: form.jobNumber.trim() || null,
-        name: form.name,
+        name: form.name.trim(),
         division,
         divisions,
         projectTypeId: form.projectTypeId || null,
-        projectManagerId: form.projectManagerId || null,
-        clientName: form.clientName || null,
-        generalContractor: form.generalContractor || null,
-        location: form.location || null,
+        projectManagerId: form.projectManagerId,
+        clientName: form.clientName.trim() || null,
+        generalContractor: form.generalContractor.trim() || null,
+        location: form.location.trim() || null,
         contractAmount: form.contractAmount ? Number(form.contractAmount) : null,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
-        notes: form.notes || null,
+        notes: form.notes.trim() || null,
         status: form.status,
         route: routeDraft ?? null,
         taskIds: [] as string[],
       };
+      const schema = editingId ? updateProjectSchema : projectSchema;
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error), { id: "project-form" });
+        return;
+      }
+      const payload = parsed.data;
       if (editingId) {
         await apiFetch(`/api/v1/projects/${editingId}`, {
           method: "PATCH",

@@ -265,6 +265,20 @@ billingRouter.get(
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
 
+    const pendingCount = await prisma.report.count({
+      where: { projectId, status: "SUBMITTED" },
+    });
+    const approvedCount = await prisma.report.count({
+      where: { projectId, status: { in: approvedStatuses } },
+    });
+    if (approvedCount === 0 || pendingCount > 0) {
+      throw new AppError(
+        "BAD_REQUEST",
+        "Billing export blocked — wait for pending approvals and ensure approved reports exist",
+        400,
+      );
+    }
+
     const reports = await prisma.report.findMany({
       where: { projectId, status: { in: approvedStatuses } },
       include: {

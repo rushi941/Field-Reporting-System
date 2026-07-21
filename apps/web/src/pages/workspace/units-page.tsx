@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { unitMasterSchema, updateUnitMasterSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,21 +57,27 @@ export function UnitsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = {
-        code: form.code,
-        name: form.name,
+      const raw = {
+        code: form.code.trim(),
+        name: form.name.trim(),
         isActive: form.isActive,
       };
+      const schema = editingId ? updateUnitMasterSchema : unitMasterSchema;
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error));
+        return;
+      }
       if (editingId) {
         await apiFetch(`/api/v1/units/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("Unit updated");
       } else {
         await apiFetch("/api/v1/units", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("Unit created");
       }

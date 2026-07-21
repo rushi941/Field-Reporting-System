@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { projectTypeSchema, updateProjectTypeSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,23 +85,29 @@ export function ProjectTypesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = {
-        code: form.code,
-        name: form.name,
-        description: form.description || null,
+      const raw = {
+        code: form.code.trim(),
+        name: form.name.trim(),
+        description: form.description.trim() || null,
         division: form.division || null,
         isActive: form.isActive,
       };
+      const schema = editingId ? updateProjectTypeSchema : projectTypeSchema;
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error));
+        return;
+      }
       if (editingId) {
         await apiFetch(`/api/v1/project-types/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("Project type updated");
       } else {
         await apiFetch("/api/v1/project-types", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success("Project type created");
       }

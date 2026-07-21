@@ -9,7 +9,9 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { taskMasterSchema, updateTaskMasterSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -251,48 +253,36 @@ export function TasksPage() {
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.division) {
-      toast.error("Division is required", { id: "bid-master" });
-      return;
-    }
-    if (mode === "sub" && !form.parentId) {
-      toast.error("Select a master bid for this sub-bid", { id: "bid-master" });
-      return;
-    }
-    if (!form.unit.trim()) {
-      toast.error("Select a unit", { id: "bid-master" });
-      return;
-    }
-    if (!form.name.trim()) {
-      toast.error("Enter a name", { id: "bid-master" });
-      return;
-    }
     const code = editingId
       ? form.code.trim()
       : slugCodeFromName(form.name);
-    if (!code) {
-      toast.error("Enter a valid name to generate line code", {
-        id: "bid-master",
-      });
-      return;
-    }
     setSaving(true);
     try {
-      const payload = {
+      const raw = {
         code,
         name: form.name.trim(),
-        unit: form.unit,
+        unit: form.unit.trim(),
         formType: form.formType,
         projectTypeId: form.projectTypeId || null,
         parentId: mode === "sub" ? form.parentId || null : null,
-        division: form.division,
-        description: form.description || null,
+        division: form.division || null,
+        description: form.description.trim() || null,
         isActive: form.isActive,
       };
+      if (mode === "sub" && !raw.parentId) {
+        toast.error("Select a master bid for this sub-bid", { id: "bid-master" });
+        return;
+      }
+      const schema = editingId ? updateTaskMasterSchema : taskMasterSchema;
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(firstZodIssueMessage(parsed.error), { id: "bid-master" });
+        return;
+      }
       if (editingId) {
         await apiFetch(`/api/v1/tasks/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success(mode === "sub" ? "Sub-bid updated" : "Master bid updated", {
           id: "bid-master",
@@ -300,7 +290,7 @@ export function TasksPage() {
       } else {
         await apiFetch("/api/v1/tasks", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(parsed.data),
         });
         toast.success(mode === "sub" ? "Sub-bid created" : "Master bid created", {
           id: "bid-master",
