@@ -1,5 +1,5 @@
 # Registers a Windows scheduled task to run daily-work-flow.ps1 at 6:45 PM local time.
-# Fully automatic — no manual gh auth or token setup required.
+# Fully automatic - no manual gh auth or token setup required.
 
 $TaskName = "FRS-Daily-Work-Push"
 $ScriptPath = Join-Path $PSScriptRoot "daily-work-flow.ps1"
@@ -34,4 +34,4 @@ Write-Host "Scheduled task '$TaskName' registered for daily at $Time."
 Write-Host "Script: $ScriptPath"
 Write-Host "Logs:   $(Join-Path $PSScriptRoot 'logs')"
 Write-Host ""
-Write-Host "Fully automatic — uses your existing Git login. No manual steps needed."
+Write-Host "Fully automatic - uses your existing Git login. No manual steps needed."

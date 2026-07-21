@@ -23,9 +23,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: frs-postgres
-          property: connectionString
+        sync: false
+        # Paste Neon DIRECT connection string (not -pooler), with ?sslmode=require
+        # Or link Render Postgres: fromDatabase name frs-postgres property connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN

@@ -112,7 +112,7 @@ export function ApprovalsHistoryPage() {
             </label>
             <select
               id="history-project"
-              className="flex h-11 w-full rounded-md border border-input bg-card px-3 text-sm"
+              className="flex h-11 w-full rounded-md border border-input bg-card px-3 text-base md:text-sm"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
             >

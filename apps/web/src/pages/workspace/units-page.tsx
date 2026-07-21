@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ export function UnitsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<UnitRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ code: "", name: "", isActive: true });
 
   async function load() {
@@ -77,6 +79,21 @@ export function UnitsPage() {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/units/${deleteTarget.id}`, { method: "DELETE" });
+      toast.success(`Deleted unit ${deleteTarget.code}`);
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -140,9 +157,19 @@ export function UnitsPage() {
                     {r.isActive ? "Active" : "Inactive"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                      <Pencil className="size-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Delete unit"
+                        onClick={() => setDeleteTarget(r)}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -212,6 +239,39 @@ export function UnitsPage() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h2 className="text-lg font-semibold">Delete unit?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget.code} — {deleteTarget.name}
+              </span>
+              ? This cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

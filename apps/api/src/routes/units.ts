@@ -74,3 +74,27 @@ unitsRouter.patch(
     res.json({ unit: row });
   }),
 );
+
+unitsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const existing = await prisma.unitMaster.findUnique({ where: { id } });
+    if (!existing) throw new AppError("NOT_FOUND", "Unit not found", 404);
+
+    const inUse = await prisma.taskMaster.findFirst({
+      where: { unit: existing.code },
+      select: { id: true, code: true },
+    });
+    if (inUse) {
+      throw new AppError(
+        "CONFLICT",
+        `Unit "${existing.code}" is used on bid ${inUse.code}. Deactivate it instead.`,
+        409,
+      );
+    }
+
+    await prisma.unitMaster.delete({ where: { id } });
+    res.json({ ok: true });
+  }),
+);

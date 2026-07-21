@@ -601,7 +601,7 @@ export function FieldTaskEntryPage() {
   }
 
   return (
-    <div className={cn("space-y-5", editable && "pb-36 md:pb-10")}>
+    <div className={cn("space-y-5", editable && "pb-40 lg:pb-10")}>
       <ConnectionBanner online={online} fromCache={cacheRestored} />
       <Link
         to={`/field/projects/${projectId}`}
@@ -1114,7 +1114,7 @@ export function FieldTaskEntryPage() {
       </div>
 
       {editable && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 py-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
           <div className="mx-auto flex max-w-lg flex-col gap-2">
             <Button
               type="button"

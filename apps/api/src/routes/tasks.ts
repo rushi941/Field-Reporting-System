@@ -193,6 +193,48 @@ tasksRouter.patch(
   }),
 );
 
+tasksRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const existing = await prisma.taskMaster.findUnique({
+      where: { id },
+      include: {
+        children: { select: { id: true } },
+        projectTasks: { select: { id: true }, take: 1 },
+      },
+    });
+    if (!existing) throw new AppError("NOT_FOUND", "Bid not found", 404);
+
+    if (existing.projectTasks.length > 0) {
+      throw new AppError(
+        "CONFLICT",
+        "This bid is assigned to a project and cannot be deleted.",
+        409,
+      );
+    }
+
+    if (existing.children.length > 0) {
+      const childIds = existing.children.map((c) => c.id);
+      const childInUse = await prisma.projectTask.findFirst({
+        where: { taskMasterId: { in: childIds } },
+        select: { id: true },
+      });
+      if (childInUse) {
+        throw new AppError(
+          "CONFLICT",
+          "A sub-bid under this master is assigned to a project. Remove it from projects first.",
+          409,
+        );
+      }
+      await prisma.taskMaster.deleteMany({ where: { parentId: id } });
+    }
+
+    await prisma.taskMaster.delete({ where: { id } });
+    res.json({ ok: true });
+  }),
+);
+
 /** CSV/JSON import for task master rows */
 tasksRouter.post(
   "/import",

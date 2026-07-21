@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,8 @@ export function ProjectTypesPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectType | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -110,6 +112,23 @@ export function ProjectTypesPage() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/project-types/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      toast.success(`Deleted project type ${deleteTarget.code}`);
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -161,9 +180,19 @@ export function ProjectTypesPage() {
                     {r.isActive ? "Active" : "Inactive"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                      <Pencil className="size-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Delete project type"
+                        onClick={() => setDeleteTarget(r)}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -247,6 +276,39 @@ export function ProjectTypesPage() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h2 className="text-lg font-semibold">Delete project type?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget.code} — {deleteTarget.name}
+              </span>
+              ? Types linked to projects or bids cannot be deleted.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

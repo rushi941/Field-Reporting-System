@@ -94,3 +94,26 @@ projectTypesRouter.patch(
     res.json({ projectType: row });
   }),
 );
+
+projectTypesRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const existing = await prisma.projectType.findUnique({
+      where: { id },
+      include: { _count: { select: { projects: true, tasks: true } } },
+    });
+    if (!existing) throw new AppError("NOT_FOUND", "Project type not found", 404);
+
+    if (existing._count.projects > 0 || existing._count.tasks > 0) {
+      throw new AppError(
+        "CONFLICT",
+        "Project type is linked to projects or bids. Deactivate it instead.",
+        409,
+      );
+    }
+
+    await prisma.projectType.delete({ where: { id } });
+    res.json({ ok: true });
+  }),
+);

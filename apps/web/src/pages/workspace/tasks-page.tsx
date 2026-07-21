@@ -6,6 +6,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -93,6 +94,8 @@ export function TasksPage() {
   const [form, setForm] = useState(emptyForm);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Bid | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function snapshotForm(next: typeof emptyForm) {
     return JSON.stringify(next);
@@ -373,6 +376,23 @@ export function TasksPage() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/tasks/${deleteTarget.id}`, { method: "DELETE" });
+      toast.success(`Deleted ${deleteTarget.code}`, { id: "bid-master" });
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed", {
+        id: "bid-master",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -491,20 +511,30 @@ export function TasksPage() {
                           {master.isActive ? "Active" : "Inactive"}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openCreateSub(master)}
-                          >
-                            <Plus className="size-3.5" /> Sub-bid
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(master)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openCreateSub(master)}
+                            >
+                              <Plus className="size-3.5" /> Sub-bid
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEdit(master)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Delete master bid"
+                              onClick={() => setDeleteTarget(master)}
+                            >
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                       {openRow &&
@@ -549,13 +579,23 @@ export function TasksPage() {
                               {sub.isActive ? "Active" : "Inactive"}
                             </td>
                             <td className="px-4 py-2 text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEdit(sub)}
-                              >
-                                <Pencil className="size-4" />
-                              </Button>
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openEdit(sub)}
+                                >
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Delete sub-bid"
+                                  onClick={() => setDeleteTarget(sub)}
+                                >
+                                  <Trash2 className="size-4 text-destructive" />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -796,6 +836,50 @@ export function TasksPage() {
                 onClick={() => void onImport()}
               >
                 {saving ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="modal-overlay fixed inset-0 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div className="relative z-[2001] w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
+            <h2 className="text-lg font-semibold">
+              Delete {deleteTarget.parentId ? "sub-bid" : "master bid"}?
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget.code} — {deleteTarget.name}
+              </span>
+              ?
+              {!deleteTarget.parentId &&
+                (childrenByParent.get(deleteTarget.id)?.length ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    All sub-bids under this master will also be removed if they
+                    are not assigned to a project.
+                  </>
+                )}{" "}
+              Bids assigned to projects cannot be deleted.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? "Deleting…" : "Delete"}
               </Button>
             </div>
           </div>

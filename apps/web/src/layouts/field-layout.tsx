@@ -113,15 +113,15 @@ export function FieldLayout() {
 
   return (
     <div className="flex min-h-svh overflow-x-hidden bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 md:block">{sidebar}</div>
+      <div className="sticky top-0 hidden h-svh shrink-0 lg:block">{sidebar}</div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur md:h-14 md:gap-3 md:bg-card/95 md:px-4 md:pt-0">
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:h-14 lg:gap-3 lg:bg-card/95 lg:px-4 lg:pt-0">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt md:hidden">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt lg:hidden">
               AT
             </div>
-            <div className="min-w-0 md:hidden">
+            <div className="min-w-0 lg:hidden">
               {showBottomNav ? (
                 <>
                   <p className="truncate text-sm font-semibold text-foreground">
@@ -137,7 +137,7 @@ export function FieldLayout() {
                 </p>
               )}
             </div>
-            <p className="hidden truncate text-sm font-semibold text-foreground md:block">
+            <p className="hidden truncate text-sm font-semibold text-foreground lg:block">
               Field Reporting
             </p>
           </div>
@@ -146,7 +146,7 @@ export function FieldLayout() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground md:hidden"
+            className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground lg:hidden"
             onClick={handleLogout}
             disabled={loggingOut}
           >
@@ -159,8 +159,10 @@ export function FieldLayout() {
 
         <main
           className={cn(
-            "flex-1 px-3 py-4 md:px-4 md:py-5",
-            showBottomNav ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-5" : "pb-4",
+            "flex-1 px-3 py-4 lg:px-4 lg:py-5",
+            showBottomNav
+              ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-5"
+              : "pb-4",
           )}
         >
           <div className="mx-auto w-full max-w-lg">
@@ -170,7 +172,7 @@ export function FieldLayout() {
 
         {showBottomNav && (
           <nav
-            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
             aria-label="Field navigation"
           >
             <div className="mx-auto flex max-w-lg">
