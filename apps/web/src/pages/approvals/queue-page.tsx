@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
 import { ClipboardCheck, Loader2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { ConnectionBanner } from "@/components/connection-banner";
+import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
+import { useCachedApi } from "@/hooks/use-cached-api";
 
 type PendingReport = {
   id: string;
@@ -29,31 +29,22 @@ type PendingResponse = {
 };
 
 export function ApprovalsQueuePage() {
-  const [data, setData] = useState<PendingResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    refreshing,
+    fromCache,
+    cacheSavedAt,
+    error,
+    online,
+  } = useCachedApi<PendingResponse>(
+    OFFLINE_CACHE_KEYS.approvalsPending,
+    "/api/v1/approvals/pending",
+  );
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await apiFetch<PendingResponse>(
-          "/api/v1/approvals/pending",
-        );
-        setData(res);
-        if (res.pendingCount > 0) {
-          toast.message(
-            `${res.pendingCount} report${res.pendingCount === 1 ? "" : "s"} pending approval`,
-            { id: "approval-pending" },
-          );
-        }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load queue");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const reports = data?.reports ?? [];
 
-  if (loading) {
+  if (loading && reports.length === 0) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-6 animate-spin text-sky-800" />
@@ -62,10 +53,16 @@ export function ApprovalsQueuePage() {
     );
   }
 
-  const reports = data?.reports ?? [];
-
   return (
     <div className="space-y-4">
+      <ConnectionBanner
+        online={online}
+        fromCache={fromCache}
+        refreshing={refreshing}
+        cacheSavedAt={cacheSavedAt}
+        error={error}
+        className="bg-background/80"
+      />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">
           Pending approval
@@ -91,34 +88,38 @@ export function ApprovalsQueuePage() {
                 to={`/approvals/${r.id}`}
                 className="block rounded-lg border border-border bg-card px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/40"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {r.reportNumber}
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold">
-                      {r.project.jobNumber} — {r.project.name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {r.submittedBy.name} · {r.reportDate} · {r.lineCount}{" "}
-                      line
-                      {r.lineCount === 1 ? "" : "s"}
-                      {r.attachmentCount
-                        ? ` · ${r.attachmentCount} file${r.attachmentCount === 1 ? "" : "s"}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-900">
-                      Under review
-                    </span>
-                    <span
-                      className="text-[11px] font-medium tabular-nums text-muted-foreground"
-                      title={`${r.ageHours} hours since submit`}
-                    >
-                      Age {r.ageLabel}
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+                    {r.reportNumber}
+                  </p>
+                  <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase leading-none text-sky-900">
+                    Under review
+                  </span>
+                </div>
+                <p className="mt-2 break-words text-sm font-semibold leading-snug">
+                  {r.project.jobNumber} — {r.project.name}
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>{r.submittedBy.name}</span>
+                  <span aria-hidden>·</span>
+                  <span>{r.reportDate}</span>
+                  <span aria-hidden>·</span>
+                  <span>
+                    {r.lineCount} line{r.lineCount === 1 ? "" : "s"}
+                  </span>
+                  {r.attachmentCount > 0 && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>
+                        {r.attachmentCount} file
+                        {r.attachmentCount === 1 ? "" : "s"}
+                      </span>
+                    </>
+                  )}
+                  <span aria-hidden>·</span>
+                  <span className="tabular-nums" title={`${r.ageHours} hours since submit`}>
+                    Age {r.ageLabel}
+                  </span>
                 </div>
               </Link>
             </li>

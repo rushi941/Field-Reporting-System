@@ -11,11 +11,19 @@ import {
   validateReportTaskSegments,
   type SegmentFieldErrors,
 } from "@frs/shared";
+import { ConnectionBanner } from "@/components/connection-banner";
 import { apiFetch, apiUpload } from "@/lib/api";
+import { cacheGet, OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
+import {
+  clearTaskEntryDraft,
+  loadTaskEntryDraft,
+  saveTaskEntryDraft,
+} from "@/lib/task-entry-draft";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 type TaskMaster = {
   id: string;
@@ -163,6 +171,8 @@ export function FieldTaskEntryPage() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const reportIdHint = search.get("reportId");
+  const online = useOnlineStatus();
+  const [cacheRestored, setCacheRestored] = useState(false);
 
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [report, setReport] = useState<FieldReport | null>(null);
@@ -207,15 +217,66 @@ export function FieldTaskEntryPage() {
     }, 0);
   }, [isSta, staSegs, locSegs]);
 
+  // Auto-save an offline draft to the phone so slow/offline connections never lose input.
+  useEffect(() => {
+    if (!projectId || !taskId) return;
+    if (!editable) return;
+    if (loading) return;
+    if (busy) return;
+    const timer = window.setTimeout(() => {
+      saveTaskEntryDraft(projectId, taskId, {
+        notes,
+        staSegs,
+        locSegs,
+        defaultCf,
+        defaultSymbol,
+        defaultUnit,
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [
+    projectId,
+    taskId,
+    editable,
+    loading,
+    busy,
+    notes,
+    staSegs,
+    locSegs,
+    defaultCf,
+    defaultSymbol,
+    defaultUnit,
+  ]);
+
   useEffect(() => {
     if (!projectId || !taskId) return;
     void (async () => {
       setLoading(true);
       try {
-        const data = await apiFetch<{ projects: ProjectInfo[] }>(
-          "/api/v1/field/projects",
-        );
-        const found = data.projects.find((p) => p.id === projectId) ?? null;
+        setCacheRestored(false);
+
+        const cachedProjects =
+          cacheGet<{ projects: ProjectInfo[] }>(OFFLINE_CACHE_KEYS.fieldProjects)
+            ?.data ?? null;
+
+        let projectsData: { projects: ProjectInfo[] } | null = null;
+        if (online) {
+          try {
+            projectsData = await apiFetch<{ projects: ProjectInfo[] }>(
+              "/api/v1/field/projects",
+            );
+          } catch {
+            // fall back to cache
+          }
+        }
+        if (!projectsData && cachedProjects) {
+          projectsData = cachedProjects;
+          setCacheRestored(true);
+        }
+        if (!projectsData) throw new Error("Failed to load project data");
+
+        const found =
+          projectsData.projects.find((p) => p.id === projectId) ?? null;
         setProject(found);
         const foundTask = found?.tasks.find((t) => t.id === taskId);
         if (!found || !foundTask) {
@@ -223,25 +284,44 @@ export function FieldTaskEntryPage() {
           return;
         }
 
-        let reportData: FieldReport;
-        if (reportIdHint) {
-          const r = await apiFetch<{ report: FieldReport }>(
-            `/api/v1/field/reports/${reportIdHint}`,
-          );
-          reportData = r.report;
-        } else {
-          const r = await apiFetch<{ report: FieldReport }>(
-            "/api/v1/field/reports/draft",
-            {
-              method: "POST",
-              body: JSON.stringify({
-                projectId,
-                reportDate: new Date().toISOString().slice(0, 10),
-              }),
-            },
-          );
-          reportData = r.report;
+        let reportData: FieldReport | null = null;
+        if (online) {
+          try {
+            if (reportIdHint) {
+              const r = await apiFetch<{ report: FieldReport }>(
+                `/api/v1/field/reports/${reportIdHint}`,
+              );
+              reportData = r.report;
+            } else {
+              const r = await apiFetch<{ report: FieldReport }>(
+                "/api/v1/field/reports/draft",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    projectId,
+                    reportDate: new Date().toISOString().slice(0, 10),
+                  }),
+                },
+              );
+              reportData = r.report;
+            }
+          } catch {
+            // fall back to local stub report
+          }
         }
+
+        if (!reportData) {
+          reportData = {
+            id: reportIdHint ?? `local-${projectId}-${taskId}`,
+            reportNumber: "LOCAL",
+            notes: null,
+            status: "DRAFT",
+            lineItems: [],
+            attachments: [],
+          };
+          setCacheRestored(true);
+        }
+
         setReport(reportData);
         setNotes(reportData.notes ?? "");
 
@@ -254,7 +334,9 @@ export function FieldTaskEntryPage() {
         setDefaultSymbol(symbolDefault);
         setDefaultUnit(foundTask.taskMaster.unit || "LF");
 
-        if (foundTask.taskMaster.formType === "STA_RANGE") {
+        const isStaLocal = foundTask.taskMaster.formType === "STA_RANGE";
+
+        if (isStaLocal) {
           if (existing.length) {
             setStaSegs(
               existing.map((li) => ({
@@ -279,13 +361,27 @@ export function FieldTaskEntryPage() {
         } else {
           setLocSegs([emptyLoc(symbolDefault)]);
         }
+
+        // Restore unsent task draft from this device
+        const draft = loadTaskEntryDraft(projectId, taskId);
+        if (draft) {
+          setCacheRestored(true);
+          setNotes(draft.notes ?? "");
+          setDefaultCf(draft.defaultCf ?? cf.toFixed(2));
+          setDefaultSymbol(draft.defaultSymbol ?? symbolDefault);
+          setDefaultUnit(draft.defaultUnit ?? foundTask.taskMaster.unit ?? "LF");
+          if (isStaLocal && draft.staSegs?.length) setStaSegs(draft.staSegs as StaSeg[]);
+          if (!isStaLocal && draft.locSegs?.length)
+            setLocSegs(draft.locSegs as LocSeg[]);
+          toast.message("Draft restored from this device", { id: "task-draft" });
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to load");
       } finally {
         setLoading(false);
       }
     })();
-  }, [projectId, taskId, reportIdHint]);
+  }, [projectId, taskId, reportIdHint, online]);
 
   function clearSegField(index: number, field: string) {
     setSegErrors((prev) => {
@@ -388,11 +484,19 @@ export function FieldTaskEntryPage() {
       const saved = await persistTask();
       if (!saved) return;
       toast.success("Saved to report", { id: "field-entry" });
+      clearTaskEntryDraft(projectId, taskId);
       navigate(`/field/projects/${projectId}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed", {
-        id: "field-entry",
-      });
+      if (!online) {
+        toast.message(
+          "Saved locally on this device. Connect and try again to sync.",
+          { id: "field-entry" },
+        );
+      } else {
+        toast.error(err instanceof Error ? err.message : "Save failed", {
+          id: "field-entry",
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -416,11 +520,19 @@ export function FieldTaskEntryPage() {
       toast.success(`Submitted ${data.report.reportNumber}`, {
         id: "field-entry",
       });
+      clearTaskEntryDraft(projectId, taskId);
       navigate("/field/reports");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Submit failed", {
-        id: "field-entry",
-      });
+      if (!online) {
+        toast.message(
+          "Saved locally on this device. Connect and try again to sync.",
+          { id: "field-entry" },
+        );
+      } else {
+        toast.error(err instanceof Error ? err.message : "Submit failed", {
+          id: "field-entry",
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -490,6 +602,7 @@ export function FieldTaskEntryPage() {
 
   return (
     <div className={cn("space-y-5", editable && "pb-36 md:pb-10")}>
+      <ConnectionBanner online={online} fromCache={cacheRestored} />
       <Link
         to={`/field/projects/${projectId}`}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-sm font-medium text-sky-800 hover:text-sky-900"

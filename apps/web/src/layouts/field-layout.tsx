@@ -112,11 +112,11 @@ export function FieldLayout() {
   );
 
   return (
-    <div className="flex min-h-svh bg-background">
+    <div className="flex min-h-svh overflow-x-hidden bg-background">
       <div className="sticky top-0 hidden h-svh shrink-0 md:block">{sidebar}</div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 backdrop-blur md:h-14 md:bg-card/95 md:px-4">
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur md:h-14 md:gap-3 md:bg-card/95 md:px-4 md:pt-0">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt md:hidden">
               AT

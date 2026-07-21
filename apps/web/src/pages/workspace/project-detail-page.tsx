@@ -47,6 +47,7 @@ type ProjectTask = {
     unit: string;
     formType: string;
     parentId: string | null;
+    parent?: { id: string; code: string; name: string } | null;
     division: string | null;
     color: string | null;
     widthInches: number | null;
@@ -72,6 +73,7 @@ type TableRow = {
   taskMasterId: string;
   code: string;
   name: string;
+  genericName: string | null;
   division: string;
   unit: string;
   formType: string;
@@ -125,6 +127,7 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
     taskMasterId: t.taskMasterId,
     code: t.taskMaster.code,
     name: t.taskMaster.name,
+    genericName: t.taskMaster.parent?.name ?? null,
     division: t.division,
     unit: t.taskMaster.unit,
     formType: t.taskMaster.formType,
@@ -206,6 +209,11 @@ export function ProjectDetailPage() {
     [project],
   );
 
+  const showGenericNameColumn = useMemo(
+    () => taskRows.some((row) => row.genericName),
+    [taskRows],
+  );
+
   const projectDivisions = useMemo(
     () =>
       project && project.divisions.length > 0
@@ -243,6 +251,14 @@ export function ProjectDetailPage() {
       pavementLineTypes.find((d) => lineTypeKey(d) === form.lineTypeKey) ?? null,
     [form.lineTypeKey],
   );
+
+  const templateGenericName = useMemo(() => {
+    if (!form.taskTemplateId) return null;
+    const template = divisionTaskOptions.find((t) => t.id === form.taskTemplateId);
+    if (!template?.parentId) return null;
+    const master = taskTree.find((m) => m.id === template.parentId);
+    return master?.name ?? null;
+  }, [form.taskTemplateId, divisionTaskOptions, taskTree]);
 
   const lineCode = useMemo(() => {
     if (!selectedLineType) return "";
@@ -514,6 +530,9 @@ export function ProjectDetailPage() {
               <tr>
                 <th className="w-20 px-4 py-3">WBS</th>
                 <th className="w-28 px-4 py-3">Code</th>
+                {showGenericNameColumn && (
+                  <th className="px-4 py-3">Generic name</th>
+                )}
                 <th className="px-4 py-3">Task name</th>
                 <th className="w-36 px-4 py-3">Division</th>
                 <th className="w-20 px-4 py-3">Unit</th>
@@ -529,7 +548,7 @@ export function ProjectDetailPage() {
               {taskRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={showGenericNameColumn ? 12 : 11}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> to create work
@@ -546,6 +565,11 @@ export function ProjectDetailPage() {
                     {row.wbs}
                   </td>
                   <td className="px-4 py-2.5 font-mono text-xs">{row.code}</td>
+                  {showGenericNameColumn && (
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {row.genericName ?? "—"}
+                    </td>
+                  )}
                   <td className="px-4 py-2.5">{row.name}</td>
                   <td className="px-4 py-2.5 text-xs">
                     {divisionLabels[row.division] ?? row.division}
@@ -674,6 +698,17 @@ export function ProjectDetailPage() {
                       No master tasks for this division yet — enter a name below
                     </p>
                   )}
+                </div>
+              )}
+
+              {templateGenericName && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Generic name</Label>
+                  <Input
+                    readOnly
+                    className="bg-muted text-muted-foreground"
+                    value={templateGenericName}
+                  />
                 </div>
               )}
 

@@ -69,6 +69,15 @@ const emptyForm = {
   isActive: true,
 };
 
+function slugCodeFromName(name: string): string {
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
 export function TasksPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [types, setTypes] = useState<ProjectTypeOpt[]>([]);
@@ -155,6 +164,21 @@ export function TasksPage() {
     return map;
   }, [bids]);
 
+  const showGenericNameColumn = useMemo(
+    () =>
+      bids.some((b) => {
+        if (!b.parentId) return false;
+        const parent = masters.find((m) => m.id === b.parentId);
+        return Boolean(parent?.name?.trim());
+      }),
+    [bids, masters],
+  );
+
+  const selectedMaster = useMemo(
+    () => masters.find((m) => m.id === form.parentId) ?? null,
+    [masters, form.parentId],
+  );
+
   const title = useMemo(() => {
     if (editingId) return mode === "sub" ? "Edit sub-bid" : "Edit master bid";
     return mode === "sub" ? "New sub-bid" : "New master bid";
@@ -236,11 +260,24 @@ export function TasksPage() {
       toast.error("Select a unit", { id: "bid-master" });
       return;
     }
+    if (!form.name.trim()) {
+      toast.error("Enter a name", { id: "bid-master" });
+      return;
+    }
+    const code = editingId
+      ? form.code.trim()
+      : slugCodeFromName(form.name);
+    if (!code) {
+      toast.error("Enter a valid name to generate line code", {
+        id: "bid-master",
+      });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
-        code: form.code,
-        name: form.name,
+        code,
+        name: form.name.trim(),
         unit: form.unit,
         formType: form.formType,
         projectTypeId: form.projectTypeId || null,
@@ -375,6 +412,9 @@ export function TasksPage() {
               <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Line code</th>
+                  {showGenericNameColumn && (
+                    <th className="px-4 py-3">Generic name</th>
+                  )}
                   <th className="px-4 py-3">Bid / Sub-bid</th>
                   <th className="px-4 py-3">Color</th>
                   <th className="px-4 py-3">Width</th>
@@ -388,7 +428,7 @@ export function TasksPage() {
                 {masters.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={showGenericNameColumn ? 9 : 8}
                       className="px-4 py-10 text-center text-sm text-muted-foreground"
                     >
                       No bids yet. Add a master bid, then add sub-bids under it.
@@ -425,6 +465,11 @@ export function TasksPage() {
                             <span className="font-mono text-xs">{master.code}</span>
                           </div>
                         </td>
+                        {showGenericNameColumn && (
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            —
+                          </td>
+                        )}
                         <td className="px-4 py-2.5">
                           <span className="mr-2 rounded bg-asphalt px-1.5 py-0.5 text-[10px] font-semibold text-white uppercase">
                             Master
@@ -471,6 +516,11 @@ export function TasksPage() {
                             <td className="px-4 py-2 pl-10 font-mono text-xs font-semibold text-asphalt-mid">
                               {sub.code}
                             </td>
+                            {showGenericNameColumn && (
+                              <td className="px-4 py-2 pl-6 text-muted-foreground">
+                                {master.name?.trim() || "—"}
+                              </td>
+                            )}
                             <td className="px-4 py-2 pl-6">
                               <span className="mr-2 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
                                 Sub
@@ -597,16 +647,6 @@ export function TasksPage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label>Code</Label>
-                <Input
-                  value={form.code}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, code: e.target.value }))
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
                 <Label>Unit *</Label>
                 <select
                   className={selectClass}
@@ -629,8 +669,20 @@ export function TasksPage() {
                   </p>
                 )}
               </div>
+              {mode === "sub" && selectedMaster?.name?.trim() && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Generic name</Label>
+                  <Input
+                    readOnly
+                    className="bg-muted text-muted-foreground"
+                    value={selectedMaster.name}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Generic name *</Label>
+                <Label>
+                  {mode === "sub" ? "Sub-bid name *" : "Generic name *"}
+                </Label>
                 <Input
                   value={form.name}
                   onChange={(e) =>
@@ -638,6 +690,11 @@ export function TasksPage() {
                   }
                   required
                 />
+                {!editingId && (
+                  <p className="text-xs text-muted-foreground">
+                    Line code is generated automatically from the name.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Project type</Label>
