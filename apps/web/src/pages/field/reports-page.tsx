@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
 import { ClipboardList, Loader2 } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
-import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ConnectionBanner } from "@/components/connection-banner";
+import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
+import { useCachedApi } from "@/hooks/use-cached-api";
 
 type FieldReport = {
   id: string;
@@ -34,33 +34,36 @@ const statusStyles: Record<string, string> = {
 };
 
 export function FieldReportsPage() {
-  const [reports, setReports] = useState<FieldReport[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    refreshing,
+    fromCache,
+    cacheSavedAt,
+    error,
+    online,
+  } = useCachedApi<{ reports: FieldReport[] }>(
+    OFFLINE_CACHE_KEYS.fieldReports,
+    "/api/v1/field/reports",
+  );
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const data = await apiFetch<{ reports: FieldReport[] }>(
-          "/api/v1/field/reports",
-        );
-        setReports(data.reports);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to load reports",
-        );
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const reports = data?.reports ?? [];
 
   return (
     <div className="space-y-4">
+      <ConnectionBanner
+        online={online}
+        fromCache={fromCache}
+        refreshing={refreshing}
+        cacheSavedAt={cacheSavedAt}
+        error={error}
+        className="bg-background/80"
+      />
       <p className="text-sm text-muted-foreground">
         Open a report for full details. Correct returned reports and resubmit.
       </p>
 
-      {loading ? (
+      {loading && reports.length === 0 ? (
         <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-6 animate-spin text-sky-800" />
           Loading reports…
@@ -89,36 +92,15 @@ export function FieldReportsPage() {
               <li key={r.id}>
                 <Link
                   to={`/field/reports/${r.id}`}
-                  className="block rounded-lg border border-border bg-card px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/40"
+                  className="block rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {r.reportNumber}
-                      </p>
-                      <p className="mt-0.5 text-sm font-semibold">
-                        {r.project.jobNumber} — {r.project.name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {r.reportDate} · {r.lineItems.length} line
-                        {r.lineItems.length === 1 ? "" : "s"}
-                      </p>
-                      {(r.status === "APPROVED" ||
-                        r.status === "APPROVED_WITH_NOTES") &&
-                        r.approvedBy && (
-                          <p className="mt-1 text-xs text-emerald-800">
-                            Approved by {r.approvedBy.name}
-                          </p>
-                        )}
-                      {r.status === "RETURNED" && r.returnedBy && (
-                        <p className="mt-1 text-xs text-amber-900">
-                          Returned by {r.returnedBy.name}
-                        </p>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+                      {r.reportNumber}
+                    </p>
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                        "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-wide",
                         statusStyles[r.status] ??
                           "bg-muted text-muted-foreground",
                       )}
@@ -126,6 +108,25 @@ export function FieldReportsPage() {
                       {label}
                     </span>
                   </div>
+                  <p className="mt-2 text-sm font-semibold leading-snug">
+                    {r.project.jobNumber} — {r.project.name}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {r.reportDate} · {r.lineItems.length} line
+                    {r.lineItems.length === 1 ? "" : "s"}
+                  </p>
+                  {(r.status === "APPROVED" ||
+                    r.status === "APPROVED_WITH_NOTES") &&
+                    r.approvedBy && (
+                      <p className="mt-1.5 text-xs text-emerald-800">
+                        Approved by {r.approvedBy.name}
+                      </p>
+                    )}
+                  {r.status === "RETURNED" && r.returnedBy && (
+                    <p className="mt-1.5 text-xs text-amber-900">
+                      Returned by {r.returnedBy.name}
+                    </p>
+                  )}
                   {r.status === "RETURNED" && r.returnComment && (
                     <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-950">
                       {r.returnComment}

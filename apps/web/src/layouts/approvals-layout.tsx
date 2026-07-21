@@ -123,36 +123,38 @@ export function ApprovalsLayout() {
   );
 
   return (
-    <div className="flex min-h-svh bg-background">
+    <div className="flex min-h-svh overflow-x-hidden bg-background">
       <div className="hidden lg:block">{sidebar}</div>
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
-            aria-label="Close menu"
+            aria-label="Dismiss menu"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative z-50 h-full w-72 shadow-xl">{sidebar}</div>
+          <div className="relative z-50 h-full w-72 max-w-[min(18rem,85vw)] shadow-xl">{sidebar}</div>
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-border px-4 py-3 lg:hidden">
+        <header className="sticky top-0 z-50 flex shrink-0 items-center gap-2 border-b border-border bg-card/95 px-3 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:hidden">
           <button
             type="button"
-            className="rounded-md p-2 hover:bg-muted"
-            onClick={() => setMobileOpen(true)}
+            className="shrink-0 rounded-md p-2 hover:bg-muted"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
-          <p className="text-sm font-semibold">Approvals</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold">Approvals</p>
           {pendingCount > 0 && (
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-900">
+            <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-900">
               {pendingCount} pending
             </span>
           )}
         </header>
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">
+        <main className="mx-auto w-full max-w-3xl flex-1 px-3 py-4 sm:px-4 sm:py-5">
           <Outlet />
         </main>
       </div>

@@ -17,9 +17,14 @@
     "db:seed": "npm run db:seed -w @frs/db",
     "db:seed:admin": "npm run db:seed:admin -w @frs/db",
     "stop": "node scripts/stop-dev.mjs",
-    "smoke": "node scripts/smoke-browser.mjs"
+    "smoke": "node scripts/smoke-browser.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "concurrently": "^9.1.2",
     "playwright": "^1.61.1"
   },

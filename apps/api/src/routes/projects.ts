@@ -40,6 +40,7 @@ const projectInclude = {
           unit: true,
           formType: true,
           parentId: true,
+          parent: { select: { id: true, code: true, name: true } },
           division: true,
           color: true,
           widthInches: true,

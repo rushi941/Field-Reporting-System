@@ -150,43 +150,32 @@ export function ApprovalsHistoryPage() {
                           "hover:border-sky-300 hover:bg-sky-50/40",
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {r.reportNumber}
-                          </p>
-                          <p className="mt-0.5 text-sm font-medium">
-                            {r.submittedBy.name} · {r.reportDate}
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {r.lineCount} line
-                            {r.lineCount === 1 ? "" : "s"}
-                            {r.approvedBy
-                              ? ` · Approved by ${r.approvedBy.name}`
-                              : ""}
-                          </p>
-                          {r.returnComment && (
-                            <p className="mt-1 text-xs text-amber-900">
-                              {r.returnComment}
-                            </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+                          {r.reportNumber}
+                        </p>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase leading-none",
+                            statusStyles[r.status] ?? "bg-muted",
                           )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                              statusStyles[r.status] ?? "bg-muted",
-                            )}
-                          >
-                            {label}
-                          </span>
-                          {r.status === "SUBMITTED" && (
-                            <span className="text-[11px] tabular-nums text-muted-foreground">
-                              Age {r.ageLabel}
-                            </span>
-                          )}
-                        </div>
+                        >
+                          {label}
+                        </span>
                       </div>
+                      <p className="mt-2 text-sm font-medium">
+                        {r.submittedBy.name} · {r.reportDate}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {r.lineCount} line{r.lineCount === 1 ? "" : "s"}
+                        {r.approvedBy ? ` · Approved by ${r.approvedBy.name}` : ""}
+                        {r.status === "SUBMITTED" ? ` · Age ${r.ageLabel}` : ""}
+                      </p>
+                      {r.returnComment && (
+                        <p className="mt-2 break-words rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                          {r.returnComment}
+                        </p>
+                      )}
                     </Link>
                   </li>
                 );

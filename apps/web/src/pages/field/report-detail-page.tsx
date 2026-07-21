@@ -149,28 +149,28 @@ export function FieldReportDetailPage() {
         <ArrowLeft className="size-4" /> Reports
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-mono text-xs text-muted-foreground">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
             {report.reportNumber}
           </p>
-          <h1 className="mt-1 text-lg font-semibold">
-            {report.project.jobNumber} — {report.project.name}
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {report.reportDate}
-            {report.crewSize != null ? ` · Crew ${report.crewSize}` : ""}
-            {report.project.location ? ` · ${report.project.location}` : ""}
-          </p>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-wide",
+              statusStyles[report.status] ?? "bg-muted text-muted-foreground",
+            )}
+          >
+            {statusLabel}
+          </span>
         </div>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-            statusStyles[report.status] ?? "bg-muted text-muted-foreground",
-          )}
-        >
-          {statusLabel}
-        </span>
+        <h1 className="text-base font-semibold leading-snug sm:text-lg">
+          {report.project.jobNumber} — {report.project.name}
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          {report.reportDate}
+          {report.crewSize != null ? ` · Crew ${report.crewSize}` : ""}
+          {report.project.location ? ` · ${report.project.location}` : ""}
+        </p>
       </div>
 
       {report.status === "RETURNED" && report.returnComment && (

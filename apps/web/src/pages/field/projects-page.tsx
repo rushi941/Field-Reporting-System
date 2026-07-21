@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
 import { Loader2, Search } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { ConnectionBanner } from "@/components/connection-banner";
+import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
+import { useCachedApi } from "@/hooks/use-cached-api";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -26,25 +27,22 @@ const divisionChips: { value: DivisionFilter; label: string }[] = [
 ];
 
 export function FieldProjectsPage() {
-  const [projects, setProjects] = useState<FieldProject[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    refreshing,
+    fromCache,
+    cacheSavedAt,
+    error,
+    online,
+  } = useCachedApi<{ projects: FieldProject[] }>(
+    OFFLINE_CACHE_KEYS.fieldProjects,
+    "/api/v1/field/projects",
+  );
+
+  const projects = data?.projects ?? [];
   const [query, setQuery] = useState("");
   const [division, setDivision] = useState<DivisionFilter>("ALL");
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const data = await apiFetch<{ projects: FieldProject[] }>(
-          "/api/v1/field/projects",
-        );
-        setProjects(data.projects);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load projects");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -61,7 +59,15 @@ export function FieldProjectsPage() {
   }, [projects, query, division]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <ConnectionBanner
+        online={online}
+        fromCache={fromCache}
+        refreshing={refreshing}
+        cacheSavedAt={cacheSavedAt}
+        error={error}
+        className="bg-background/80"
+      />
       <p className="text-sm text-muted-foreground">
         Select a project to begin your daily report.
       </p>
@@ -76,25 +82,38 @@ export function FieldProjectsPage() {
         />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {divisionChips.map((chip) => (
-          <button
-            key={chip.value}
-            type="button"
-            onClick={() => setDivision(chip.value)}
-            className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition",
-              division === chip.value
-                ? "border-sky-600 bg-sky-50 text-sky-800"
-                : "border-border bg-card text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {chip.label}
-          </button>
-        ))}
+      <div className="space-y-2.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Division
+        </p>
+        <div
+          className={cn(
+            "-mx-3 overflow-x-auto px-3 pb-1",
+            "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          )}
+        >
+          <div className="flex w-max min-w-full gap-2.5 pr-4">
+            {divisionChips.map((chip) => (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => setDivision(chip.value)}
+                className={cn(
+                  "shrink-0 rounded-full border px-4 py-2.5 text-xs font-semibold transition active:scale-[0.98]",
+                  division === chip.value
+                    ? "border-sky-600 bg-sky-50 text-sky-800 shadow-sm"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {loading ? (
+      <div className="border-t border-border/60 pt-4">
+      {loading && projects.length === 0 ? (
         <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-6 animate-spin text-sky-800" />
           Loading projects…
@@ -104,7 +123,7 @@ export function FieldProjectsPage() {
           No projects match your search.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {filtered.map((p) => {
             const subtitle =
               p.clientName || p.generalContractor || p.location || "—";
@@ -112,9 +131,9 @@ export function FieldProjectsPage() {
               <li key={p.id}>
                 <Link
                   to={`/field/projects/${p.id}`}
-                  className="block rounded-lg border border-border bg-card px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/40"
+                  className="block rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                 >
-                  <p className="text-sm font-semibold leading-snug text-foreground">
+                  <p className="break-words text-sm font-semibold leading-snug text-foreground">
                     {p.jobNumber} — {p.name}
                     {p.location ? ` — ${p.location}` : ""}
                   </p>
@@ -127,6 +146,7 @@ export function FieldProjectsPage() {
           })}
         </ul>
       )}
+      </div>
     </div>
   );
 }
