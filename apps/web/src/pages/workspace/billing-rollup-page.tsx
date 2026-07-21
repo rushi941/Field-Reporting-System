@@ -82,8 +82,24 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Project rollup of approved quantities. Export when billing ready.
+          Pay-app backup from approved field reports. All active projects are
+          listed — billing-ready jobs appear first.
         </p>
+      </div>
+
+      <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-950">
+        <p className="font-medium">How billing works</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-relaxed sm:text-sm">
+          <li>Field leads submit daily reports → managers approve them.</li>
+          <li>
+            A job is <strong>Billing ready</strong> when it has at least one
+            approved report and zero pending approvals.
+          </li>
+          <li>
+            Open drilldown to review quantities and attachments, then export CSV
+            for your pay application backup.
+          </li>
+        </ol>
       </div>
 
       {projects.length === 0 ? (
@@ -91,86 +107,170 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
           No active projects.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {projects.map((p) => (
-            <li
-              key={p.id}
-              className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <Link
-                    to={`/${base}/billing/${p.id}`}
-                    className="text-sm font-semibold hover:underline"
-                  >
-                    {p.jobNumber} — {p.name}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {[p.clientName, p.location].filter(Boolean).join(" · ") ||
-                      "—"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                    <span>
-                      Approved:{" "}
-                      <strong className="text-foreground">
-                        {p.approvedCount}
-                      </strong>
-                    </span>
-                    <span>
-                      Pending:{" "}
-                      <strong
-                        className={
-                          p.pendingCount > 0
-                            ? "text-amber-700"
-                            : "text-foreground"
-                        }
+        <>
+          <div className="hidden overflow-x-auto rounded-lg border md:block">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Job</th>
+                  <th className="px-3 py-2 font-medium">Client / location</th>
+                  <th className="px-3 py-2 font-medium text-right">Approved</th>
+                  <th className="px-3 py-2 font-medium text-right">Pending</th>
+                  <th className="px-3 py-2 font-medium">Last report</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((p) => (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className="px-3 py-2.5">
+                      <Link
+                        to={`/${base}/billing/${p.id}`}
+                        className="font-semibold hover:underline"
                       >
-                        {p.pendingCount}
-                      </strong>
-                    </span>
-                    <span>
-                      Last report:{" "}
-                      <strong className="text-foreground">
-                        {p.lastReportDate ?? "—"}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                      p.billingReady
-                        ? "bg-emerald-100 text-emerald-900"
-                        : "bg-amber-100 text-amber-950",
-                    )}
-                  >
-                    {p.billingReady ? "Billing ready" : "Waiting"}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/${base}/billing/${p.id}`}>Drilldown</Link>
-                    </Button>
-                    {can("billing.export") && (
-                      <Button
-                        size="sm"
-                        disabled={!p.billingReady || exportingId === p.id}
-                        onClick={() => void exportCsv(p)}
-                      >
-                        {exportingId === p.id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Download className="size-3.5" />
+                        {p.jobNumber}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">{p.name}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
+                        "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {p.approvedCount}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 text-right tabular-nums font-medium",
+                        p.pendingCount > 0 && "text-amber-700",
+                      )}
+                    >
+                      {p.pendingCount}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs tabular-nums">
+                      {p.lastReportDate ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                          p.billingReady
+                            ? "bg-emerald-100 text-emerald-900"
+                            : "bg-amber-100 text-amber-950",
                         )}
-                        CSV
+                      >
+                        {p.billingReady ? "Ready" : "Waiting"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex justify-end gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/${base}/billing/${p.id}`}>Drilldown</Link>
+                        </Button>
+                        {can("billing.export") && (
+                          <Button
+                            size="sm"
+                            disabled={!p.billingReady || exportingId === p.id}
+                            onClick={() => void exportCsv(p)}
+                          >
+                            {exportingId === p.id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Download className="size-3.5" />
+                            )}
+                            CSV
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ul className="space-y-2 md:hidden">
+            {projects.map((p) => (
+              <li
+                key={p.id}
+                className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      to={`/${base}/billing/${p.id}`}
+                      className="text-sm font-semibold hover:underline"
+                    >
+                      {p.jobNumber} — {p.name}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
+                        "—"}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      <span>
+                        Approved:{" "}
+                        <strong className="text-foreground">
+                          {p.approvedCount}
+                        </strong>
+                      </span>
+                      <span>
+                        Pending:{" "}
+                        <strong
+                          className={
+                            p.pendingCount > 0
+                              ? "text-amber-700"
+                              : "text-foreground"
+                          }
+                        >
+                          {p.pendingCount}
+                        </strong>
+                      </span>
+                      <span>
+                        Last report:{" "}
+                        <strong className="text-foreground">
+                          {p.lastReportDate ?? "—"}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                        p.billingReady
+                          ? "bg-emerald-100 text-emerald-900"
+                          : "bg-amber-100 text-amber-950",
+                      )}
+                    >
+                      {p.billingReady ? "Billing ready" : "Waiting"}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/${base}/billing/${p.id}`}>Drilldown</Link>
                       </Button>
-                    )}
+                      {can("billing.export") && (
+                        <Button
+                          size="sm"
+                          disabled={!p.billingReady || exportingId === p.id}
+                          onClick={() => void exportCsv(p)}
+                        >
+                          {exportingId === p.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Download className="size-3.5" />
+                          )}
+                          CSV
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

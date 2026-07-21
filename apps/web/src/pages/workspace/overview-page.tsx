@@ -33,12 +33,10 @@ export function WorkspaceOverviewPage({
   const { can, user } = useAuth();
   const base = kind === "system" ? "/system" : "/office";
   const [rollup, setRollup] = useState<RollupProject[]>([]);
-  const [loadingRollup, setLoadingRollup] = useState(
-    kind === "office" && can("reports.view_approved"),
-  );
+  const [loadingRollup, setLoadingRollup] = useState(can("reports.view_approved"));
 
   useEffect(() => {
-    if (kind !== "office" || !can("reports.view_approved")) return;
+    if (!can("reports.view_approved")) return;
     void (async () => {
       try {
         const data = await apiFetch<{ projects: RollupProject[] }>(
@@ -82,6 +80,13 @@ export function WorkspaceOverviewPage({
       permission: "projects.manage",
     },
     {
+      to: `${base}/billing`,
+      title: "Billing",
+      body: "Approved report rollup, drilldown, and CSV backup export.",
+      icon: FileSpreadsheet,
+      permission: "reports.view_approved",
+    },
+    {
       to: `${base}/project-types`,
       title: "Project types",
       body: "Master list for pavement marking, traffic control, signs, and more.",
@@ -101,13 +106,6 @@ export function WorkspaceOverviewPage({
       body: "Master bids and sub-bids by division, with CSV import.",
       icon: ListChecks,
       permission: "projects.manage",
-    },
-    {
-      to: `${base}/billing`,
-      title: "Billing",
-      body: "Approved report rollup, drilldown, and CSV backup export.",
-      icon: FileSpreadsheet,
-      permission: "reports.view_approved",
     },
     ...(kind === "system"
       ? [
@@ -139,12 +137,14 @@ export function WorkspaceOverviewPage({
       </h1>
       <p className="mt-2 max-w-xl text-sm text-muted-foreground">
         Welcome{user?.firstName ? `, ${user.firstName}` : ""}.
-        {kind === "office"
+        {can("reports.view_approved")
           ? " Approved-only detail · summary pending counts · billing readiness."
-          : " Manage projects, users, and settings."}
+          : kind === "system"
+            ? " Manage projects, users, and settings."
+            : " Manage projects and master data."}
       </p>
 
-      {kind === "office" && can("reports.view_approved") && (
+      {can("reports.view_approved") && (
         <div className="mt-6 space-y-3">
           {loadingRollup ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

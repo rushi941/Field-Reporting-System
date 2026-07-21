@@ -95,19 +95,29 @@ billingRouter.get(
       }
     }
 
-    res.json({
-      projects: projects.map((p) => {
-        const stats = byProject.get(p.id)!;
-        const billingReady =
-          stats.approvedCount > 0 && stats.pendingCount === 0;
-        return {
-          ...p,
-          ...stats,
-          billingReady,
-          billingReadinessFlag: billingReady ? "READY" : "WAITING",
-        };
-      }),
+    const rollup = projects.map((p) => {
+      const stats = byProject.get(p.id)!;
+      const billingReady =
+        stats.approvedCount > 0 && stats.pendingCount === 0;
+      return {
+        ...p,
+        ...stats,
+        billingReady,
+        billingReadinessFlag: billingReady ? "READY" : "WAITING",
+      };
     });
+
+    rollup.sort((a, b) => {
+      if (a.billingReady !== b.billingReady) {
+        return a.billingReady ? -1 : 1;
+      }
+      if (a.pendingCount !== b.pendingCount) {
+        return b.pendingCount - a.pendingCount;
+      }
+      return a.jobNumber.localeCompare(b.jobNumber);
+    });
+
+    res.json({ projects: rollup });
   }),
 );
 

@@ -82,10 +82,10 @@ test.describe("System Admin — all pages & forms", () => {
     const links = [
       { label: "Overview", heading: "Overview" },
       { label: "Projects", heading: "Projects" },
+      { label: "Billing", heading: "Billing" },
       { label: "Project types", heading: "Project types" },
       { label: "Units", heading: "Units" },
       { label: "Bid master", heading: "Bid master" },
-      { label: "Billing", heading: "Billing" },
       { label: "Users", heading: "Users" },
       { label: "Permissions", heading: "Permissions" },
     ];

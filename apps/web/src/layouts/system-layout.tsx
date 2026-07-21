@@ -33,20 +33,20 @@ const navByKind: Record<
   system: [
     { to: "/system", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/system/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage" },
+    { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
     { to: "/system/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/system/units", label: "Units", icon: Ruler, permission: "projects.manage" },
     { to: "/system/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
-    { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
     { to: "/system/users", label: "Users", icon: Users, permission: "users.manage" },
     { to: "/system/permissions", label: "Permissions", icon: Shield, permission: "permissions.manage" },
   ],
   office: [
     { to: "/office", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/office/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage" },
+    { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
     { to: "/office/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/office/units", label: "Units", icon: Ruler, permission: "projects.manage" },
     { to: "/office/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
-    { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
   ],
 };
 
