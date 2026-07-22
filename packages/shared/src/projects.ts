@@ -71,7 +71,8 @@ export const projectSchema = z.object({
   /// Extra divisions on this job (tasks can span multiple)
   divisions: z.array(divisionEnum).optional().default([]),
   projectTypeId: z.string().optional().nullable(),
-  projectManagerId: z.string().min(1, "Project manager is required"),
+  projectAdminId: z.string().min(1, "Project admin is required"),
+  projectManagerId: z.string().min(1, "Division manager is required"),
   clientName: z.string().max(200).optional().nullable(),
   generalContractor: z.string().max(200).optional().nullable(),
   location: z.string().max(300).optional().nullable(),

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { roleLabels, projectSchema, updateProjectSchema, splitProjectDivisions, type AppRole } from "@frs/shared";
+import { projectSchema, updateProjectSchema, splitProjectDivisions } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ type ManagerOpt = {
   id: string;
   name: string;
   email: string;
+  division?: string | null;
   roles?: string[];
 };
 type Project = {
@@ -37,6 +38,8 @@ type Project = {
   divisions: string[];
   projectTypeId: string | null;
   projectType: ProjectTypeOpt | null;
+  projectAdminId: string | null;
+  projectAdmin: { id: string; name: string; email: string } | null;
   projectManagerId: string | null;
   projectManager: { id: string; name: string; email: string } | null;
   clientName: string | null;
@@ -58,6 +61,7 @@ const emptyForm = {
   name: "",
   selectedDivisions: ["PAVEMENT_MARKING"] as string[],
   projectTypeId: "",
+  projectAdminId: "",
   projectManagerId: "",
   clientName: "",
   generalContractor: "",
@@ -93,12 +97,15 @@ function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
 }
 
-function managerOptionLabel(m: ManagerOpt): string {
-  const primary = (["SYSTEM_ADMIN", "PROJECT_ADMIN", "DIVISION_MANAGER"] as const).find(
-    (r) => m.roles?.includes(r),
-  );
-  const role = primary ? roleLabels[primary as AppRole] : "PM";
-  return `${m.name} · ${role}`;
+function divisionManagerLabel(m: ManagerOpt): string {
+  const div = m.division
+    ? divisionLabels[m.division] ?? m.division
+    : null;
+  return div ? `${m.name} · ${div}` : m.name;
+}
+
+function createEmptyForm(projectAdminId = "") {
+  return { ...emptyForm, projectAdminId };
 }
 
 export function ProjectsPage() {
@@ -107,10 +114,20 @@ export function ProjectsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const base = workspaceBase(location.pathname);
+  const isOfficeWorkspace = base === "/office";
+  const isSystemAdmin = user?.roles.includes("SYSTEM_ADMIN") ?? false;
+  const lockProjectAdmin =
+    isOfficeWorkspace &&
+    (user?.roles.includes("PROJECT_ADMIN") ?? false) &&
+    !isSystemAdmin;
+  const lockedProjectAdminName = user
+    ? `${user.firstName} ${user.lastName}`
+    : "";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [types, setTypes] = useState<ProjectTypeOpt[]>([]);
-  const [managers, setManagers] = useState<ManagerOpt[]>([]);
+  const [projectAdmins, setProjectAdmins] = useState<ManagerOpt[]>([]);
+  const [divisionManagers, setDivisionManagers] = useState<ManagerOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -136,12 +153,14 @@ export function ProjectsPage() {
         apiFetch<{ projects: Project[] }>("/api/v1/projects"),
         apiFetch<{
           projectTypes: ProjectTypeOpt[];
-          managers: ManagerOpt[];
+          projectAdmins: ManagerOpt[];
+          divisionManagers: ManagerOpt[];
         }>("/api/v1/projects/lookups"),
       ]);
       setProjects(p.projects);
       setTypes(lookups.projectTypes);
-      setManagers(lookups.managers);
+      setProjectAdmins(lookups.projectAdmins ?? []);
+      setDivisionManagers(lookups.divisionManagers ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -167,9 +186,12 @@ export function ProjectsPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    const nextForm = createEmptyForm(
+      lockProjectAdmin && user?.id ? user.id : "",
+    );
+    setForm(nextForm);
     setRouteDraft(null);
-    setFormBaseline(snapshotForm(emptyForm, null));
+    setFormBaseline(snapshotForm(nextForm, null));
     setUnsavedPrompt(false);
     setOpen(true);
   }
@@ -182,6 +204,9 @@ export function ProjectsPage() {
       selectedDivisions:
         p.divisions.length > 0 ? p.divisions : [p.division],
       projectTypeId: p.projectTypeId ?? "",
+      projectAdminId:
+        p.projectAdminId ??
+        (lockProjectAdmin && user?.id ? user.id : ""),
       projectManagerId: p.projectManagerId ?? "",
       clientName: p.clientName ?? "",
       generalContractor: p.generalContractor ?? "",
@@ -232,12 +257,15 @@ export function ProjectsPage() {
           "PAVEMENT_MARKING" | "TRAFFIC_CONTROL" | "PERMANENT_SIGNS"
         >,
       );
+      const projectAdminId =
+        lockProjectAdmin && user?.id ? user.id : form.projectAdminId;
       const raw = {
         jobNumber: form.jobNumber.trim() || null,
         name: form.name.trim(),
         division,
         divisions,
         projectTypeId: form.projectTypeId || null,
+        projectAdminId,
         projectManagerId: form.projectManagerId,
         clientName: form.clientName.trim() || null,
         generalContractor: form.generalContractor.trim() || null,
@@ -313,7 +341,7 @@ export function ProjectsPage() {
             Projects
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a project with PM, division, and work route A → B
+            Create a project with project admin, division manager, and work route A → B
           </p>
         </div>
         <Button className="bg-asphalt-mid text-white hover:bg-asphalt" onClick={openCreate}>
@@ -328,14 +356,15 @@ export function ProjectsPage() {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Job #</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Division</th>
                   <th className="px-4 py-3">Route</th>
-                  <th className="px-4 py-3">Manager</th>
+                  <th className="px-4 py-3">Project admin</th>
+                  <th className="px-4 py-3">Div. manager</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -372,6 +401,9 @@ export function ProjectsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {p.route ? "Pinned" : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {p.projectAdmin?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {p.projectManager?.name ?? "—"}
@@ -558,8 +590,40 @@ export function ProjectsPage() {
                   disabled={saving}
                 />
               </div>
+              {lockProjectAdmin ? (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Project admin</Label>
+                  <Input
+                    value={lockedProjectAdminName}
+                    readOnly
+                    className="bg-muted/50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You are assigned as the project admin for new projects.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Project admin *</Label>
+                  <select
+                    className={selectClass}
+                    value={form.projectAdminId}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, projectAdminId: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">— Select project admin —</option>
+                    {projectAdmins.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Project manager *</Label>
+                <Label>Division manager *</Label>
                 <select
                   className={selectClass}
                   value={form.projectManagerId}
@@ -568,10 +632,10 @@ export function ProjectsPage() {
                   }
                   required
                 >
-                  <option value="">— Select PM —</option>
-                  {managers.map((m) => (
+                  <option value="">— Select division manager —</option>
+                  {divisionManagers.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {managerOptionLabel(m)}
+                      {divisionManagerLabel(m)}
                     </option>
                   ))}
                 </select>

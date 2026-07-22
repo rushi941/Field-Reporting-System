@@ -3,11 +3,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
 import { isProjectNew } from "@/lib/activity-seen";
 import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
-
-type BillingSummary = {
-  totalPending: number;
-  projectsWithPending: number;
-};
+import { useBillingActivity } from "@/hooks/use-billing-activity";
 
 type ProjectActivity = {
   id: string;
@@ -21,23 +17,15 @@ type ProjectsSummary = {
 
 export function useWorkspaceActivity() {
   const { can, user } = useAuth();
-  const [billingPending, setBillingPending] = useState(0);
+  const { unreadCount: billingPending } = useBillingActivity(
+    can("reports.view_approved") ? user?.id : undefined,
+  );
   const [recentProjects, setRecentProjects] = useState<ProjectActivity[]>([]);
   const [approvalsPending, setApprovalsPending] = useState(0);
   const seenRevision = useActivitySeenRevision("known_projects");
 
   const refresh = useCallback(async () => {
     const tasks: Promise<void>[] = [];
-
-    if (can("reports.view_approved")) {
-      tasks.push(
-        apiFetch<BillingSummary>("/api/v1/billing/summary")
-          .then((s) => {
-            setBillingPending(s.totalPending);
-          })
-          .catch(() => {}),
-      );
-    }
 
     if (can("projects.manage")) {
       tasks.push(

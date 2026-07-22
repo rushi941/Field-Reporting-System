@@ -161,3 +161,32 @@ export function markFieldTasksKnown(
   writeMap(userId, "known_field_tasks", map);
   notifyActivitySeen("known_field_tasks");
 }
+
+export type BillingPendingInput = {
+  id: string;
+  pendingCount: number;
+};
+
+export function billingPendingToken(p: BillingPendingInput): string {
+  return String(p.pendingCount);
+}
+
+export function isBillingProjectUnread(
+  userId: string | undefined,
+  project: BillingPendingInput,
+): boolean {
+  if (!userId || project.pendingCount <= 0) return false;
+  const map = readMap(userId, "billing_pending");
+  return map[project.id] !== billingPendingToken(project);
+}
+
+export function markBillingProjectSeen(
+  userId: string | undefined,
+  project: BillingPendingInput,
+) {
+  if (!userId) return;
+  const map = readMap(userId, "billing_pending");
+  map[project.id] = billingPendingToken(project);
+  writeMap(userId, "billing_pending", map);
+  notifyActivitySeen("billing_pending");
+}

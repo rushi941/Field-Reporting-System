@@ -19,13 +19,18 @@ billingRouter.get(
     const pendingCount = await prisma.report.count({
       where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
     });
-    const projectsWithPending = await prisma.report.groupBy({
+    const pendingGroups = await prisma.report.groupBy({
       by: ["projectId"],
       where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
+      _count: { _all: true },
     });
     res.json({
       totalPending: pendingCount,
-      projectsWithPending: projectsWithPending.length,
+      projectsWithPending: pendingGroups.length,
+      projects: pendingGroups.map((g) => ({
+        id: g.projectId,
+        pendingCount: g._count._all,
+      })),
     });
   }),
 );

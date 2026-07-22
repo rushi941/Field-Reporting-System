@@ -129,6 +129,7 @@ model User {
   systemSettingsUpdated SystemSetting[] @relation("SettingUpdatedBy")
   crewsManaged     Crew[]        @relation("CrewManager")
   projectsManaged  Project[]     @relation("ProjectManager")
+  projectsAdministered Project[] @relation("ProjectAdmin")
   projectTasksAssigned ProjectTask[] @relation("ProjectTaskAssignee")
 
   @@index([managerId])
@@ -268,7 +269,10 @@ model Project {
   extraDivisions    Division[]    @default([])
   projectTypeId     String?
   projectType       ProjectType?  @relation(fields: [projectTypeId], references: [id])
-  /// Internal project manager (division manager / project admin)
+  /// Office project admin who owns this job
+  projectAdminId    String?
+  projectAdmin      User?         @relation("ProjectAdmin", fields: [projectAdminId], references: [id])
+  /// Division manager for approvals / field routing on this job
   projectManagerId  String?
   projectManager    User?         @relation("ProjectManager", fields: [projectManagerId], references: [id])
   /// Owner / agency (e.g. TxDOT, City of Dallas)
@@ -295,6 +299,7 @@ model Project {
   @@index([status])
   @@index([division, status])
   @@index([projectTypeId])
+  @@index([projectAdminId])
   @@index([projectManagerId])
   @@index([name])
   @@index([jobNumber])

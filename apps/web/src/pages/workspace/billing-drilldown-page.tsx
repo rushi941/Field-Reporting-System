@@ -5,6 +5,7 @@ import { ArrowLeft, Download, Loader2, Paperclip } from "lucide-react";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/auth-context";
+import { markBillingProjectSeen } from "@/lib/activity-seen";
 import { cn } from "@/lib/utils";
 
 type Drilldown = {
@@ -53,7 +54,7 @@ export function BillingDrilldownPage({
   base: "office" | "system";
 }) {
   const { projectId } = useParams<{ projectId: string }>();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [data, setData] = useState<Drilldown | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -67,13 +68,17 @@ export function BillingDrilldownPage({
           `/api/v1/billing/projects/${projectId}`,
         );
         setData(res);
+        markBillingProjectSeen(user?.id, {
+          id: res.project.id,
+          pendingCount: res.project.pendingCount,
+        });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to load");
       } finally {
         setLoading(false);
       }
     })();
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
   async function exportCsv() {
     if (!data) return;

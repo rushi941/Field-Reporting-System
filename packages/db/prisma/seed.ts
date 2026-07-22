@@ -256,11 +256,16 @@ async function main() {
     },
   });
 
+  const padmin = await prisma.user.findUniqueOrThrow({
+    where: { email: "padmin@frs.local" },
+  });
+
   const project = await prisma.project.upsert({
     where: { jobNumber: "JOB-1001" },
     update: {
       lastSyncedAt: new Date(),
       projectTypeId: typeIds.PM,
+      projectAdminId: padmin.id,
       projectManagerId: manager.id,
       clientName: "Iowa DOT",
       generalContractor: "Sample GC Constructors",
@@ -275,6 +280,7 @@ async function main() {
       name: "US-30 Pavement Marking",
       division: Division.PAVEMENT_MARKING,
       projectTypeId: typeIds.PM,
+      projectAdminId: padmin.id,
       projectManagerId: manager.id,
       clientName: "Iowa DOT",
       generalContractor: "Sample GC Constructors",

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { ActivityDot } from "@/components/activity-dot";
+import { useBillingActivity } from "@/hooks/use-billing-activity";
 
 type RollupProject = {
   id: string;
@@ -24,7 +25,8 @@ type RollupProject = {
 };
 
 export function BillingRollupPage({ base }: { base: "office" | "system" }) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const { isUnread } = useBillingActivity(user?.id);
   const [projects, setProjects] = useState<RollupProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [exportingId, setExportingId] = useState<string | null>(null);
@@ -123,17 +125,19 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                 </tr>
               </thead>
               <tbody>
-                {projects.map((p) => (
+                {projects.map((p) => {
+                  const unread = isUnread(p);
+                  return (
                   <tr key={p.id} className="border-b last:border-0">
                     <td className="px-3 py-2.5">
                       <Link
                         to={`/${base}/billing/${p.id}`}
                         className="relative inline-flex items-center font-semibold hover:underline"
                       >
-                        {p.pendingCount > 0 && (
+                        {unread && (
                           <ActivityDot className="-left-2 top-1/2 -translate-y-1/2" />
                         )}
-                        <span className={p.pendingCount > 0 ? "pl-2" : undefined}>
+                        <span className={unread ? "pl-2" : undefined}>
                           {p.jobNumber}
                         </span>
                       </Link>
@@ -191,13 +195,16 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <ul className="space-y-2 md:hidden">
-            {projects.map((p) => (
+            {projects.map((p) => {
+              const unread = isUnread(p);
+              return (
               <li
                 key={p.id}
                 className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
@@ -206,9 +213,14 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                   <div className="min-w-0">
                     <Link
                       to={`/${base}/billing/${p.id}`}
-                      className="text-sm font-semibold hover:underline"
+                      className="relative inline-flex items-center text-sm font-semibold hover:underline"
                     >
-                      {p.jobNumber} — {p.name}
+                      {unread && (
+                        <ActivityDot className="-left-2 top-1/2 -translate-y-1/2" />
+                      )}
+                      <span className={unread ? "pl-2" : undefined}>
+                        {p.jobNumber} — {p.name}
+                      </span>
                     </Link>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {[p.clientName, p.location].filter(Boolean).join(" · ") ||
@@ -274,7 +286,8 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </>
       )}

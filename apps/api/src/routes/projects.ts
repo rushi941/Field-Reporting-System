@@ -24,6 +24,9 @@ projectsRouter.use(requireAuth, requirePermission("projects.manage"));
 
 const projectInclude = {
   projectType: { select: { id: true, code: true, name: true } },
+  projectAdmin: {
+    select: { id: true, firstName: true, lastName: true, email: true },
+  },
   projectManager: {
     select: { id: true, firstName: true, lastName: true, email: true },
   },
@@ -83,6 +86,14 @@ function mapProject(p: ProjectLoaded) {
     divisions: configured,
     projectTypeId: p.projectTypeId,
     projectType: p.projectType,
+    projectAdminId: p.projectAdminId,
+    projectAdmin: p.projectAdmin
+      ? {
+          id: p.projectAdmin.id,
+          name: `${p.projectAdmin.firstName} ${p.projectAdmin.lastName}`,
+          email: p.projectAdmin.email,
+        }
+      : null,
     projectManagerId: p.projectManagerId,
     projectManager: p.projectManager
       ? {
@@ -141,7 +152,7 @@ function parseOptionalDate(value: string | null | undefined): Date | null | unde
   return d;
 }
 
-async function assertProjectManager(userId: string | null | undefined) {
+async function assertProjectAdmin(userId: string | null | undefined) {
   if (!userId) return;
   const user = await prisma.user.findFirst({
     where: {
@@ -149,7 +160,7 @@ async function assertProjectManager(userId: string | null | undefined) {
       isActive: true,
       roles: {
         some: {
-          role: { in: ["DIVISION_MANAGER", "PROJECT_ADMIN", "SYSTEM_ADMIN"] },
+          role: { in: ["PROJECT_ADMIN", "SYSTEM_ADMIN"] },
         },
       },
     },
@@ -157,7 +168,29 @@ async function assertProjectManager(userId: string | null | undefined) {
   if (!user) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Project manager must be an active manager or admin user",
+      "Project admin must be an active project admin or system admin user",
+      400,
+    );
+  }
+}
+
+async function assertDivisionManager(userId: string | null | undefined) {
+  if (!userId) return;
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      isActive: true,
+      roles: {
+        some: {
+          role: "DIVISION_MANAGER",
+        },
+      },
+    },
+  });
+  if (!user) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Division manager must be an active division manager user",
       400,
     );
   }
@@ -391,7 +424,7 @@ projectsRouter.get(
 projectsRouter.get(
   "/lookups",
   asyncHandler(async (_req, res) => {
-    const [projectTypes, managers, fieldLeads, taskRows, units] = await Promise.all([
+    const [projectTypes, projectAdmins, divisionManagers, fieldLeads, taskRows, units] = await Promise.all([
       prisma.projectType.findMany({
         where: { isActive: true },
         select: { id: true, code: true, name: true, division: true },
@@ -400,11 +433,22 @@ projectsRouter.get(
       prisma.user.findMany({
         where: {
           isActive: true,
-          roles: {
-            some: {
-              role: { in: ["DIVISION_MANAGER", "PROJECT_ADMIN", "SYSTEM_ADMIN"] },
-            },
-          },
+          roles: { some: { role: "PROJECT_ADMIN" } },
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          division: true,
+          roles: { select: { role: true } },
+        },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+      prisma.user.findMany({
+        where: {
+          isActive: true,
+          roles: { some: { role: "DIVISION_MANAGER" } },
         },
         select: {
           id: true,
@@ -477,15 +521,20 @@ projectsRouter.get(
         })),
       }));
 
+    const mapUser = (m: (typeof projectAdmins)[number]) => ({
+      id: m.id,
+      name: `${m.firstName} ${m.lastName}`,
+      email: m.email,
+      division: m.division,
+      roles: m.roles.map((r) => r.role),
+    });
+
     res.json({
       projectTypes,
-      managers: managers.map((m) => ({
-        id: m.id,
-        name: `${m.firstName} ${m.lastName}`,
-        email: m.email,
-        division: m.division,
-        roles: m.roles.map((r) => r.role),
-      })),
+      projectAdmins: projectAdmins.map(mapUser),
+      divisionManagers: divisionManagers.map(mapUser),
+      /** @deprecated use projectAdmins / divisionManagers */
+      managers: [...projectAdmins, ...divisionManagers].map(mapUser),
       fieldLeads: fieldLeads.map((u) => ({
         id: u.id,
         name: `${u.firstName} ${u.lastName}`,
@@ -539,7 +588,8 @@ projectsRouter.post(
       if (!type) throw new AppError("NOT_FOUND", "Project type not found", 404);
     }
 
-    await assertProjectManager(body.projectManagerId);
+    await assertProjectAdmin(body.projectAdminId);
+    await assertDivisionManager(body.projectManagerId);
 
     const project = await prisma.project.create({
       data: {
@@ -551,6 +601,7 @@ projectsRouter.post(
           body.divisions as Division[] | undefined,
         ),
         projectTypeId: body.projectTypeId ?? null,
+        projectAdminId: body.projectAdminId ?? null,
         projectManagerId: body.projectManagerId ?? null,
         clientName: body.clientName ?? null,
         generalContractor: body.generalContractor ?? null,
@@ -681,8 +732,12 @@ projectsRouter.patch(
       if (!type) throw new AppError("NOT_FOUND", "Project type not found", 404);
     }
 
+    if (body.projectAdminId !== undefined) {
+      await assertProjectAdmin(body.projectAdminId);
+    }
+
     if (body.projectManagerId !== undefined) {
-      await assertProjectManager(body.projectManagerId);
+      await assertDivisionManager(body.projectManagerId);
     }
 
     const nextDivision = (body.division ?? existing.division) as Division;
@@ -707,6 +762,9 @@ projectsRouter.patch(
         ...(nextExtras !== undefined ? { extraDivisions: nextExtras } : {}),
         ...(body.projectTypeId !== undefined
           ? { projectTypeId: body.projectTypeId }
+          : {}),
+        ...(body.projectAdminId !== undefined
+          ? { projectAdminId: body.projectAdminId }
           : {}),
         ...(body.projectManagerId !== undefined
           ? { projectManagerId: body.projectManagerId }
