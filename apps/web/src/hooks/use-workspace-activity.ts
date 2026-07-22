@@ -1,21 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
+import { isProjectNew } from "@/lib/activity-seen";
+import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 
 type BillingSummary = {
   totalPending: number;
   projectsWithPending: number;
 };
 
+type ProjectActivity = {
+  id: string;
+  createdAt: string;
+};
+
 type ProjectsSummary = {
   recentProjectCount: number;
+  projects: ProjectActivity[];
 };
 
 export function useWorkspaceActivity() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [billingPending, setBillingPending] = useState(0);
-  const [recentProjects, setRecentProjects] = useState(0);
+  const [recentProjects, setRecentProjects] = useState<ProjectActivity[]>([]);
   const [approvalsPending, setApprovalsPending] = useState(0);
+  const seenRevision = useActivitySeenRevision("known_projects");
 
   const refresh = useCallback(async () => {
     const tasks: Promise<void>[] = [];
@@ -34,7 +43,7 @@ export function useWorkspaceActivity() {
       tasks.push(
         apiFetch<ProjectsSummary>("/api/v1/projects/activity-summary")
           .then((s) => {
-            setRecentProjects(s.recentProjectCount);
+            setRecentProjects(s.projects ?? []);
           })
           .catch(() => {}),
       );
@@ -64,9 +73,15 @@ export function useWorkspaceActivity() {
     };
   }, [refresh]);
 
+  const unreadProjects = useMemo(() => {
+    if (!user?.id) return 0;
+    return recentProjects.filter((p) => isProjectNew(user.id, p.id)).length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read localStorage on seenRevision
+  }, [recentProjects, user?.id, seenRevision]);
+
   return {
     billingPending,
-    recentProjects,
+    recentProjects: unreadProjects,
     approvalsPending,
     refresh,
   };

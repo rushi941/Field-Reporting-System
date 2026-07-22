@@ -7,7 +7,7 @@ import { ActivityDot } from "@/components/activity-dot";
 import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import { useCachedApi } from "@/hooks/use-cached-api";
 import { useAuth } from "@/auth/auth-context";
-import { isFieldReportUnread } from "@/lib/activity-seen";
+import { useFieldReportActivity } from "@/hooks/use-field-report-activity";
 
 type FieldReport = {
   id: string;
@@ -39,6 +39,7 @@ const statusStyles: Record<string, string> = {
 
 export function FieldReportsPage() {
   const { user } = useAuth();
+  const { isUnread } = useFieldReportActivity(user?.id);
   const {
     data,
     loading,
@@ -93,7 +94,7 @@ export function FieldReportsPage() {
             const label =
               frdStatusLabels[r.status as keyof typeof frdStatusLabels] ??
               r.status.replaceAll("_", " ");
-            const unread = isFieldReportUnread(user?.id, r);
+            const unread = isUnread(r);
             return (
               <li key={r.id}>
                 <Link

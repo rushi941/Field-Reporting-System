@@ -135,8 +135,8 @@ export function FieldProjectDetailPage() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when project changes
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when project or user changes
+  }, [projectId, user?.id]);
 
   const pendingByTask = useMemo(() => {
     return report?.totalsByTask ?? {};

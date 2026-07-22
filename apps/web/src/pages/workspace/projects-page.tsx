@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ActivityDot } from "@/components/activity-dot";
 import { useAuth } from "@/auth/auth-context";
 import { isProjectNew, markProjectsKnown, getKnownProjectIds } from "@/lib/activity-seen";
+import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,6 +103,7 @@ function managerOptionLabel(m: ManagerOpt): string {
 
 export function ProjectsPage() {
   const { user } = useAuth();
+  useActivitySeenRevision("known_projects");
   const location = useLocation();
   const navigate = useNavigate();
   const base = workspaceBase(location.pathname);

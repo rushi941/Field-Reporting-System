@@ -1,5 +1,13 @@
 const PREFIX = "frs_activity_seen";
 
+export const ACTIVITY_SEEN_EVENT = "frs:activity-seen";
+
+export function notifyActivitySeen(scope?: string) {
+  window.dispatchEvent(
+    new CustomEvent(ACTIVITY_SEEN_EVENT, { detail: { scope } }),
+  );
+}
+
 function key(userId: string, scope: string) {
   return `${PREFIX}:${userId}:${scope}`;
 }
@@ -65,6 +73,7 @@ export function markFieldReportSeen(
   const map = readMap(userId, "field_reports");
   map[report.id] = reportActivityToken(report);
   writeMap(userId, "field_reports", map);
+  notifyActivitySeen("field_reports");
 }
 
 export type PendingActivityInput = {
@@ -96,6 +105,7 @@ export function markPendingApprovalSeen(
   const map = readMap(userId, "pending_approvals");
   map[report.id] = pendingActivityToken(report);
   writeMap(userId, "pending_approvals", map);
+  notifyActivitySeen("pending_approvals");
 }
 
 export function getKnownProjectIds(userId: string | undefined): Set<string> {
@@ -122,6 +132,7 @@ export function markProjectsKnown(
     map[id] = new Date().toISOString();
   }
   writeMap(userId, "known_projects", map);
+  notifyActivitySeen("known_projects");
 }
 
 export function getKnownFieldTaskIds(userId: string | undefined): Set<string> {
@@ -148,4 +159,5 @@ export function markFieldTasksKnown(
     map[id] = new Date().toISOString();
   }
   writeMap(userId, "known_field_tasks", map);
+  notifyActivitySeen("known_field_tasks");
 }

@@ -4,6 +4,7 @@ import {
   isFieldReportUnread,
   type ReportActivityInput,
 } from "@/lib/activity-seen";
+import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 
 type SummaryResponse = {
   reports: ReportActivityInput[];
@@ -11,6 +12,7 @@ type SummaryResponse = {
 
 export function useFieldReportActivity(userId: string | undefined) {
   const [reports, setReports] = useState<ReportActivityInput[]>([]);
+  const seenRevision = useActivitySeenRevision("field_reports");
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -37,12 +39,12 @@ export function useFieldReportActivity(userId: string | undefined) {
 
   const unreadCount = useMemo(
     () => reports.filter((r) => isFieldReportUnread(userId, r)).length,
-    [reports, userId],
+    [reports, userId, seenRevision],
   );
 
   const isUnread = useCallback(
     (report: ReportActivityInput) => isFieldReportUnread(userId, report),
-    [userId],
+    [userId, seenRevision],
   );
 
   return { unreadCount, isUnread, refresh };

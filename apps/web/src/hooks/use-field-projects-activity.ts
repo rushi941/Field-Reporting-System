@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { getKnownFieldTaskIds, isFieldTaskNew } from "@/lib/activity-seen";
+import {
+  getKnownFieldTaskIds,
+  isFieldTaskNew,
+  markFieldTasksKnown,
+} from "@/lib/activity-seen";
+import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 
 type FieldProjectsSummary = {
   newTaskCount: number;
@@ -9,6 +14,7 @@ type FieldProjectsSummary = {
 
 export function useFieldProjectsActivity(userId: string | undefined) {
   const [tasks, setTasks] = useState<FieldProjectsSummary["tasks"]>([]);
+  const seenRevision = useActivitySeenRevision("known_field_tasks");
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -33,16 +39,29 @@ export function useFieldProjectsActivity(userId: string | undefined) {
     };
   }, [refresh]);
 
+  // First session: treat existing assignments as already seen (only future ones badge).
+  useEffect(() => {
+    if (!userId || tasks.length === 0) return;
+    if (getKnownFieldTaskIds(userId).size > 0) return;
+    markFieldTasksKnown(
+      userId,
+      tasks.map((t) => t.id),
+    );
+  }, [tasks, userId]);
+
   const unreadCount = useMemo(() => {
     if (!userId) return 0;
     const known = getKnownFieldTaskIds(userId);
     return tasks.filter((t) => !known.has(t.id)).length;
-  }, [tasks, userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read localStorage on seenRevision
+  }, [tasks, userId, seenRevision]);
 
   const isProjectNew = useCallback(
     (projectId: string) =>
-      tasks.some((t) => t.projectId === projectId && isFieldTaskNew(userId, t.id)),
-    [tasks, userId],
+      tasks.some(
+        (t) => t.projectId === projectId && isFieldTaskNew(userId, t.id),
+      ),
+    [tasks, userId, seenRevision],
   );
 
   return { unreadCount, isProjectNew, refresh };

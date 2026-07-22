@@ -373,10 +373,18 @@ projectsRouter.get(
   requirePermission("projects.manage"),
   asyncHandler(async (_req, res) => {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recentProjectCount = await prisma.project.count({
+    const projects = await prisma.project.findMany({
       where: { createdAt: { gte: since } },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
     });
-    res.json({ recentProjectCount });
+    res.json({
+      recentProjectCount: projects.length,
+      projects: projects.map((p) => ({
+        id: p.id,
+        createdAt: p.createdAt.toISOString(),
+      })),
+    });
   }),
 );
 

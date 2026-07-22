@@ -5,7 +5,7 @@ import { ActivityDot } from "@/components/activity-dot";
 import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import { useCachedApi } from "@/hooks/use-cached-api";
 import { useAuth } from "@/auth/auth-context";
-import { isPendingApprovalUnread } from "@/lib/activity-seen";
+import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
 
 type PendingReport = {
   id: string;
@@ -33,6 +33,7 @@ type PendingResponse = {
 
 export function ApprovalsQueuePage() {
   const { user } = useAuth();
+  const { isUnread } = usePendingApprovalActivity(user?.id);
   const {
     data,
     loading,
@@ -87,7 +88,7 @@ export function ApprovalsQueuePage() {
       ) : (
         <ul className="space-y-2">
           {reports.map((r) => {
-            const unread = isPendingApprovalUnread(user?.id, r);
+            const unread = isUnread(r);
             return (
             <li key={r.id}>
               <Link

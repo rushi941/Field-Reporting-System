@@ -4,6 +4,7 @@ import {
   isPendingApprovalUnread,
   type PendingActivityInput,
 } from "@/lib/activity-seen";
+import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 
 type PendingSummary = {
   pendingCount: number;
@@ -12,7 +13,7 @@ type PendingSummary = {
 
 export function usePendingApprovalActivity(userId: string | undefined) {
   const [reports, setReports] = useState<PendingActivityInput[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const seenRevision = useActivitySeenRevision("pending_approvals");
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -26,16 +27,8 @@ export function usePendingApprovalActivity(userId: string | undefined) {
           submittedAt: r.submittedAt,
         })),
       );
-      setPendingCount(data.pendingCount);
     } catch {
-      try {
-        const s = await apiFetch<{ pendingCount: number }>(
-          "/api/v1/approvals/summary",
-        );
-        setPendingCount(s.pendingCount);
-      } catch {
-        /* non-blocking */
-      }
+      /* non-blocking */
     }
   }, [userId]);
 
@@ -52,18 +45,20 @@ export function usePendingApprovalActivity(userId: string | undefined) {
 
   const unreadCount = useMemo(
     () => reports.filter((r) => isPendingApprovalUnread(userId, r)).length,
-    [reports, userId],
+    [reports, userId, seenRevision],
   );
+
+  const pendingCount = reports.length;
 
   const isUnread = useCallback(
     (report: PendingActivityInput) =>
       isPendingApprovalUnread(userId, report),
-    [userId],
+    [userId, seenRevision],
   );
 
   return {
     pendingCount,
-    unreadCount: unreadCount || pendingCount,
+    unreadCount,
     isUnread,
     refresh,
   };
