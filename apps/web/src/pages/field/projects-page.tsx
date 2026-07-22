@@ -2,8 +2,11 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { ActivityDot } from "@/components/activity-dot";
 import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import { useCachedApi } from "@/hooks/use-cached-api";
+import { useAuth } from "@/auth/auth-context";
+import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +30,8 @@ const divisionChips: { value: DivisionFilter; label: string }[] = [
 ];
 
 export function FieldProjectsPage() {
+  const { user } = useAuth();
+  const { isProjectNew } = useFieldProjectsActivity(user?.id);
   const {
     data,
     loading,
@@ -127,15 +132,21 @@ export function FieldProjectsPage() {
           {filtered.map((p) => {
             const subtitle =
               p.clientName || p.generalContractor || p.location || "—";
+            const unread = isProjectNew(p.id);
             return (
               <li key={p.id}>
                 <Link
                   to={`/field/projects/${p.id}`}
                   className="block rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                 >
-                  <p className="break-words text-sm font-semibold leading-snug text-foreground">
-                    {p.jobNumber} — {p.name}
-                    {p.location ? ` — ${p.location}` : ""}
+                  <p className="relative break-words text-sm font-semibold leading-snug text-foreground">
+                    {unread && (
+                      <ActivityDot className="-left-0.5 top-1.5" />
+                    )}
+                    <span className={unread ? "pl-3" : undefined}>
+                      {p.jobNumber} — {p.name}
+                      {p.location ? ` — ${p.location}` : ""}
+                    </span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {subtitle}

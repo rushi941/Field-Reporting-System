@@ -6,6 +6,9 @@ import { roleLabels, projectSchema, updateProjectSchema, splitProjectDivisions, 
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
+import { ActivityDot } from "@/components/activity-dot";
+import { useAuth } from "@/auth/auth-context";
+import { isProjectNew, markProjectsKnown, getKnownProjectIds } from "@/lib/activity-seen";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -46,6 +49,7 @@ type Project = {
   bidItemCount: number;
   taskIds: string[];
   route: RouteValue | null;
+  createdAt?: string;
 };
 
 const emptyForm = {
@@ -97,6 +101,7 @@ function managerOptionLabel(m: ManagerOpt): string {
 }
 
 export function ProjectsPage() {
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const base = workspaceBase(location.pathname);
@@ -145,6 +150,18 @@ export function ProjectsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (projects.length > 0 && user?.id) {
+      const known = getKnownProjectIds(user.id);
+      if (known.size === 0) {
+        markProjectsKnown(
+          user.id,
+          projects.map((p) => p.id),
+        );
+      }
+    }
+  }, [projects, user?.id]);
 
   function openCreate() {
     setEditingId(null);
@@ -196,6 +213,7 @@ export function ProjectsPage() {
   }
 
   function openDetail(id: string) {
+    markProjectsKnown(user?.id, [id]);
     navigate(`${base}/projects/${id}`);
   }
 
@@ -321,13 +339,24 @@ export function ProjectsPage() {
                 </tr>
               </thead>
               <tbody>
-                {projects.map((p) => (
+                {projects.map((p) => {
+                  const unread = isProjectNew(user?.id, p.id);
+                  return (
                   <tr
                     key={p.id}
                     className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
                     onClick={() => openDetail(p.id)}
                   >
-                    <td className="px-4 py-3 font-medium">{p.jobNumber}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <span className="relative inline-flex items-center">
+                        {unread && (
+                          <ActivityDot className="-left-2 top-1/2 -translate-y-1/2" />
+                        )}
+                        <span className={unread ? "pl-2" : undefined}>
+                          {p.jobNumber}
+                        </span>
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <div>{p.name}</div>
                       {p.location && (
@@ -370,7 +399,8 @@ export function ProjectsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

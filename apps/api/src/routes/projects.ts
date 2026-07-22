@@ -369,6 +369,18 @@ async function syncProjectRoute(
 }
 
 projectsRouter.get(
+  "/activity-summary",
+  requirePermission("projects.manage"),
+  asyncHandler(async (_req, res) => {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentProjectCount = await prisma.project.count({
+      where: { createdAt: { gte: since } },
+    });
+    res.json({ recentProjectCount });
+  }),
+);
+
+projectsRouter.get(
   "/lookups",
   asyncHandler(async (_req, res) => {
     const [projectTypes, managers, fieldLeads, taskRows, units] = await Promise.all([

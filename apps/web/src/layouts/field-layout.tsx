@@ -5,10 +5,13 @@ import { ClipboardList, FolderKanban, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
+import { ActivityDot } from "@/components/activity-dot";
+import { useFieldReportActivity } from "@/hooks/use-field-report-activity";
+import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
 
 const navItems = [
-  { to: "/field/projects", label: "Projects", icon: FolderKanban },
-  { to: "/field/reports", label: "Reports", icon: ClipboardList },
+  { to: "/field/projects", label: "Projects", icon: FolderKanban, badge: "projects" as const },
+  { to: "/field/reports", label: "Reports", icon: ClipboardList, badge: "reports" as const },
 ];
 
 function isFieldListPage(pathname: string) {
@@ -25,6 +28,13 @@ export function FieldLayout() {
   const location = useLocation();
   const [loggingOut, setLoggingOut] = useState(false);
   const showBottomNav = isFieldListPage(location.pathname);
+  const { unreadCount: reportUnread } = useFieldReportActivity(user?.id);
+  const { unreadCount: projectUnread } = useFieldProjectsActivity(user?.id);
+
+  function showNavBadge(kind: "projects" | "reports") {
+    if (kind === "reports") return reportUnread > 0;
+    return projectUnread > 0;
+  }
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -61,6 +71,7 @@ export function FieldLayout() {
         </p>
         {navItems.map((item) => {
           const Icon = item.icon;
+          const hasBadge = showNavBadge(item.badge);
           return (
             <NavLink
               key={item.to}
@@ -76,12 +87,17 @@ export function FieldLayout() {
             >
               {({ isActive }) => (
                 <>
-                  <Icon
-                    className={cn(
-                      "size-4 shrink-0",
-                      isActive ? "text-lane" : "text-steel",
+                  <span className="relative shrink-0">
+                    <Icon
+                      className={cn(
+                        "size-4",
+                        isActive ? "text-lane" : "text-steel",
+                      )}
+                    />
+                    {hasBadge && (
+                      <ActivityDot className="-right-0.5 -top-0.5 ring-sidebar" />
                     )}
-                  />
+                  </span>
                   {item.label}
                 </>
               )}
@@ -178,6 +194,7 @@ export function FieldLayout() {
             <div className="mx-auto flex max-w-lg">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const hasBadge = showNavBadge(item.badge);
                 return (
                   <NavLink
                     key={item.to}
@@ -194,12 +211,17 @@ export function FieldLayout() {
                   >
                     {({ isActive }) => (
                       <>
-                        <Icon
-                          className={cn(
-                            "size-5",
-                            isActive ? "text-asphalt-mid" : "text-muted-foreground",
+                        <span className="relative">
+                          <Icon
+                            className={cn(
+                              "size-5",
+                              isActive ? "text-asphalt-mid" : "text-muted-foreground",
+                            )}
+                          />
+                          {hasBadge && (
+                            <ActivityDot className="-right-1 -top-0.5" />
                           )}
-                        />
+                        </span>
                         {item.label}
                       </>
                     )}

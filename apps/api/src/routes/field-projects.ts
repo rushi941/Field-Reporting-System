@@ -9,6 +9,34 @@ export const fieldProjectsRouter = Router();
 
 fieldProjectsRouter.use(requireAuth, requirePermission("projects.search"));
 
+/** Badge helper — recently assigned tasks for this field lead */
+fieldProjectsRouter.get(
+  "/summary",
+  asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const tasks = await prisma.projectTask.findMany({
+      where: {
+        assignedToId: userId,
+        isActive: true,
+        createdAt: { gte: since },
+        project: { status: "ACTIVE" },
+      },
+      select: { id: true, projectId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    res.json({
+      newTaskCount: tasks.length,
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        createdAt: t.createdAt.toISOString(),
+      })),
+    });
+  }),
+);
+
 /** Active jobs with assigned tasks + pinned route for field crews */
 fieldProjectsRouter.get(
   "/",

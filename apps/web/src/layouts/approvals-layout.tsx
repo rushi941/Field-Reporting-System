@@ -1,15 +1,16 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ClipboardCheck, History, LogOut, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
-import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { ActivityDot } from "@/components/activity-dot";
+import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
 
 const navItems = [
-  { to: "/approvals", end: true, label: "Pending queue", icon: ClipboardCheck },
-  { to: "/approvals/history", end: false, label: "Project history", icon: History },
+  { to: "/approvals", end: true, label: "Pending queue", icon: ClipboardCheck, badge: true },
+  { to: "/approvals/history", end: false, label: "Project history", icon: History, badge: false },
 ];
 
 export function ApprovalsLayout() {
@@ -17,21 +18,9 @@ export function ApprovalsLayout() {
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-
-  useEffect(() => {
-    if (!can("reports.view_pending_queue")) return;
-    void (async () => {
-      try {
-        const s = await apiFetch<{
-          pendingCount: number;
-        }>("/api/v1/approvals/summary");
-        setPendingCount(s.pendingCount);
-      } catch {
-        /* non-blocking */
-      }
-    })();
-  }, [can]);
+  const { unreadCount, pendingCount } = usePendingApprovalActivity(
+    can("reports.view_pending_queue") ? user?.id : undefined,
+  );
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -68,7 +57,7 @@ export function ApprovalsLayout() {
         </p>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const showBadge = item.to === "/approvals" && pendingCount > 0;
+          const showBadge = item.badge && unreadCount > 0;
           return (
             <NavLink
               key={item.to}
@@ -86,15 +75,20 @@ export function ApprovalsLayout() {
             >
               {({ isActive }) => (
                 <>
-                  <Icon
-                    className={cn(
-                      "size-4 shrink-0",
-                      isActive ? "text-lane" : "text-steel",
+                  <span className="relative shrink-0">
+                    <Icon
+                      className={cn(
+                        "size-4",
+                        isActive ? "text-lane" : "text-steel",
+                      )}
+                    />
+                    {showBadge && (
+                      <ActivityDot className="-right-0.5 -top-0.5 ring-sidebar" />
                     )}
-                  />
+                  </span>
                   <span className="flex-1">{item.label}</span>
-                  {showBadge && (
-                    <span className="rounded-full bg-lane px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-asphalt">
+                  {showBadge && pendingCount > 0 && (
+                    <span className="text-[10px] tabular-nums text-steel">
                       {pendingCount}
                     </span>
                   )}
@@ -140,16 +134,19 @@ export function ApprovalsLayout() {
         <header className="sticky top-0 z-50 flex shrink-0 items-center gap-2 border-b border-border bg-card/95 px-3 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:hidden">
           <button
             type="button"
-            className="shrink-0 rounded-md p-2 hover:bg-muted"
+            className="relative shrink-0 rounded-md p-2 hover:bg-muted"
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((open) => !open)}
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {!mobileOpen && unreadCount > 0 && (
+              <ActivityDot className="-right-0.5 -top-0.5" />
+            )}
           </button>
           <p className="min-w-0 flex-1 truncate text-sm font-semibold">Approvals</p>
           {pendingCount > 0 && (
-            <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-900">
+            <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-red-800">
               {pendingCount} pending
             </span>
           )}

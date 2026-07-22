@@ -17,8 +17,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
+import { ActivityDot } from "@/components/activity-dot";
+import { useWorkspaceActivity } from "@/hooks/use-workspace-activity";
 
 type WorkspaceKind = "system" | "office";
+
+type NavBadge = "projects" | "billing" | null;
 
 const navByKind: Record<
   WorkspaceKind,
@@ -28,12 +32,13 @@ const navByKind: Record<
     label: string;
     icon: typeof LayoutDashboard;
     permission: string | null;
+    badge?: NavBadge;
   }[]
 > = {
   system: [
     { to: "/system", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
-    { to: "/system/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage" },
-    { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
+    { to: "/system/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
+    { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/system/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/system/units", label: "Units", icon: Ruler, permission: "projects.manage" },
     { to: "/system/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
@@ -42,8 +47,8 @@ const navByKind: Record<
   ],
   office: [
     { to: "/office", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
-    { to: "/office/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage" },
-    { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved" },
+    { to: "/office/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
+    { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/office/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/office/units", label: "Units", icon: Ruler, permission: "projects.manage" },
     { to: "/office/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
@@ -55,6 +60,16 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { billingPending, recentProjects } = useWorkspaceActivity();
+
+  function showNavBadge(badge: NavBadge | undefined) {
+    if (badge === "billing") return billingPending > 0;
+    if (badge === "projects") return recentProjects > 0;
+    return false;
+  }
+
+  const mobileHasActivity =
+    billingPending > 0 || recentProjects > 0;
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -95,6 +110,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
         </p>
         {visibleNav.map((item) => {
           const Icon = item.icon;
+          const hasBadge = showNavBadge(item.badge);
           return (
             <NavLink
               key={item.to}
@@ -112,12 +128,17 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
             >
               {({ isActive }) => (
                 <>
-                  <Icon
-                    className={cn(
-                      "size-4 shrink-0",
-                      isActive ? "text-lane" : "text-steel",
+                  <span className="relative shrink-0">
+                    <Icon
+                      className={cn(
+                        "size-4",
+                        isActive ? "text-lane" : "text-steel",
+                      )}
+                    />
+                    {hasBadge && (
+                      <ActivityDot className="-right-0.5 -top-0.5 ring-sidebar" />
                     )}
-                  />
+                  </span>
                   {item.label}
                 </>
               )}
@@ -169,11 +190,14 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
             type="button"
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="relative lg:hidden"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {!mobileOpen && mobileHasActivity && (
+              <ActivityDot className="right-1 top-1" />
+            )}
           </Button>
           <p className="truncate text-sm font-semibold text-foreground">
             Field Reporting System

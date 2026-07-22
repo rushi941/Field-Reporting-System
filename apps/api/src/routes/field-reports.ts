@@ -223,6 +223,31 @@ function assertEditable(status: ReportStatus) {
 
 /** List my reports (draft / returned first) */
 fieldReportsRouter.get(
+  "/summary",
+  requirePermission("reports.submit"),
+  asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
+    const reports = await prisma.report.findMany({
+      where: {
+        submittedById: userId,
+        status: { in: ["RETURNED", "APPROVED", "APPROVED_WITH_NOTES"] },
+      },
+      select: {
+        id: true,
+        status: true,
+        returnedAt: true,
+        approvedAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+    res.json({ reports });
+  }),
+);
+
+/** List my reports (draft / returned first) */
+fieldReportsRouter.get(
   "/",
   requirePermission("reports.submit"),
   asyncHandler(async (req, res) => {

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/auth/auth-context";
+import { markFieldReportSeen } from "@/lib/activity-seen";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,7 @@ type ReportDetail = {
   submittedAt: string | null;
   approvedAt: string | null;
   returnedAt: string | null;
+  updatedAt?: string | null;
   approvedBy: { id: string; name: string; email: string } | null;
   returnedBy: { id: string; name: string; email: string } | null;
   project: {
@@ -64,6 +67,7 @@ const statusStyles: Record<string, string> = {
 export function FieldReportDetailPage() {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -77,13 +81,14 @@ export function FieldReportDetailPage() {
           `/api/v1/field/reports/${reportId}`,
         );
         setReport(data.report);
+        markFieldReportSeen(user?.id, data.report);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to load");
       } finally {
         setLoading(false);
       }
     })();
-  }, [reportId]);
+  }, [reportId, user?.id]);
 
   const editable =
     report?.status === "DRAFT" || report?.status === "RETURNED";

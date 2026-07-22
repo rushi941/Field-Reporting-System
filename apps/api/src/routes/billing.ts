@@ -11,6 +11,25 @@ export const billingRouter = Router();
 
 billingRouter.use(requireAuth);
 
+/** Nav badge: total pending approvals across active projects */
+billingRouter.get(
+  "/summary",
+  requirePermission("reports.view_approved"),
+  asyncHandler(async (_req, res) => {
+    const pendingCount = await prisma.report.count({
+      where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
+    });
+    const projectsWithPending = await prisma.report.groupBy({
+      by: ["projectId"],
+      where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
+    });
+    res.json({
+      totalPending: pendingCount,
+      projectsWithPending: projectsWithPending.length,
+    });
+  }),
+);
+
 const approvedStatuses = [...APPROVED_REPORT_STATUSES] as (
   | "APPROVED"
   | "APPROVED_WITH_NOTES"

@@ -8,6 +8,8 @@ import {
   returnReportSchema,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/auth/auth-context";
+import { markPendingApprovalSeen } from "@/lib/activity-seen";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,7 @@ type ApprovalDetail = {
   reportNumber: string;
   reportDate: string;
   status: string;
+  submittedAt?: string | null;
   notes: string | null;
   crewSize: number | null;
   ageLabel?: string;
@@ -49,6 +52,7 @@ type ApprovalDetail = {
 export function ApprovalsDetailPage() {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [report, setReport] = useState<ApprovalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -66,13 +70,17 @@ export function ApprovalsDetailPage() {
           `/api/v1/approvals/${reportId}`,
         );
         setReport(data.report);
+        markPendingApprovalSeen(user?.id, {
+          id: data.report.id,
+          submittedAt: data.report.submittedAt ?? null,
+        });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to load");
       } finally {
         setLoading(false);
       }
     })();
-  }, [reportId]);
+  }, [reportId, user?.id]);
 
   async function approve() {
     if (!report) return;

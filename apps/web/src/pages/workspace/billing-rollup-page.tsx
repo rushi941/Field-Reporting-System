@@ -6,6 +6,7 @@ import { apiDownload, apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
+import { ActivityDot } from "@/components/activity-dot";
 
 type RollupProject = {
   id: string;
@@ -127,9 +128,14 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                     <td className="px-3 py-2.5">
                       <Link
                         to={`/${base}/billing/${p.id}`}
-                        className="font-semibold hover:underline"
+                        className="relative inline-flex items-center font-semibold hover:underline"
                       >
-                        {p.jobNumber}
+                        {p.pendingCount > 0 && (
+                          <ActivityDot className="-left-2 top-1/2 -translate-y-1/2" />
+                        )}
+                        <span className={p.pendingCount > 0 ? "pl-2" : undefined}>
+                          {p.jobNumber}
+                        </span>
                       </Link>
                       <p className="text-xs text-muted-foreground">{p.name}</p>
                     </td>

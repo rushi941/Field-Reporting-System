@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { ClipboardCheck, Loader2 } from "lucide-react";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { ActivityDot } from "@/components/activity-dot";
 import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import { useCachedApi } from "@/hooks/use-cached-api";
+import { useAuth } from "@/auth/auth-context";
+import { isPendingApprovalUnread } from "@/lib/activity-seen";
 
 type PendingReport = {
   id: string;
@@ -29,6 +32,7 @@ type PendingResponse = {
 };
 
 export function ApprovalsQueuePage() {
+  const { user } = useAuth();
   const {
     data,
     loading,
@@ -82,15 +86,22 @@ export function ApprovalsQueuePage() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {reports.map((r) => (
+          {reports.map((r) => {
+            const unread = isPendingApprovalUnread(user?.id, r);
+            return (
             <li key={r.id}>
               <Link
                 to={`/approvals/${r.id}`}
                 className="block rounded-lg border border-border bg-card px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/40"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                    {r.reportNumber}
+                  <p className="relative min-w-0 truncate pr-2 font-mono text-xs text-muted-foreground">
+                    {unread && (
+                      <ActivityDot className="-left-0.5 top-1/2 -translate-y-1/2" />
+                    )}
+                    <span className={unread ? "pl-3" : undefined}>
+                      {r.reportNumber}
+                    </span>
                   </p>
                   <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase leading-none text-sky-900">
                     Under review
@@ -123,7 +134,8 @@ export function ApprovalsQueuePage() {
                 </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

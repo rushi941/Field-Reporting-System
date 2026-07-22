@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { ArrowLeft, Calendar, Loader2, Users } from "lucide-react";
 import { updateDraftReportSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/auth/auth-context";
+import { markFieldTasksKnown } from "@/lib/activity-seen";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,7 @@ function todayIso() {
 export function FieldProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [project, setProject] = useState<FieldProject | null>(null);
   const [report, setReport] = useState<FieldReport | null>(null);
   const [reportDate, setReportDate] = useState(todayIso());
@@ -98,6 +101,12 @@ export function FieldProjectDetailPage() {
       );
       const found = data.projects.find((p) => p.id === projectId) ?? null;
       setProject(found);
+      if (found) {
+        markFieldTasksKnown(
+          user?.id,
+          found.tasks.map((t) => t.id),
+        );
+      }
       if (!found) {
         toast.error("Project not found");
         return;
