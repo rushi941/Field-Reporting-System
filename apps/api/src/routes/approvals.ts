@@ -93,12 +93,95 @@ async function managerScopeWhere(
 
   const or: Prisma.ReportWhereInput[] = [
     { submittedBy: { managerId: userId } },
+    { project: { projectManagerId: userId } },
   ];
   if (me?.division) {
     or.push({ division: me.division });
   }
 
   return { OR: or };
+}
+
+/** Active projects a division manager can view in history. */
+async function managerProjectScopeWhere(
+  userId: string,
+  roles: string[],
+): Promise<Prisma.ProjectWhereInput> {
+  if (roles.includes("SYSTEM_ADMIN")) {
+    return { status: "ACTIVE" };
+  }
+
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { division: true },
+  });
+
+  const or: Prisma.ProjectWhereInput[] = [
+    { projectManagerId: userId },
+    {
+      tasks: {
+        some: { isActive: true, assignedTo: { managerId: userId } },
+      },
+    },
+    {
+      reports: {
+        some: {
+          status: { not: "DRAFT" },
+          submittedBy: { managerId: userId },
+        },
+      },
+    },
+  ];
+  if (me?.division) {
+    or.push({ division: me.division });
+    or.push({ extraDivisions: { has: me.division } });
+  }
+
+  return { status: "ACTIVE", OR: or };
+}
+
+const historyTaskInclude = {
+  assignedTo: {
+    select: { id: true, firstName: true, lastName: true, email: true },
+  },
+  taskMaster: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      unit: true,
+      formType: true,
+      color: true,
+      widthInches: true,
+      conversionFactor: true,
+    },
+  },
+} as const;
+
+type HistoryTaskRow = Prisma.ProjectTaskGetPayload<{
+  include: typeof historyTaskInclude;
+}>;
+
+function mapHistoryTask(t: HistoryTaskRow) {
+  return {
+    id: t.id,
+    division: t.division,
+    sortOrder: t.sortOrder,
+    assignedTo: t.assignedTo
+      ? {
+          id: t.assignedTo.id,
+          name: `${t.assignedTo.firstName} ${t.assignedTo.lastName}`.trim(),
+          email: t.assignedTo.email,
+        }
+      : null,
+    taskMaster: {
+      ...t.taskMaster,
+      conversionFactor:
+        t.taskMaster.conversionFactor != null
+          ? Number(t.taskMaster.conversionFactor)
+          : null,
+    },
+  };
 }
 
 function withAge(r: QueueRow, now = new Date()) {
@@ -204,14 +287,24 @@ approvalsRouter.get(
       throw new AppError("VALIDATION_ERROR", "projectId is required", 400);
     }
     const scope = await managerScopeWhere(req.user!.id, req.user!.roles);
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
+    const projectScope = await managerProjectScopeWhere(
+      req.user!.id,
+      req.user!.roles,
+    );
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, ...projectScope },
       select: {
         id: true,
         jobNumber: true,
         name: true,
         location: true,
         division: true,
+        clientName: true,
+        tasks: {
+          where: { isActive: true },
+          include: historyTaskInclude,
+          orderBy: { sortOrder: "asc" },
+        },
       },
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
@@ -233,7 +326,15 @@ approvalsRouter.get(
     });
 
     res.json({
-      project,
+      project: {
+        id: project.id,
+        jobNumber: project.jobNumber,
+        name: project.name,
+        location: project.location,
+        division: project.division,
+        clientName: project.clientName,
+      },
+      tasks: project.tasks.map(mapHistoryTask),
       reports: reports.map((r) => ({
         ...withAge(r),
         approvedAt: r.approvedAt,
@@ -275,24 +376,40 @@ approvalsRouter.get(
   "/projects",
   requirePermission("reports.view_project_history"),
   asyncHandler(async (req, res) => {
-    const scope = await managerScopeWhere(req.user!.id, req.user!.roles);
-    const rows = await prisma.report.groupBy({
-      by: ["projectId"],
-      where: { status: { not: "DRAFT" }, ...scope },
-    });
-    const ids = rows.map((r) => r.projectId);
+    const projectScope = await managerProjectScopeWhere(
+      req.user!.id,
+      req.user!.roles,
+    );
     const projects = await prisma.project.findMany({
-      where: { id: { in: ids } },
+      where: projectScope,
       select: {
         id: true,
         jobNumber: true,
         name: true,
         location: true,
         division: true,
+        clientName: true,
+        _count: {
+          select: {
+            tasks: { where: { isActive: true } },
+            reports: { where: { status: { not: "DRAFT" } } },
+          },
+        },
       },
       orderBy: { jobNumber: "asc" },
     });
-    res.json({ projects });
+    res.json({
+      projects: projects.map((p) => ({
+        id: p.id,
+        jobNumber: p.jobNumber,
+        name: p.name,
+        location: p.location,
+        division: p.division,
+        clientName: p.clientName,
+        taskCount: p._count.tasks,
+        reportCount: p._count.reports,
+      })),
+    });
   }),
 );
 

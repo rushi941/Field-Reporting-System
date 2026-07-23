@@ -702,6 +702,24 @@ projectsRouter.post(
       },
     });
 
+    if (project.projectManagerId) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: body.assignedToId },
+        select: { managerId: true, division: true },
+      });
+      if (assignee && (!assignee.managerId || !assignee.division)) {
+        await prisma.user.update({
+          where: { id: body.assignedToId },
+          data: {
+            ...(!assignee.managerId
+              ? { managerId: project.projectManagerId }
+              : {}),
+            ...(!assignee.division ? { division: taskDivision } : {}),
+          },
+        });
+      }
+    }
+
     const full = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       include: projectInclude,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { roles, roleLabels, createUserSchema, updateUserSchema, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
@@ -41,6 +41,7 @@ export function SystemUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
 
   const title = useMemo(
     () => (editingId ? "Edit user" : "New user"),
@@ -66,6 +67,7 @@ export function SystemUsersPage() {
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
+    setShowPassword(false);
     setOpen(true);
   }
 
@@ -80,6 +82,7 @@ export function SystemUsersPage() {
       isActive: user.isActive,
       roles: user.roles as AppRole[],
     });
+    setShowPassword(false);
     setOpen(true);
   }
 
@@ -444,15 +447,32 @@ export function SystemUsersPage() {
                 <Label>
                   Password {editingId ? "(leave blank to keep)" : ""}
                 </Label>
-                <Input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, password: e.target.value }))
-                  }
-                  required={!editingId}
-                  minLength={editingId && !form.password ? undefined : 8}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, password: e.target.value }))
+                    }
+                    required={!editingId}
+                    minLength={editingId && !form.password ? undefined : 8}
+                    className="pr-10"
+                    autoComplete={editingId ? "new-password" : "new-password"}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Roles</Label>
