@@ -42,6 +42,8 @@ type ProjectTask = {
   division: string;
   sortOrder: number;
   isActive: boolean;
+  beginSta: string | null;
+  endSta: string | null;
   taskMaster: {
     id: string;
     code: string;
@@ -71,6 +73,7 @@ type ProjectDetail = {
 };
 
 type TableRow = {
+  id: string;
   wbs: string;
   taskMasterId: string;
   code: string;
@@ -83,6 +86,8 @@ type TableRow = {
   widthInches: number | null;
   conversionFactor: number | null;
   fieldPerson: string;
+  beginSta: string | null;
+  endSta: string | null;
 };
 
 const divisionLabels: Record<string, string> = {
@@ -125,6 +130,7 @@ function workspaceBase(pathname: string) {
 
 function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
   return tasks.map((t, i) => ({
+    id: t.id,
     wbs: String(i + 1),
     taskMasterId: t.taskMasterId,
     code: t.taskMaster.code,
@@ -137,6 +143,8 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
     widthInches: t.taskMaster.widthInches,
     conversionFactor: t.taskMaster.conversionFactor,
     fieldPerson: t.assignedTo?.name ?? "—",
+    beginSta: t.beginSta,
+    endSta: t.endSta,
   }));
 }
 
@@ -430,8 +438,8 @@ export function ProjectDetailPage() {
         description: form.description.trim() || null,
         assignedToId: form.assignedToId,
         division: form.division,
-        beginSta: parseStaInput(form.beginSta),
-        endSta: parseStaInput(form.endSta),
+        beginSta: form.beginSta.trim() || null,
+        endSta: form.endSta.trim() || null,
       };
       const parsed = projectCreateTaskSchema.safeParse(raw);
       if (!parsed.success) {
@@ -532,6 +540,7 @@ export function ProjectDetailPage() {
                 <th className="w-20 px-4 py-3">Color</th>
                 <th className="w-20 px-4 py-3">Width</th>
                 <th className="w-16 px-4 py-3">CF</th>
+                <th className="w-36 px-4 py-3">Work STA</th>
                 <th className="w-36 px-4 py-3">Field person</th>
                 <th className="w-16 px-4 py-3" />
               </tr>
@@ -540,7 +549,7 @@ export function ProjectDetailPage() {
               {taskRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={showGenericNameColumn ? 12 : 11}
+                    colSpan={showGenericNameColumn ? 13 : 12}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> to create work
@@ -578,6 +587,13 @@ export function ProjectDetailPage() {
                     {row.conversionFactor != null
                       ? Number(row.conversionFactor).toFixed(2)
                       : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-[11px]">
+                    {row.formType === "STA_RANGE" && row.beginSta && row.endSta
+                      ? `${row.beginSta} → ${row.endSta}`
+                      : row.formType === "STA_RANGE"
+                        ? "— set limits"
+                        : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-xs">{row.fieldPerson}</td>
                   <td className="px-4 py-2.5 text-right">
@@ -848,24 +864,30 @@ export function ProjectDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Begin STA (calc)</Label>
+                <Label>
+                  Begin STA {form.formType === "STA_RANGE" ? "*" : "(calc)"}
+                </Label>
                 <Input
                   value={form.beginSta}
+                  required={form.formType === "STA_RANGE"}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, beginSta: e.target.value }))
                   }
-                  placeholder="142+00 or 142.00"
+                  placeholder="11+00"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label>End STA (calc)</Label>
+                <Label>
+                  End STA {form.formType === "STA_RANGE" ? "*" : "(calc)"}
+                </Label>
                 <Input
                   value={form.endSta}
+                  required={form.formType === "STA_RANGE"}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, endSta: e.target.value }))
                   }
-                  placeholder="147+00 or 147.00"
+                  placeholder="23+00"
                 />
               </div>
 

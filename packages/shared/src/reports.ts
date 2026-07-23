@@ -339,19 +339,19 @@ export function validateStaSegmentsCoverage(
       if (begin < pb) {
         errors[i] = {
           ...errors[i],
-          beginSta: `Begin STA cannot be before project start (${normalizedBounds.beginSta})`,
+          beginSta: `Begin STA cannot be before allowed start (${normalizedBounds.beginSta})`,
         };
       }
       if (begin >= pe) {
         errors[i] = {
           ...errors[i],
-          beginSta: `Begin STA must be before project end (${normalizedBounds.endSta})`,
+          beginSta: `Begin STA must be before allowed end (${normalizedBounds.endSta})`,
         };
       }
       if (end > pe) {
         errors[i] = {
           ...errors[i],
-          endSta: `End STA cannot exceed project end (${normalizedBounds.endSta})`,
+          endSta: `End STA cannot exceed allowed end (${normalizedBounds.endSta})`,
         };
       }
     }
@@ -390,8 +390,8 @@ export function validateStaSegmentsCoverage(
     const msgs = Object.values(errors).flatMap((row) => Object.values(row));
     const message = msgs.some((m) => m.includes("already completed"))
       ? "Station range overlaps work that is already completed"
-      : msgs.some((m) => m.includes("project"))
-        ? "Station must stay within project start/end limits"
+      : msgs.some((m) => m.includes("allowed") || m.includes("limits"))
+        ? "Station must stay within task work limits (start/end STA)"
         : "Fix the highlighted station fields";
     return {
       success: false,

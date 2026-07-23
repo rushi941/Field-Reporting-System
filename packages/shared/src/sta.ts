@@ -94,10 +94,10 @@ export function staSegmentProjectBoundsErrors(
       const begin = normalizeSta(beginSta);
       const beginDec = parseStaToDecimal(begin);
       if (beginDec < pbDec) {
-        errors.beginSta = `Cannot be before project start (${pb})`;
+        errors.beginSta = `Cannot be before allowed start (${pb})`;
       }
       if (beginDec >= peDec) {
-        errors.beginSta = `Must be before project end (${pe})`;
+        errors.beginSta = `Must be before allowed end (${pe})`;
       }
     }
 
@@ -105,7 +105,7 @@ export function staSegmentProjectBoundsErrors(
       const end = normalizeSta(endSta);
       const endDec = parseStaToDecimal(end);
       if (endDec > peDec) {
-        errors.endSta = `Cannot exceed project end (${pe})`;
+        errors.endSta = `Cannot exceed allowed end (${pe})`;
       }
       if (beginSta.trim()) {
         const beginDec = parseStaToDecimal(normalizeSta(beginSta));
@@ -118,4 +118,32 @@ export function staSegmentProjectBoundsErrors(
     /* ignore while user is typing partial values */
   }
   return errors;
+}
+
+/** Task STA limits take priority; fall back to project route limits. */
+export function resolveStaWorkLimits(
+  task: { beginSta?: string | null; endSta?: string | null } | null | undefined,
+  projectRoute: { beginSta?: string | null; endSta?: string | null } | null | undefined,
+): { beginSta: string; endSta: string } | null {
+  if (task?.beginSta?.trim() && task?.endSta?.trim()) {
+    try {
+      return {
+        beginSta: normalizeSta(task.beginSta),
+        endSta: normalizeSta(task.endSta),
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (projectRoute?.beginSta?.trim() && projectRoute?.endSta?.trim()) {
+    try {
+      return {
+        beginSta: normalizeSta(projectRoute.beginSta),
+        endSta: normalizeSta(projectRoute.endSta),
+      };
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }

@@ -319,6 +319,9 @@ model ProjectTask {
   division     Division
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
+  /// Work limits for field reporting (e.g. 11+00 → 23+00)
+  beginSta     String?
+  endSta       String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

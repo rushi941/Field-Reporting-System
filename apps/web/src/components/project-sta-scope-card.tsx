@@ -6,6 +6,7 @@ type Props = {
   endSta: string;
   className?: string;
   compact?: boolean;
+  title?: string;
 };
 
 /** Shows project corridor start → end STA and total physical LF for field crews */
@@ -14,6 +15,7 @@ export function ProjectStaScopeCard({
   endSta,
   className,
   compact = false,
+  title,
 }: Props) {
   let scope: { beginSta: string; endSta: string; totalLf: number };
   try {
@@ -44,7 +46,7 @@ export function ProjectStaScopeCard({
       )}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
-        Project work limits
+        {title ?? "Work limits"}
       </p>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <div>

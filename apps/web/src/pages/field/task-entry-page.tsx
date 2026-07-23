@@ -11,6 +11,7 @@ import {
   validateReportTaskSegments,
   validateStaSegmentsCoverage,
   staSegmentProjectBoundsErrors,
+  resolveStaWorkLimits,
   type SegmentFieldErrors,
 } from "@frs/shared";
 import { ConnectionBanner } from "@/components/connection-banner";
@@ -51,6 +52,8 @@ type ProjectInfo = {
   } | null;
   tasks: {
     id: string;
+    beginSta: string | null;
+    endSta: string | null;
     completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
     taskMaster: TaskMaster;
   }[];
@@ -205,6 +208,11 @@ export function FieldTaskEntryPage() {
   const task = useMemo(
     () => project?.tasks.find((t) => t.id === taskId) ?? null,
     [project, taskId],
+  );
+
+  const workLimits = useMemo(
+    () => resolveStaWorkLimits(task, project?.route ?? null),
+    [task, project?.route],
   );
 
   const isSta = task?.taskMaster.formType === "STA_RANGE";
@@ -410,15 +418,12 @@ export function FieldTaskEntryPage() {
       const next = rows.map((r, idx) =>
         idx === index ? { ...r, ...patch } : r,
       );
-      if (isSta && project?.route?.beginSta && project?.route?.endSta) {
+      if (isSta && workLimits) {
         const seg = next[index];
         const boundsErrors = staSegmentProjectBoundsErrors(
           seg.beginSta,
           seg.endSta,
-          {
-            beginSta: project.route.beginSta,
-            endSta: project.route.endSta,
-          },
+          workLimits,
         );
         setSegErrors((prev) => ({
           ...prev,
@@ -433,7 +438,7 @@ export function FieldTaskEntryPage() {
       }
       return next;
     });
-    if (field && !project?.route?.beginSta) clearSegField(index, field);
+    if (field && !workLimits) clearSegField(index, field);
   }
 
   function updateLoc(index: number, patch: Partial<LocSeg>, field?: string) {
@@ -490,26 +495,31 @@ export function FieldTaskEntryPage() {
     }
     setSegErrors({});
 
-    if (isSta && project.route?.beginSta && project.route?.endSta) {
+    if (isSta && workLimits) {
       const boundsIssues: SegmentFieldErrors = {};
       validated.segments.forEach((seg, i) => {
         const rowErrors = staSegmentProjectBoundsErrors(
           seg.beginSta,
           seg.endSta,
-          {
-            beginSta: project.route!.beginSta!,
-            endSta: project.route!.endSta!,
-          },
+          workLimits,
         );
         if (Object.keys(rowErrors).length) boundsIssues[i] = rowErrors;
       });
       if (Object.keys(boundsIssues).length) {
         setSegErrors(boundsIssues);
-        toast.error("End STA cannot exceed project end station", {
+        toast.error("Station must stay within task start/end limits", {
           id: "field-entry",
         });
         return null;
       }
+    }
+
+    if (isSta && !workLimits) {
+      toast.error(
+        "Work limits are not set for this task. Contact project admin.",
+        { id: "field-entry" },
+      );
+      return null;
     }
 
     if (isSta && validated.segments.length) {
@@ -521,13 +531,8 @@ export function FieldTaskEntryPage() {
         task.completedStaRanges?.map((r) => ({
           beginSta: r.beginSta,
           endSta: r.endSta,
-        })),
-        project.route?.beginSta && project.route?.endSta
-          ? {
-              beginSta: project.route.beginSta,
-              endSta: project.route.endSta,
-            }
-          : null,
+        })) ?? [],
+        workLimits,
       );
       if (!coverage.success) {
         setSegErrors(coverage.errors);
@@ -701,11 +706,18 @@ export function FieldTaskEntryPage() {
           {project.jobNumber} · {project.name}
           {project.location ? ` · ${project.location}` : ""}
         </p>
-        {isSta && project.route?.beginSta && project.route?.endSta && (
+        {isSta && workLimits && (
           <ProjectStaScopeCard
-            beginSta={project.route.beginSta}
-            endSta={project.route.endSta}
+            beginSta={workLimits.beginSta}
+            endSta={workLimits.endSta}
+            title="Task work limits"
           />
+        )}
+        {isSta && !workLimits && (
+          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            Work limits (begin/end STA) are not set for this task. Contact
+            project admin before entering quantities.
+          </p>
         )}
         {isSta && (task.completedStaRanges?.length ?? 0) > 0 && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-950">
@@ -846,17 +858,17 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`begin-${i}`}>
                       Begin STA
-                      {project.route?.beginSta ? (
+                      {workLimits?.beginSta ? (
                         <span className="ml-1 font-normal text-muted-foreground">
-                          (min {project.route.beginSta})
+                          (min {workLimits.beginSta})
                         </span>
                       ) : null}
                     </Label>
                     <Input
                       id={`begin-${i}`}
                       placeholder={
-                        project.route?.beginSta
-                          ? `from ${project.route.beginSta}`
+                        workLimits?.beginSta
+                          ? `from ${workLimits.beginSta}`
                           : "e.g. 1+00"
                       }
                       disabled={!editable || busy}
@@ -872,17 +884,17 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`end-${i}`}>
                       End STA
-                      {project.route?.endSta ? (
+                      {workLimits?.endSta ? (
                         <span className="ml-1 font-normal text-muted-foreground">
-                          (max {project.route.endSta})
+                          (max {workLimits.endSta})
                         </span>
                       ) : null}
                     </Label>
                     <Input
                       id={`end-${i}`}
                       placeholder={
-                        project.route?.endSta
-                          ? `up to ${project.route.endSta}`
+                        workLimits?.endSta
+                          ? `up to ${workLimits.endSta}`
                           : "e.g. 6+00"
                       }
                       disabled={!editable || busy}

@@ -16,6 +16,7 @@ import {
   upsertDraftReportSchema,
   validateAttachmentFile,
   validateStaSegmentsCoverage,
+  resolveStaWorkLimits,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
@@ -472,6 +473,14 @@ fieldReportsRouter.put(
         where: { projectId: report.projectId },
         select: { beginSta: true, endSta: true },
       });
+      const workLimits = resolveStaWorkLimits(projectTask, projectRoute);
+      if (!workLimits) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Work limits (begin/end STA) are not set for this task. Contact project admin.",
+          400,
+        );
+      }
       const completedMap = await fetchCompletedStaRanges(
         [projectTaskId],
         reportId,
@@ -479,12 +488,7 @@ fieldReportsRouter.put(
       const coverage = validateStaSegmentsCoverage(
         parsedSegments,
         completedMap.get(projectTaskId) ?? [],
-        projectRoute?.beginSta && projectRoute?.endSta
-          ? {
-              beginSta: projectRoute.beginSta,
-              endSta: projectRoute.endSta,
-            }
-          : null,
+        workLimits,
       );
       if (!coverage.success) {
         throw new AppError("VALIDATION_ERROR", coverage.message, 400);
@@ -567,6 +571,11 @@ fieldReportsRouter.post(
       ),
     ];
     const completedMap = await fetchCompletedStaRanges(staTaskIds, id);
+    const projectTasks = await prisma.projectTask.findMany({
+      where: { id: { in: staTaskIds } },
+      select: { id: true, beginSta: true, endSta: true },
+    });
+    const taskById = new Map(projectTasks.map((t) => [t.id, t]));
     const byTask = new Map<string, { beginSta: string; endSta: string }[]>();
     for (const li of report.lineItems) {
       if (!li.beginSta || !li.endSta) continue;
@@ -575,15 +584,21 @@ fieldReportsRouter.post(
       byTask.set(li.projectTaskId, list);
     }
     for (const [taskId, segments] of byTask) {
+      const workLimits = resolveStaWorkLimits(
+        taskById.get(taskId),
+        projectRoute,
+      );
+      if (!workLimits) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Work limits (begin/end STA) are not set for this task. Contact project admin.",
+          400,
+        );
+      }
       const coverage = validateStaSegmentsCoverage(
         segments,
         completedMap.get(taskId) ?? [],
-        projectRoute?.beginSta && projectRoute?.endSta
-          ? {
-              beginSta: projectRoute.beginSta,
-              endSta: projectRoute.endSta,
-            }
-          : null,
+        workLimits,
       );
       if (!coverage.success) {
         throw new AppError("VALIDATION_ERROR", coverage.message, 400);

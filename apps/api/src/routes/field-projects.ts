@@ -105,6 +105,8 @@ fieldProjectsRouter.get(
         tasks: p.tasks.map((t) => ({
           id: t.id,
           division: t.division,
+          beginSta: t.beginSta,
+          endSta: t.endSta,
           completedStaRanges: completedMap.get(t.id) ?? [],
           taskMaster: {
             ...t.taskMaster,

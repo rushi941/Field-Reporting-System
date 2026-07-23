@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
+import { normalizeSta, physicalLfFromSta } from "./sta.js";
 
 export const divisionEnum = z.enum([
   "PAVEMENT_MARKING",
@@ -102,9 +103,24 @@ export const projectCreateTaskSchema = z.object({
   conversionFactor: z.number().nonnegative(),
   description: z.string().max(500).optional().nullable(),
   assignedToId: z.string().min(1),
-  /// Optional STA inputs for calc preview only (not persisted on ProjectTask)
-  beginSta: z.number().optional().nullable(),
-  endSta: z.number().optional().nullable(),
+  beginSta: z.string().trim().max(32).optional().nullable(),
+  endSta: z.string().trim().max(32).optional().nullable(),
+}).superRefine((val, ctx) => {
+  if (val.formType !== "STA_RANGE") return;
+  if (!val.beginSta?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Begin STA is required for STA range tasks",
+      path: ["beginSta"],
+    });
+  }
+  if (!val.endSta?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "End STA is required for STA range tasks",
+      path: ["endSta"],
+    });
+  }
 });
 
 /** All divisions on a project (primary + extras, deduped). */
@@ -127,6 +143,29 @@ export function splitProjectDivisions(
 }
 
 export type ProjectCreateTaskInput = z.infer<typeof projectCreateTaskSchema>;
+
+export const projectUpdateTaskLimitsSchema = z
+  .object({
+    beginSta: z.string().trim().min(1),
+    endSta: z.string().trim().min(1),
+  })
+  .superRefine((val, ctx) => {
+    try {
+      const begin = normalizeSta(val.beginSta);
+      const end = normalizeSta(val.endSta);
+      physicalLfFromSta(begin, end);
+    } catch (err) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: err instanceof Error ? err.message : "Invalid STA range",
+        path: ["endSta"],
+      });
+    }
+  });
+
+export type ProjectUpdateTaskLimitsInput = z.infer<
+  typeof projectUpdateTaskLimitsSchema
+>;
 
 export const taskImportRowSchema = z.object({
   code: z.string().min(1),

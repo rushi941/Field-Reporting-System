@@ -10,8 +10,10 @@ import {
   projectSchema,
   updateProjectSchema,
   projectCreateTaskSchema,
+  projectUpdateTaskLimitsSchema,
   projectDivisions,
   normalizeSta,
+  physicalLfFromSta,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -129,6 +131,8 @@ function mapProject(p: ProjectLoaded) {
       division: t.division,
       sortOrder: t.sortOrder,
       isActive: t.isActive,
+      beginSta: t.beginSta,
+      endSta: t.endSta,
       taskMaster: {
         ...t.taskMaster,
         conversionFactor:
@@ -717,6 +721,25 @@ projectsRouter.post(
     }
 
     const count = await prisma.projectTask.count({ where: { projectId } });
+
+    let beginSta: string | null = null;
+    let endSta: string | null = null;
+    if (body.formType === "STA_RANGE" || body.beginSta || body.endSta) {
+      try {
+        if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
+        if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
+        if (beginSta && endSta) {
+          physicalLfFromSta(beginSta, endSta);
+        }
+      } catch (err) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          err instanceof Error ? err.message : "Invalid begin/end STA",
+          400,
+        );
+      }
+    }
+
     await prisma.projectTask.create({
       data: {
         projectId,
@@ -724,6 +747,8 @@ projectsRouter.post(
         assignedToId: body.assignedToId,
         division: taskDivision,
         sortOrder: count,
+        beginSta,
+        endSta,
       },
     });
 
@@ -748,6 +773,46 @@ projectsRouter.post(
       include: projectInclude,
     });
     res.status(201).json({ project: mapProject(full) });
+  }),
+);
+
+/** Set begin/end STA work limits on an existing project task */
+projectsRouter.patch(
+  "/:projectId/tasks/:taskId/limits",
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.projectId);
+    const taskId = routeParam(req.params.taskId);
+    const body = projectUpdateTaskLimitsSchema.parse(req.body);
+
+    const task = await prisma.projectTask.findFirst({
+      where: { id: taskId, projectId, isActive: true },
+      include: { taskMaster: { select: { formType: true } } },
+    });
+    if (!task) {
+      throw new AppError("NOT_FOUND", "Task not found", 404);
+    }
+    if (task.taskMaster.formType !== "STA_RANGE") {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "STA limits apply only to STA range tasks",
+        400,
+      );
+    }
+
+    const beginSta = normalizeSta(body.beginSta);
+    const endSta = normalizeSta(body.endSta);
+    physicalLfFromSta(beginSta, endSta);
+
+    await prisma.projectTask.update({
+      where: { id: taskId },
+      data: { beginSta, endSta },
+    });
+
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: projectInclude,
+    });
+    res.json({ project: mapProject(full) });
   }),
 );
 
