@@ -17,6 +17,8 @@ type FormState = {
   phone: string;
   isActive: boolean;
   roles: AppRole[];
+  division: string;
+  managerId: string;
 };
 
 const emptyForm: FormState = {
@@ -27,7 +29,18 @@ const emptyForm: FormState = {
   phone: "",
   isActive: true,
   roles: ["FIELD_LEAD"],
+  division: "",
+  managerId: "",
 };
+
+const divisionOptions = [
+  { value: "PAVEMENT_MARKING", label: "Pavement Marking" },
+  { value: "TRAFFIC_CONTROL", label: "Traffic Control" },
+  { value: "PERMANENT_SIGNS", label: "Permanent Signs" },
+];
+
+const selectClass =
+  "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function SystemUsersPage() {
   const { user: currentUser } = useAuth();
@@ -42,6 +55,14 @@ export function SystemUsersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
+  const [managers, setManagers] = useState<
+    { id: string; name: string; email: string; division: string | null }[]
+  >([]);
+
+  const needsDivision = form.roles.some(
+    (r) => r === "FIELD_LEAD" || r === "DIVISION_MANAGER",
+  );
+  const needsManager = form.roles.includes("FIELD_LEAD");
 
   const title = useMemo(
     () => (editingId ? "Edit user" : "New user"),
@@ -60,14 +81,27 @@ export function SystemUsersPage() {
     }
   }
 
+  async function loadManagers() {
+    try {
+      const data = await apiFetch<{
+        managers: { id: string; name: string; email: string; division: string | null }[];
+      }>("/api/v1/users/managers");
+      setManagers(data.managers);
+    } catch {
+      /* non-blocking */
+    }
+  }
+
   useEffect(() => {
     void load();
+    void loadManagers();
   }, []);
 
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
     setShowPassword(false);
+    void loadManagers();
     setOpen(true);
   }
 
@@ -81,8 +115,11 @@ export function SystemUsersPage() {
       phone: user.phone ?? "",
       isActive: user.isActive,
       roles: user.roles as AppRole[],
+      division: user.division ?? "",
+      managerId: user.managerId ?? "",
     });
     setShowPassword(false);
+    void loadManagers();
     setOpen(true);
   }
 
@@ -98,6 +135,14 @@ export function SystemUsersPage() {
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
+    if (needsDivision && !form.division) {
+      toast.error("Select a division for field leads and division managers");
+      return;
+    }
+    if (needsManager && !form.managerId) {
+      toast.error("Select a division manager for field leads");
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) {
@@ -108,6 +153,8 @@ export function SystemUsersPage() {
           phone: form.phone.trim() || null,
           isActive: form.isActive,
           roles: form.roles,
+          division: form.division || null,
+          managerId: needsManager ? form.managerId || null : null,
           ...(form.password ? { password: form.password } : {}),
         };
         const parsed = updateUserSchema.safeParse(raw);
@@ -128,6 +175,8 @@ export function SystemUsersPage() {
           phone: form.phone.trim() || null,
           isActive: form.isActive,
           roles: form.roles,
+          division: form.division || null,
+          managerId: needsManager ? form.managerId || null : null,
           password: form.password,
         };
         const parsed = createUserSchema.safeParse(raw);
@@ -474,6 +523,52 @@ export function SystemUsersPage() {
                   </button>
                 </div>
               </div>
+              {needsDivision && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Division *</Label>
+                  <select
+                    className={selectClass}
+                    value={form.division}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, division: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">— Select division —</option>
+                    {divisionOptions.map((d) => (
+                      <option key={d.value} value={d.value}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {needsManager && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Division manager *</Label>
+                  <select
+                    className={selectClass}
+                    value={form.managerId}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, managerId: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">— Select manager —</option>
+                    {managers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                        {m.division
+                          ? ` · ${divisionOptions.find((d) => d.value === m.division)?.label ?? m.division}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Submitted reports route to this manager for approval.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2 sm:col-span-2">
                 <Label>Roles</Label>
                 <div className="flex flex-wrap gap-2">

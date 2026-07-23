@@ -527,6 +527,27 @@ fieldReportsRouter.post(
     }
 
     const wasReturned = report.status === "RETURNED";
+
+    const project = await prisma.project.findUnique({
+      where: { id: report.projectId },
+      select: { projectManagerId: true, division: true },
+    });
+    if (project?.projectManagerId) {
+      const submitter = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { managerId: true, division: true },
+      });
+      if (submitter) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            managerId: project.projectManagerId,
+            division: submitter.division ?? project.division,
+          },
+        });
+      }
+    }
+
     const updated = await prisma.report.update({
       where: { id },
       data: {

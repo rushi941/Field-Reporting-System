@@ -705,16 +705,14 @@ projectsRouter.post(
     if (project.projectManagerId) {
       const assignee = await prisma.user.findUnique({
         where: { id: body.assignedToId },
-        select: { managerId: true, division: true },
+        select: { division: true },
       });
-      if (assignee && (!assignee.managerId || !assignee.division)) {
+      if (assignee) {
         await prisma.user.update({
           where: { id: body.assignedToId },
           data: {
-            ...(!assignee.managerId
-              ? { managerId: project.projectManagerId }
-              : {}),
-            ...(!assignee.division ? { division: taskDivision } : {}),
+            managerId: project.projectManagerId,
+            division: assignee.division ?? taskDivision,
           },
         });
       }

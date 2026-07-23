@@ -94,6 +94,26 @@ async function managerScopeWhere(
   const or: Prisma.ReportWhereInput[] = [
     { submittedBy: { managerId: userId } },
     { project: { projectManagerId: userId } },
+    {
+      submittedBy: {
+        projectTasksAssigned: {
+          some: {
+            isActive: true,
+            project: { projectManagerId: userId },
+          },
+        },
+      },
+    },
+    {
+      project: {
+        tasks: {
+          some: {
+            isActive: true,
+            assignedTo: { managerId: userId },
+          },
+        },
+      },
+    },
   ];
   if (me?.division) {
     or.push({ division: me.division });
