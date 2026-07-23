@@ -23,6 +23,8 @@ export type RouteValue = {
   endLat: number;
   endLng: number;
   endLabel?: string | null;
+  beginSta?: string | null;
+  endSta?: string | null;
   polyline: [number, number][] | null;
   distanceMeters: number | null;
 };
@@ -444,6 +446,33 @@ export function RouteMapPicker({ value, onChange }: Props) {
               if (value) onChange({ ...value, endLabel });
             }}
             placeholder="Auto-filled from place"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Begin STA</Label>
+          <Input
+            value={draft.beginSta ?? ""}
+            onChange={(e) => {
+              const beginSta = e.target.value;
+              setDraft((d) => ({ ...d, beginSta }));
+              if (value) onChange({ ...value, beginSta });
+            }}
+            placeholder="e.g. 100+00"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>End STA</Label>
+          <Input
+            value={draft.endSta ?? ""}
+            onChange={(e) => {
+              const endSta = e.target.value;
+              setDraft((d) => ({ ...d, endSta }));
+              if (value) onChange({ ...value, endSta });
+            }}
+            placeholder="e.g. 105+00"
           />
         </div>
       </div>

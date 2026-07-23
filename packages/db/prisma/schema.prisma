@@ -342,6 +342,9 @@ model ProjectRoute {
   endLat          Float
   endLng          Float
   endLabel        String?
+  /// Work limits for field crews (e.g. 100+00 → 105+00)
+  beginSta        String?
+  endSta          String?
   /// Encoded polyline points [[lat, lng], ...]
   polyline        Json?
   distanceMeters  Float?

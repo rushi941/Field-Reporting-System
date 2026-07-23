@@ -65,7 +65,7 @@ export function ApprovalsLayout() {
             Advance Traffic
           </p>
           <p className="truncate text-[11px] font-medium text-steel">
-            Div. Manager
+            Division Manager
           </p>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "@frs/db";
 import { projectDivisions } from "@frs/shared";
 import { asyncHandler } from "../lib/async-handler.js";
+import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
 
@@ -87,6 +88,9 @@ fieldProjectsRouter.get(
       orderBy: { jobNumber: "asc" },
     });
 
+    const taskIds = projects.flatMap((p) => p.tasks.map((t) => t.id));
+    const completedMap = await fetchCompletedStaRanges(taskIds);
+
     res.json({
       projects: projects.map((p) => ({
         id: p.id,
@@ -101,6 +105,7 @@ fieldProjectsRouter.get(
         tasks: p.tasks.map((t) => ({
           id: t.id,
           division: t.division,
+          completedStaRanges: completedMap.get(t.id) ?? [],
           taskMaster: {
             ...t.taskMaster,
             conversionFactor:
@@ -118,6 +123,8 @@ fieldProjectsRouter.get(
               endLat: p.route.endLat,
               endLng: p.route.endLng,
               endLabel: p.route.endLabel,
+              beginSta: p.route.beginSta,
+              endSta: p.route.endSta,
               polyline: (p.route.polyline as [number, number][] | null) ?? null,
               distanceMeters: p.route.distanceMeters,
             }

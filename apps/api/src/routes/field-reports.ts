@@ -15,8 +15,10 @@ import {
   updateDraftReportSchema,
   upsertDraftReportSchema,
   validateAttachmentFile,
+  validateStaSegmentsCoverage,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
+import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
 import { storeUpload } from "../lib/storage.js";
@@ -441,9 +443,14 @@ fieldReportsRouter.put(
     }[] = [];
 
     if (formType === "STA_RANGE") {
+      const parsedSegments: { beginSta: string; endSta: string }[] = [];
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = staRangeSegmentSchema.parse(seg);
         const resolved = resolveStaSegment(parsed);
+        parsedSegments.push({
+          beginSta: resolved.beginSta,
+          endSta: resolved.endSta,
+        });
         rows.push({
           reportId,
           projectTaskId,
@@ -460,6 +467,28 @@ fieldReportsRouter.put(
           sortOrder: i,
         });
       });
+
+      const projectRoute = await prisma.projectRoute.findUnique({
+        where: { projectId: report.projectId },
+        select: { beginSta: true, endSta: true },
+      });
+      const completedMap = await fetchCompletedStaRanges(
+        [projectTaskId],
+        reportId,
+      );
+      const coverage = validateStaSegmentsCoverage(
+        parsedSegments,
+        completedMap.get(projectTaskId) ?? [],
+        projectRoute?.beginSta && projectRoute?.endSta
+          ? {
+              beginSta: projectRoute.beginSta,
+              endSta: projectRoute.endSta,
+            }
+          : null,
+      );
+      if (!coverage.success) {
+        throw new AppError("VALIDATION_ERROR", coverage.message, 400);
+      }
     } else {
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = singleLocationSegmentSchema.parse(seg);
@@ -524,6 +553,41 @@ fieldReportsRouter.post(
         "Add at least one quantity before submitting",
         400,
       );
+    }
+
+    const projectRoute = await prisma.projectRoute.findUnique({
+      where: { projectId: report.projectId },
+      select: { beginSta: true, endSta: true },
+    });
+    const staTaskIds = [
+      ...new Set(
+        report.lineItems
+          .filter((li) => li.beginSta && li.endSta)
+          .map((li) => li.projectTaskId),
+      ),
+    ];
+    const completedMap = await fetchCompletedStaRanges(staTaskIds, id);
+    const byTask = new Map<string, { beginSta: string; endSta: string }[]>();
+    for (const li of report.lineItems) {
+      if (!li.beginSta || !li.endSta) continue;
+      const list = byTask.get(li.projectTaskId) ?? [];
+      list.push({ beginSta: li.beginSta, endSta: li.endSta });
+      byTask.set(li.projectTaskId, list);
+    }
+    for (const [taskId, segments] of byTask) {
+      const coverage = validateStaSegmentsCoverage(
+        segments,
+        completedMap.get(taskId) ?? [],
+        projectRoute?.beginSta && projectRoute?.endSta
+          ? {
+              beginSta: projectRoute.beginSta,
+              endSta: projectRoute.endSta,
+            }
+          : null,
+      );
+      if (!coverage.success) {
+        throw new AppError("VALIDATION_ERROR", coverage.message, 400);
+      }
     }
 
     const wasReturned = report.status === "RETURNED";

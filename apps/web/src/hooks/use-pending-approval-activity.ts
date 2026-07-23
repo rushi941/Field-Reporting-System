@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import {
   isPendingApprovalUnread,
   type PendingActivityInput,
 } from "@/lib/activity-seen";
 import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
+import { usePendingQueueRefresh } from "@/hooks/use-pending-queue-refresh";
 
 type PendingSummary = {
   pendingCount: number;
@@ -32,16 +33,7 @@ export function usePendingApprovalActivity(userId: string | undefined) {
     }
   }, [userId]);
 
-  useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 60_000);
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [refresh]);
+  usePendingQueueRefresh(refresh);
 
   const unreadCount = useMemo(
     () => reports.filter((r) => isPendingApprovalUnread(userId, r)).length,

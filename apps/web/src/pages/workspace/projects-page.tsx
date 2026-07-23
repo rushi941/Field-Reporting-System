@@ -364,7 +364,7 @@ export function ProjectsPage() {
                   <th className="px-4 py-3">Division</th>
                   <th className="px-4 py-3">Route</th>
                   <th className="px-4 py-3">Project admin</th>
-                  <th className="px-4 py-3">Div. manager</th>
+                  <th className="px-4 py-3">Division manager</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3" />
                 </tr>

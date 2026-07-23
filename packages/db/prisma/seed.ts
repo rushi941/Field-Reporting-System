@@ -170,11 +170,14 @@ async function main() {
 
   const manager = await prisma.user.upsert({
     where: { email: "manager@frs.local" },
-    update: {},
+    update: {
+      firstName: "Division",
+      lastName: "Manager",
+    },
     create: {
       email: "manager@frs.local",
       passwordHash,
-      firstName: "Dana",
+      firstName: "Division",
       lastName: "Manager",
       division: Division.PAVEMENT_MARKING,
       roles: { create: [{ role: Role.DIVISION_MANAGER }] },
@@ -325,6 +328,8 @@ async function main() {
       endLat: 42.0345,
       endLng: -93.5201,
       endLabel: "End — toward Nevada",
+      beginSta: "1+00",
+      endSta: "10+00",
       polyline: [
         [42.0308, -93.6319],
         [42.032, -93.59],
@@ -341,6 +346,8 @@ async function main() {
       endLat: 42.0345,
       endLng: -93.5201,
       endLabel: "End — toward Nevada",
+      beginSta: "1+00",
+      endSta: "10+00",
       polyline: [
         [42.0308, -93.6319],
         [42.032, -93.59],

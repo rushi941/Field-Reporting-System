@@ -8,11 +8,13 @@ import { useAuth } from "@/auth/auth-context";
 import { markFieldTasksKnown } from "@/lib/activity-seen";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { cn } from "@/lib/utils";
 
 type FieldTask = {
   id: string;
   division: string;
+  completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
   taskMaster: {
     id: string;
     code: string;
@@ -34,6 +36,11 @@ type FieldProject = {
   generalContractor: string | null;
   division: string;
   tasks: FieldTask[];
+  route: {
+    beginSta: string | null;
+    endSta: string | null;
+    label: string | null;
+  } | null;
 };
 
 type FieldReport = {
@@ -261,6 +268,14 @@ export function FieldProjectDetailPage() {
               .join(" · ")}
           </p>
         )}
+        {project.route?.beginSta && project.route?.endSta && (
+          <div className="mt-3">
+            <ProjectStaScopeCard
+              beginSta={project.route.beginSta}
+              endSta={project.route.endSta}
+            />
+          </div>
+        )}
       </div>
 
       {report?.status === "RETURNED" && report.returnComment && (
@@ -380,6 +395,14 @@ export function FieldProjectDetailPage() {
                     ? ` · CF ${Number(t.taskMaster.conversionFactor).toFixed(2)}`
                     : ""}
                 </p>
+                {t.completedStaRanges.length > 0 && (
+                  <p className="mt-1 font-mono text-[11px] text-emerald-800">
+                    Completed:{" "}
+                    {t.completedStaRanges
+                      .map((r) => `${r.beginSta} → ${r.endSta}`)
+                      .join(", ")}
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-3 text-xs">
                   <span>
                     Unit:{" "}

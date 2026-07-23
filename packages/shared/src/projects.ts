@@ -52,6 +52,8 @@ export const projectRouteSchema = z.object({
   endLat: z.number().min(-90).max(90),
   endLng: z.number().min(-180).max(180),
   endLabel: z.string().max(200).optional().nullable(),
+  beginSta: z.string().trim().max(32).optional().nullable(),
+  endSta: z.string().trim().max(32).optional().nullable(),
   polyline: z.array(z.tuple([z.number(), z.number()])).optional().nullable(),
   distanceMeters: z.number().nonnegative().optional().nullable(),
 });

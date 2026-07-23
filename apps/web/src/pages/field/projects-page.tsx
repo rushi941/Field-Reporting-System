@@ -8,6 +8,7 @@ import { useCachedApi } from "@/hooks/use-cached-api";
 import { useAuth } from "@/auth/auth-context";
 import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
 import { Input } from "@/components/ui/input";
+import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { cn } from "@/lib/utils";
 
 type FieldProject = {
@@ -18,6 +19,10 @@ type FieldProject = {
   location: string | null;
   clientName: string | null;
   generalContractor: string | null;
+  route: {
+    beginSta: string | null;
+    endSta: string | null;
+  } | null;
 };
 
 type DivisionFilter = "ALL" | "PAVEMENT_MARKING" | "TRAFFIC_CONTROL" | "PERMANENT_SIGNS";
@@ -151,6 +156,14 @@ export function FieldProjectsPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {subtitle}
                   </p>
+                  {p.route?.beginSta && p.route?.endSta && (
+                    <ProjectStaScopeCard
+                      beginSta={p.route.beginSta}
+                      endSta={p.route.endSta}
+                      compact
+                      className="mt-1.5"
+                    />
+                  )}
                 </Link>
               </li>
             );

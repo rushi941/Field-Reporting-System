@@ -6,6 +6,7 @@ import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import { useCachedApi } from "@/hooks/use-cached-api";
 import { useAuth } from "@/auth/auth-context";
 import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
+import { usePendingQueueRefresh } from "@/hooks/use-pending-queue-refresh";
 
 type PendingReport = {
   id: string;
@@ -42,10 +43,13 @@ export function ApprovalsQueuePage() {
     cacheSavedAt,
     error,
     online,
+    refresh,
   } = useCachedApi<PendingResponse>(
     OFFLINE_CACHE_KEYS.approvalsPending,
     "/api/v1/approvals/pending",
   );
+
+  usePendingQueueRefresh(refresh);
 
   const reports = data?.reports ?? [];
 

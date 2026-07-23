@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
-import { markFieldReportSeen } from "@/lib/activity-seen";
+import { markFieldReportSeen, notifyPendingQueueRefresh } from "@/lib/activity-seen";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +106,7 @@ export function FieldReportDetailPage() {
         { method: "POST" },
       );
       setReport(data.report);
+      notifyPendingQueueRefresh();
       toast.success(`Submitted ${data.report.reportNumber}`, {
         id: "field-report",
       });

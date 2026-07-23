@@ -2,8 +2,10 @@ import { z } from "zod";
 import { divisionEnum } from "./projects.js";
 import {
   normalizeSta,
+  parseStaToDecimal,
   physicalLfFromSta,
   reportedLfFromSta,
+  staRangesOverlap,
 } from "./sta.js";
 
 export const reportStatusEnum = z.enum([
@@ -258,6 +260,147 @@ export function validateReportTaskSegments(
     success: true,
     segments: parsed as SingleLocationSegmentInput[],
   };
+}
+
+export type StaRangePair = { beginSta: string; endSta: string };
+
+/**
+ * Ensure STA segments stay within project limits and do not overlap
+ * previously submitted/approved work or other rows on this report.
+ */
+export function validateStaSegmentsCoverage(
+  segments: StaRangePair[],
+  completed: StaRangePair[],
+  projectBounds?: StaRangePair | null,
+):
+  | { success: true }
+  | { success: false; errors: SegmentFieldErrors; message: string } {
+  if (!segments.length) {
+    return { success: true };
+  }
+
+  const errors: SegmentFieldErrors = {};
+  let normalizedBounds: { beginSta: string; endSta: string } | null = null;
+
+  if (projectBounds?.beginSta?.trim() && projectBounds?.endSta?.trim()) {
+    try {
+      normalizedBounds = {
+        beginSta: normalizeSta(projectBounds.beginSta),
+        endSta: normalizeSta(projectBounds.endSta),
+      };
+    } catch {
+      normalizedBounds = null;
+    }
+  }
+
+  const normalizedSegments: StaRangePair[] = [];
+  const normalizedCompleted: StaRangePair[] = [];
+
+  for (const done of completed) {
+    try {
+      normalizedCompleted.push({
+        beginSta: normalizeSta(done.beginSta),
+        endSta: normalizeSta(done.endSta),
+      });
+    } catch {
+      /* skip invalid historical rows */
+    }
+  }
+
+  segments.forEach((seg, i) => {
+    try {
+      normalizedSegments.push({
+        beginSta: normalizeSta(seg.beginSta),
+        endSta: normalizeSta(seg.endSta),
+      });
+    } catch (err) {
+      errors[i] = {
+        beginSta:
+          err instanceof Error ? err.message : "Invalid station",
+      };
+    }
+  });
+
+  if (Object.keys(errors).length) {
+    return {
+      success: false,
+      errors,
+      message: "Fix the highlighted station fields",
+    };
+  }
+
+  normalizedSegments.forEach((seg, i) => {
+    const begin = parseStaToDecimal(seg.beginSta);
+    const end = parseStaToDecimal(seg.endSta);
+
+    if (normalizedBounds) {
+      const pb = parseStaToDecimal(normalizedBounds.beginSta);
+      const pe = parseStaToDecimal(normalizedBounds.endSta);
+      if (begin < pb) {
+        errors[i] = {
+          ...errors[i],
+          beginSta: `Begin STA cannot be before project start (${normalizedBounds.beginSta})`,
+        };
+      }
+      if (begin >= pe) {
+        errors[i] = {
+          ...errors[i],
+          beginSta: `Begin STA must be before project end (${normalizedBounds.endSta})`,
+        };
+      }
+      if (end > pe) {
+        errors[i] = {
+          ...errors[i],
+          endSta: `End STA cannot exceed project end (${normalizedBounds.endSta})`,
+        };
+      }
+    }
+
+    if (errors[i]) {
+      return;
+    }
+
+    for (const done of normalizedCompleted) {
+      if (
+        staRangesOverlap(seg.beginSta, seg.endSta, done.beginSta, done.endSta)
+      ) {
+        errors[i] = {
+          ...errors[i],
+          beginSta: `This range is already completed (${done.beginSta} → ${done.endSta})`,
+        };
+        return;
+      }
+    }
+
+    for (let j = 0; j < i; j++) {
+      const other = normalizedSegments[j];
+      if (
+        staRangesOverlap(seg.beginSta, seg.endSta, other.beginSta, other.endSta)
+      ) {
+        errors[i] = {
+          ...errors[i],
+          beginSta: "Segments on this report cannot overlap",
+        };
+        return;
+      }
+    }
+  });
+
+  if (Object.keys(errors).length) {
+    const msgs = Object.values(errors).flatMap((row) => Object.values(row));
+    const message = msgs.some((m) => m.includes("already completed"))
+      ? "Station range overlaps work that is already completed"
+      : msgs.some((m) => m.includes("project"))
+        ? "Station must stay within project start/end limits"
+        : "Fix the highlighted station fields";
+    return {
+      success: false,
+      errors,
+      message,
+    };
+  }
+
+  return { success: true };
 }
 
 /** Resolve quantity fields for persistence */

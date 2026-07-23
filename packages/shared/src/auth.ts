@@ -18,7 +18,7 @@ export type AppRole = (typeof roles)[number];
 
 export const roleLabels: Record<AppRole, string> = {
   FIELD_LEAD: "Field Lead",
-  DIVISION_MANAGER: "Div. Manager",
+  DIVISION_MANAGER: "Division Manager",
   PROJECT_ADMIN: "Project Admin",
   SYSTEM_ADMIN: "System Admin",
 };

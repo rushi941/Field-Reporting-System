@@ -9,9 +9,12 @@ import {
   updateDraftReportSchema,
   validateAttachmentFile,
   validateReportTaskSegments,
+  validateStaSegmentsCoverage,
+  staSegmentProjectBoundsErrors,
   type SegmentFieldErrors,
 } from "@frs/shared";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { cacheGet, OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
 import {
@@ -24,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { notifyPendingQueueRefresh } from "@/lib/activity-seen";
 
 type TaskMaster = {
   id: string;
@@ -41,8 +45,13 @@ type ProjectInfo = {
   jobNumber: string;
   name: string;
   location: string | null;
+  route: {
+    beginSta: string | null;
+    endSta: string | null;
+  } | null;
   tasks: {
     id: string;
+    completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
     taskMaster: TaskMaster;
   }[];
 };
@@ -397,10 +406,34 @@ export function FieldTaskEntryPage() {
   }
 
   function updateSta(index: number, patch: Partial<StaSeg>, field?: string) {
-    setStaSegs((rows) =>
-      rows.map((r, idx) => (idx === index ? { ...r, ...patch } : r)),
-    );
-    if (field) clearSegField(index, field);
+    setStaSegs((rows) => {
+      const next = rows.map((r, idx) =>
+        idx === index ? { ...r, ...patch } : r,
+      );
+      if (isSta && project?.route?.beginSta && project?.route?.endSta) {
+        const seg = next[index];
+        const boundsErrors = staSegmentProjectBoundsErrors(
+          seg.beginSta,
+          seg.endSta,
+          {
+            beginSta: project.route.beginSta,
+            endSta: project.route.endSta,
+          },
+        );
+        setSegErrors((prev) => ({
+          ...prev,
+          [index]: boundsErrors,
+        }));
+      } else if (field) {
+        setSegErrors((prev) => {
+          const row = { ...(prev[index] ?? {}) };
+          delete row[field];
+          return { ...prev, [index]: row };
+        });
+      }
+      return next;
+    });
+    if (field && !project?.route?.beginSta) clearSegField(index, field);
   }
 
   function updateLoc(index: number, patch: Partial<LocSeg>, field?: string) {
@@ -456,6 +489,52 @@ export function FieldTaskEntryPage() {
       return null;
     }
     setSegErrors({});
+
+    if (isSta && project.route?.beginSta && project.route?.endSta) {
+      const boundsIssues: SegmentFieldErrors = {};
+      validated.segments.forEach((seg, i) => {
+        const rowErrors = staSegmentProjectBoundsErrors(
+          seg.beginSta,
+          seg.endSta,
+          {
+            beginSta: project.route!.beginSta!,
+            endSta: project.route!.endSta!,
+          },
+        );
+        if (Object.keys(rowErrors).length) boundsIssues[i] = rowErrors;
+      });
+      if (Object.keys(boundsIssues).length) {
+        setSegErrors(boundsIssues);
+        toast.error("End STA cannot exceed project end station", {
+          id: "field-entry",
+        });
+        return null;
+      }
+    }
+
+    if (isSta && validated.segments.length) {
+      const coverage = validateStaSegmentsCoverage(
+        validated.segments.map((s) => ({
+          beginSta: s.beginSta,
+          endSta: s.endSta,
+        })),
+        task.completedStaRanges?.map((r) => ({
+          beginSta: r.beginSta,
+          endSta: r.endSta,
+        })),
+        project.route?.beginSta && project.route?.endSta
+          ? {
+              beginSta: project.route.beginSta,
+              endSta: project.route.endSta,
+            }
+          : null,
+      );
+      if (!coverage.success) {
+        setSegErrors(coverage.errors);
+        toast.error(coverage.message, { id: "field-entry" });
+        return null;
+      }
+    }
 
     if (notes !== (report.notes ?? "")) {
       await apiFetch(`/api/v1/field/reports/${report.id}`, {
@@ -517,6 +596,7 @@ export function FieldTaskEntryPage() {
         { method: "POST" },
       );
       setReport(data.report);
+      notifyPendingQueueRefresh();
       toast.success(`Submitted ${data.report.reportNumber}`, {
         id: "field-entry",
       });
@@ -621,6 +701,27 @@ export function FieldTaskEntryPage() {
           {project.jobNumber} · {project.name}
           {project.location ? ` · ${project.location}` : ""}
         </p>
+        {isSta && project.route?.beginSta && project.route?.endSta && (
+          <ProjectStaScopeCard
+            beginSta={project.route.beginSta}
+            endSta={project.route.endSta}
+          />
+        )}
+        {isSta && (task.completedStaRanges?.length ?? 0) > 0 && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-950">
+            <p className="font-medium">Already completed on this task</p>
+            <ul className="mt-1 space-y-0.5 font-mono">
+              {(task.completedStaRanges ?? []).map((r) => (
+                <li key={`${r.reportNumber}-${r.beginSta}-${r.endSta}`}>
+                  {r.beginSta} → {r.endSta}
+                  <span className="ml-1 font-sans text-emerald-800">
+                    ({r.reportNumber})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
           {isSta
             ? "Add one row per line segment. All rows save together under this task."
@@ -745,10 +846,19 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`begin-${i}`}>
                       Begin STA
+                      {project.route?.beginSta ? (
+                        <span className="ml-1 font-normal text-muted-foreground">
+                          (min {project.route.beginSta})
+                        </span>
+                      ) : null}
                     </Label>
                     <Input
                       id={`begin-${i}`}
-                      placeholder="e.g. 1+00"
+                      placeholder={
+                        project.route?.beginSta
+                          ? `from ${project.route.beginSta}`
+                          : "e.g. 1+00"
+                      }
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.beginSta)}
                       className={cn(inputClass, err.beginSta && "border-destructive")}
@@ -762,10 +872,19 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`end-${i}`}>
                       End STA
+                      {project.route?.endSta ? (
+                        <span className="ml-1 font-normal text-muted-foreground">
+                          (max {project.route.endSta})
+                        </span>
+                      ) : null}
                     </Label>
                     <Input
                       id={`end-${i}`}
-                      placeholder="e.g. 6+00"
+                      placeholder={
+                        project.route?.endSta
+                          ? `up to ${project.route.endSta}`
+                          : "e.g. 6+00"
+                      }
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.endSta)}
                       className={cn(inputClass, err.endSta && "border-destructive")}

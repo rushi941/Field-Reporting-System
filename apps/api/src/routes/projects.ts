@@ -11,6 +11,7 @@ import {
   updateProjectSchema,
   projectCreateTaskSchema,
   projectDivisions,
+  normalizeSta,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -70,6 +71,8 @@ function mapRoute(route: ProjectLoaded["route"]) {
     endLat: route.endLat,
     endLng: route.endLng,
     endLabel: route.endLabel,
+    beginSta: route.beginSta,
+    endSta: route.endSta,
     polyline: (route.polyline as [number, number][] | null) ?? null,
     distanceMeters: route.distanceMeters,
   };
@@ -364,6 +367,8 @@ async function syncProjectRoute(
     endLat: number;
     endLng: number;
     endLabel?: string | null;
+    beginSta?: string | null;
+    endSta?: string | null;
     polyline?: [number, number][] | null;
     distanceMeters?: number | null;
   } | null | undefined,
@@ -372,6 +377,22 @@ async function syncProjectRoute(
   if (route === null) {
     await prisma.projectRoute.deleteMany({ where: { projectId } });
     return;
+  }
+  let beginSta: string | null = null;
+  let endSta: string | null = null;
+  try {
+    if (route.beginSta?.trim()) {
+      beginSta = normalizeSta(route.beginSta);
+    }
+    if (route.endSta?.trim()) {
+      endSta = normalizeSta(route.endSta);
+    }
+  } catch {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Use valid station format for route begin/end STA (e.g. 100+00)",
+      400,
+    );
   }
   await prisma.projectRoute.upsert({
     where: { projectId },
@@ -383,6 +404,8 @@ async function syncProjectRoute(
       endLat: route.endLat,
       endLng: route.endLng,
       endLabel: route.endLabel ?? null,
+      beginSta,
+      endSta,
       polyline: route.polyline ?? undefined,
       distanceMeters: route.distanceMeters ?? null,
     },
@@ -395,6 +418,8 @@ async function syncProjectRoute(
       endLat: route.endLat,
       endLng: route.endLng,
       endLabel: route.endLabel ?? null,
+      beginSta,
+      endSta,
       polyline: route.polyline ?? undefined,
       distanceMeters: route.distanceMeters ?? null,
     },
