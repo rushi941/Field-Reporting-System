@@ -50,12 +50,19 @@ fieldProjectsRouter.get(
         status: "ACTIVE",
         ...(isFieldLead
           ? {
-              tasks: {
-                some: {
-                  isActive: true,
-                  assignedToId: userId,
+              OR: [
+                {
+                  fieldLeads: { some: { userId } },
                 },
-              },
+                {
+                  tasks: {
+                    some: {
+                      isActive: true,
+                      assignedToId: userId,
+                    },
+                  },
+                },
+              ],
             }
           : {}),
       },

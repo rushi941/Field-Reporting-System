@@ -9,8 +9,6 @@ import {
   updateDraftReportSchema,
   validateAttachmentFile,
   validateReportTaskSegments,
-  validateStaSegmentsCoverage,
-  staSegmentProjectBoundsErrors,
   resolveStaWorkLimits,
   type SegmentFieldErrors,
 } from "@frs/shared";
@@ -201,7 +199,6 @@ export function FieldTaskEntryPage() {
   const [attachError, setAttachError] = useState<string | undefined>();
   /** Editable defaults prefilled from the project task */
   const [defaultCf, setDefaultCf] = useState("1.00");
-  const [defaultCfError, setDefaultCfError] = useState<string | undefined>();
   const [defaultSymbol, setDefaultSymbol] = useState("");
   const [defaultUnit, setDefaultUnit] = useState("LF");
 
@@ -414,31 +411,10 @@ export function FieldTaskEntryPage() {
   }
 
   function updateSta(index: number, patch: Partial<StaSeg>, field?: string) {
-    setStaSegs((rows) => {
-      const next = rows.map((r, idx) =>
-        idx === index ? { ...r, ...patch } : r,
-      );
-      if (isSta && workLimits) {
-        const seg = next[index];
-        const boundsErrors = staSegmentProjectBoundsErrors(
-          seg.beginSta,
-          seg.endSta,
-          workLimits,
-        );
-        setSegErrors((prev) => ({
-          ...prev,
-          [index]: boundsErrors,
-        }));
-      } else if (field) {
-        setSegErrors((prev) => {
-          const row = { ...(prev[index] ?? {}) };
-          delete row[field];
-          return { ...prev, [index]: row };
-        });
-      }
-      return next;
-    });
-    if (field && !workLimits) clearSegField(index, field);
+    setStaSegs((rows) =>
+      rows.map((r, idx) => (idx === index ? { ...r, ...patch } : r)),
+    );
+    if (field) clearSegField(index, field);
   }
 
   function updateLoc(index: number, patch: Partial<LocSeg>, field?: string) {
@@ -494,52 +470,6 @@ export function FieldTaskEntryPage() {
       return null;
     }
     setSegErrors({});
-
-    if (isSta && workLimits) {
-      const boundsIssues: SegmentFieldErrors = {};
-      validated.segments.forEach((seg, i) => {
-        const rowErrors = staSegmentProjectBoundsErrors(
-          seg.beginSta,
-          seg.endSta,
-          workLimits,
-        );
-        if (Object.keys(rowErrors).length) boundsIssues[i] = rowErrors;
-      });
-      if (Object.keys(boundsIssues).length) {
-        setSegErrors(boundsIssues);
-        toast.error("Station must stay within task start/end limits", {
-          id: "field-entry",
-        });
-        return null;
-      }
-    }
-
-    if (isSta && !workLimits) {
-      toast.error(
-        "Work limits are not set for this task. Contact project admin.",
-        { id: "field-entry" },
-      );
-      return null;
-    }
-
-    if (isSta && validated.segments.length) {
-      const coverage = validateStaSegmentsCoverage(
-        validated.segments.map((s) => ({
-          beginSta: s.beginSta,
-          endSta: s.endSta,
-        })),
-        task.completedStaRanges?.map((r) => ({
-          beginSta: r.beginSta,
-          endSta: r.endSta,
-        })) ?? [],
-        workLimits,
-      );
-      if (!coverage.success) {
-        setSegErrors(coverage.errors);
-        toast.error(coverage.message, { id: "field-entry" });
-        return null;
-      }
-    }
 
     if (notes !== (report.notes ?? "")) {
       await apiFetch(`/api/v1/field/reports/${report.id}`, {
@@ -653,20 +583,6 @@ export function FieldTaskEntryPage() {
     }
   }
 
-  function applyDefaultCfToSegments() {
-    const cf = Number(defaultCf);
-    if (Number.isNaN(cf) || cf < 0) {
-      setDefaultCfError("Enter a valid conversion factor (≥ 0)");
-      toast.error("Enter a valid CF", { id: "field-entry" });
-      return;
-    }
-    setDefaultCfError(undefined);
-    setStaSegs((rows) =>
-      rows.map((r) => ({ ...r, conversionFactor: cf.toFixed(2) })),
-    );
-    toast.success("CF applied to segments", { id: "field-entry" });
-  }
-
   if (loading) {
     return <PageLoader label="Loading task…" />;
   }
@@ -714,25 +630,9 @@ export function FieldTaskEntryPage() {
           />
         )}
         {isSta && !workLimits && (
-          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-            Work limits (begin/end STA) are not set for this task. Contact
-            project admin before entering quantities.
+          <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Task work limits are not set. You can still enter any station range.
           </p>
-        )}
-        {isSta && (task.completedStaRanges?.length ?? 0) > 0 && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-950">
-            <p className="font-medium">Already completed on this task</p>
-            <ul className="mt-1 space-y-0.5 font-mono">
-              {(task.completedStaRanges ?? []).map((r) => (
-                <li key={`${r.reportNumber}-${r.beginSta}-${r.endSta}`}>
-                  {r.beginSta} → {r.endSta}
-                  <span className="ml-1 font-sans text-emerald-800">
-                    ({r.reportNumber})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
         <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
           {isSta
@@ -767,45 +667,11 @@ export function FieldTaskEntryPage() {
                 : "—"
             }
           />
+          <TaskMetaBadge
+            label="Conv. factor"
+            value={defaultCf || "1.00"}
+          />
         </div>
-
-        {isSta && (
-          <div className="space-y-2 border-t border-border pt-3">
-            <Label className="text-sm" htmlFor="default-cf">
-              Conversion factor (all segments)
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              1.0 = single line · 2.0 = double line
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="default-cf"
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                disabled={!editable || busy}
-                aria-invalid={Boolean(defaultCfError)}
-                className={cn(inputClass, "sm:max-w-[140px]", defaultCfError && "border-destructive")}
-                value={defaultCf}
-                onChange={(e) => {
-                  setDefaultCf(e.target.value);
-                  setDefaultCfError(undefined);
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="h-12 w-full sm:w-auto sm:px-6"
-                disabled={!editable || busy}
-                onClick={applyDefaultCfToSegments}
-              >
-                Apply to all segments
-              </Button>
-            </div>
-            <FieldError message={defaultCfError} />
-          </div>
-        )}
 
         {!isSta && (
           <div className="space-y-2 border-t border-border pt-3">
@@ -858,19 +724,10 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`begin-${i}`}>
                       Begin STA
-                      {workLimits?.beginSta ? (
-                        <span className="ml-1 font-normal text-muted-foreground">
-                          (min {workLimits.beginSta})
-                        </span>
-                      ) : null}
                     </Label>
                     <Input
                       id={`begin-${i}`}
-                      placeholder={
-                        workLimits?.beginSta
-                          ? `from ${workLimits.beginSta}`
-                          : "e.g. 1+00"
-                      }
+                      placeholder="e.g. 1+00"
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.beginSta)}
                       className={cn(inputClass, err.beginSta && "border-destructive")}
@@ -884,19 +741,10 @@ export function FieldTaskEntryPage() {
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`end-${i}`}>
                       End STA
-                      {workLimits?.endSta ? (
-                        <span className="ml-1 font-normal text-muted-foreground">
-                          (max {workLimits.endSta})
-                        </span>
-                      ) : null}
                     </Label>
                     <Input
                       id={`end-${i}`}
-                      placeholder={
-                        workLimits?.endSta
-                          ? `up to ${workLimits.endSta}`
-                          : "e.g. 6+00"
-                      }
+                      placeholder="e.g. 6+00"
                       disabled={!editable || busy}
                       aria-invalid={Boolean(err.endSta)}
                       className={cn(inputClass, err.endSta && "border-destructive")}
@@ -933,26 +781,10 @@ export function FieldTaskEntryPage() {
                     </Label>
                     <Input
                       id={`cf-${i}`}
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      inputMode="decimal"
-                      disabled={!editable || busy}
-                      aria-invalid={Boolean(err.conversionFactor)}
-                      className={cn(
-                        inputClass,
-                        err.conversionFactor && "border-destructive",
-                      )}
+                      readOnly
+                      className={cn(inputClass, "bg-muted font-semibold")}
                       value={seg.conversionFactor}
-                      onChange={(e) =>
-                        updateSta(
-                          i,
-                          { conversionFactor: e.target.value },
-                          "conversionFactor",
-                        )
-                      }
                     />
-                    <FieldError message={err.conversionFactor} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`lf-${i}`}>
@@ -995,10 +827,11 @@ export function FieldTaskEntryPage() {
           })}
 
           {editable && (
-            <button
+            <Button
               type="button"
+              variant="outline"
               disabled={busy}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm font-medium text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+              className="h-12 w-full border-2 border-dashed border-sky-300 bg-sky-50 text-sm font-semibold text-sky-900 hover:bg-sky-100 hover:text-sky-950"
               onClick={() =>
                 setStaSegs((rows) => [
                   ...rows,
@@ -1007,7 +840,7 @@ export function FieldTaskEntryPage() {
               }
             >
               <Plus className="size-5" /> Add line segment
-            </button>
+            </Button>
           )}
         </div>
       ) : (

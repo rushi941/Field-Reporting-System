@@ -75,8 +75,7 @@ export function ProjectStaScopeCard({
         </div>
       </div>
       <p className="mt-2 text-[11px] leading-snug text-sky-800">
-        Enter stations between start and end only. End STA cannot go past{" "}
-        <span className="font-mono font-semibold">{scope.endSta}</span>.
+        Task corridor from start to end STA.
       </p>
     </div>
   );
