@@ -30,12 +30,11 @@ export function parseStaToDecimal(sta: string): number {
   return miles + feet / 100;
 }
 
-/** Physical LF from Begin/End STA */
+/** Physical LF from Begin/End STA (reverse direction uses absolute span) */
 export function physicalLfFromSta(beginSta: string, endSta: string): number {
   const begin = parseStaToDecimal(beginSta);
   const end = parseStaToDecimal(endSta);
-  if (end <= begin) throw new Error("End STA must be greater than Begin STA");
-  return (end - begin) * 100;
+  return Math.abs(end - begin) * 100;
 }
 
 /** True when two STA ranges share any station (touching endpoints are OK). */
@@ -74,50 +73,13 @@ export function projectStaScope(
   };
 }
 
-/** Field-level errors when a segment exceeds project begin/end STA */
+/** Field-level bounds checks — disabled for field entry (crews may enter any STA span). */
 export function staSegmentProjectBoundsErrors(
-  beginSta: string,
-  endSta: string,
-  projectBounds: { beginSta: string; endSta: string } | null | undefined,
+  _beginSta: string,
+  _endSta: string,
+  _projectBounds: { beginSta: string; endSta: string } | null | undefined,
 ): Record<string, string> {
-  const errors: Record<string, string> = {};
-  if (!projectBounds?.beginSta?.trim() || !projectBounds?.endSta?.trim()) {
-    return errors;
-  }
-  try {
-    const pb = normalizeSta(projectBounds.beginSta);
-    const pe = normalizeSta(projectBounds.endSta);
-    const pbDec = parseStaToDecimal(pb);
-    const peDec = parseStaToDecimal(pe);
-
-    if (beginSta.trim()) {
-      const begin = normalizeSta(beginSta);
-      const beginDec = parseStaToDecimal(begin);
-      if (beginDec < pbDec) {
-        errors.beginSta = `Cannot be before allowed start (${pb})`;
-      }
-      if (beginDec >= peDec) {
-        errors.beginSta = `Must be before allowed end (${pe})`;
-      }
-    }
-
-    if (endSta.trim()) {
-      const end = normalizeSta(endSta);
-      const endDec = parseStaToDecimal(end);
-      if (endDec > peDec) {
-        errors.endSta = `Cannot exceed allowed end (${pe})`;
-      }
-      if (beginSta.trim()) {
-        const beginDec = parseStaToDecimal(normalizeSta(beginSta));
-        if (endDec <= beginDec) {
-          errors.endSta = "End STA must be greater than Begin STA";
-        }
-      }
-    }
-  } catch {
-    /* ignore while user is typing partial values */
-  }
-  return errors;
+  return {};
 }
 
 /** Task STA limits take priority; fall back to project route limits. */

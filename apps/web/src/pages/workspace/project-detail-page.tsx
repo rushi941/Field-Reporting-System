@@ -3,9 +3,11 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Download,
   Loader2,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import {
   LINE_COLORS,
@@ -16,12 +18,18 @@ import {
   physicalLf,
   reportedLf,
   projectCreateTaskSchema,
+  PROJECT_TASK_IMPORT_HEADERS,
   type LineColorCode,
   type LineTypeDef,
   type LineWidth,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
+import {
+  downloadProjectTaskSampleCsv,
+  downloadProjectTaskSampleExcel,
+  parseProjectTaskSpreadsheet,
+} from "@/lib/project-task-spreadsheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -175,6 +183,9 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState(emptyTaskForm);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
@@ -465,6 +476,55 @@ export function ProjectDetailPage() {
     }
   }
 
+  async function onImportTasks() {
+    if (!projectId || !importFile) {
+      toast.error("Choose a CSV or Excel file", { id: "project-import" });
+      return;
+    }
+    setImporting(true);
+    try {
+      const rows = await parseProjectTaskSpreadsheet(importFile);
+      if (!rows.length) {
+        toast.error("File needs a header row and at least one task row", {
+          id: "project-import",
+        });
+        return;
+      }
+      const result = await apiFetch<{
+        created: number;
+        errorCount: number;
+        errors: { row: number; message: string }[];
+        project: ProjectDetail;
+      }>(`/api/v1/projects/${projectId}/tasks/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      setProject(result.project);
+      setImportOpen(false);
+      setImportFile(null);
+      if (result.errorCount > 0) {
+        const detail = result.errors
+          .slice(0, 3)
+          .map((e) => `Row ${e.row}: ${e.message}`)
+          .join(" · ");
+        toast.warning(
+          `Imported ${result.created} task(s), ${result.errorCount} error(s). ${detail}`,
+          { id: "project-import", duration: 8000 },
+        );
+      } else {
+        toast.success(`Imported ${result.created} task(s)`, {
+          id: "project-import",
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed", {
+        id: "project-import",
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -504,12 +564,17 @@ export function ProjectDetailPage() {
               .join(" · ")}
           </p>
         </div>
-        <Button
-          className="bg-asphalt-mid text-white hover:bg-asphalt"
-          onClick={openCreate}
-        >
-          <Plus className="size-4" /> Add task
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="size-4" /> Import tasks
+          </Button>
+          <Button
+            className="bg-asphalt-mid text-white hover:bg-asphalt"
+            onClick={openCreate}
+          >
+            <Plus className="size-4" /> Add task
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -552,8 +617,8 @@ export function ProjectDetailPage() {
                     colSpan={showGenericNameColumn ? 13 : 12}
                     className="px-4 py-10 text-center text-sm text-muted-foreground"
                   >
-                    No tasks yet. Click <strong>Add task</strong> to create work
-                    with line code and conversion factor.
+                    No tasks yet. Click <strong>Add task</strong> or{" "}
+                    <strong>Import tasks</strong> to add work scope.
                   </td>
                 </tr>
               )}
@@ -955,6 +1020,86 @@ export function ProjectDetailPage() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {importOpen && (
+        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
+          <div className="relative z-[2001] w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl">
+            <h2 className="text-lg font-semibold">Import project tasks</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload a CSV or Excel file with task rows for this project.
+            </p>
+            <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+              {PROJECT_TASK_IMPORT_HEADERS.join(", ")}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadProjectTaskSampleCsv()}
+              >
+                <Download className="size-4" /> Sample CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadProjectTaskSampleExcel()}
+              >
+                <Download className="size-4" /> Sample Excel
+              </Button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="project-task-import-file">File</Label>
+              <Input
+                id="project-task-import-file"
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                onChange={(e) =>
+                  setImportFile(e.target.files?.[0] ?? null)
+                }
+              />
+              {importFile ? (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {importFile.name}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={importing}
+                onClick={() => {
+                  setImportOpen(false);
+                  setImportFile(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-asphalt-mid text-white hover:bg-asphalt"
+                disabled={importing || !importFile}
+                onClick={() => void onImportTasks()}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Importing…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-4" /> Import
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -131,6 +131,8 @@ model User {
   projectsManaged  Project[]     @relation("ProjectManager")
   projectsAdministered Project[] @relation("ProjectAdmin")
   projectTasksAssigned ProjectTask[] @relation("ProjectTaskAssignee")
+  projectFieldLeads ProjectFieldLead[] @relation("ProjectFieldLeads")
+  projectDivisionManagers ProjectDivisionManager[] @relation("ProjectDivisionManagers")
 
   @@index([managerId])
   @@index([crewId])
@@ -295,6 +297,8 @@ model Project {
   attachments Attachment[]
   tasks       ProjectTask[]
   route       ProjectRoute?
+  fieldLeads         ProjectFieldLead[]
+  divisionManagers   ProjectDivisionManager[]
 
   @@index([status])
   @@index([division, status])
@@ -303,6 +307,28 @@ model Project {
   @@index([projectManagerId])
   @@index([name])
   @@index([jobNumber])
+}
+
+model ProjectFieldLead {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("ProjectFieldLeads", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model ProjectDivisionManager {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("ProjectDivisionManagers", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
 }
 
 /// Selected master / sub-tasks for a job (supports multi-division work)

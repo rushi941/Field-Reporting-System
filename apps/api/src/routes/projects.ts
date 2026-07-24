@@ -10,10 +10,12 @@ import {
   projectSchema,
   updateProjectSchema,
   projectCreateTaskSchema,
+  projectTaskImportRowSchema,
   projectUpdateTaskLimitsSchema,
   projectDivisions,
   normalizeSta,
   physicalLfFromSta,
+  type ProjectCreateTaskInput,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -32,6 +34,20 @@ const projectInclude = {
   },
   projectManager: {
     select: { id: true, firstName: true, lastName: true, email: true },
+  },
+  fieldLeads: {
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+  },
+  divisionManagers: {
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
   },
   tasks: {
     include: {
@@ -80,6 +96,19 @@ function mapRoute(route: ProjectLoaded["route"]) {
   };
 }
 
+function mapUserBrief(u: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}) {
+  return {
+    id: u.id,
+    name: `${u.firstName} ${u.lastName}`,
+    email: u.email,
+  };
+}
+
 function mapProject(p: ProjectLoaded) {
   const configured = projectDivisions(p.division, p.extraDivisions);
   return {
@@ -101,12 +130,12 @@ function mapProject(p: ProjectLoaded) {
       : null,
     projectManagerId: p.projectManagerId,
     projectManager: p.projectManager
-      ? {
-          id: p.projectManager.id,
-          name: `${p.projectManager.firstName} ${p.projectManager.lastName}`,
-          email: p.projectManager.email,
-        }
+      ? mapUserBrief(p.projectManager)
       : null,
+    fieldLeadIds: p.fieldLeads.map((fl) => fl.userId),
+    fieldLeads: p.fieldLeads.map((fl) => mapUserBrief(fl.user)),
+    divisionManagerIds: p.divisionManagers.map((dm) => dm.userId),
+    divisionManagers: p.divisionManagers.map((dm) => mapUserBrief(dm.user)),
     clientName: p.clientName,
     generalContractor: p.generalContractor,
     location: p.location,
@@ -181,59 +210,108 @@ async function assertProjectAdmin(userId: string | null | undefined) {
   }
 }
 
-async function assertDivisionManager(userId: string | null | undefined) {
-  if (!userId) return;
-  const user = await prisma.user.findFirst({
-    where: {
-      id: userId,
-      isActive: true,
-      roles: {
-        some: {
-          role: "DIVISION_MANAGER",
-        },
-      },
-    },
-  });
-  if (!user) {
+async function assertDivisionManagers(userIds: string[]) {
+  if (userIds.length === 0) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Division manager must be an active division manager user",
+      "Select at least one division manager",
+      400,
+    );
+  }
+  const unique = [...new Set(userIds)];
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: unique },
+      isActive: true,
+      roles: { some: { role: "DIVISION_MANAGER" } },
+    },
+    select: { id: true },
+  });
+  if (users.length !== unique.length) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Each division manager must be an active division manager user",
       400,
     );
   }
 }
 
-/** Use provided job # or allocate JOB-YYYY-NNNN (unique). */
+async function assertFieldLeads(userIds: string[]) {
+  if (userIds.length === 0) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Select at least one field person",
+      400,
+    );
+  }
+  const unique = [...new Set(userIds)];
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: unique },
+      isActive: true,
+      roles: { some: { role: "FIELD_LEAD" } },
+    },
+    select: { id: true },
+  });
+  if (users.length !== unique.length) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Each field person must be an active field lead",
+      400,
+    );
+  }
+}
+
+async function syncProjectTeam(
+  projectId: string,
+  fieldLeadIds: string[],
+  divisionManagerIds: string[],
+) {
+  const uniqueFieldLeads = [...new Set(fieldLeadIds)];
+  const uniqueManagers = [...new Set(divisionManagerIds)];
+
+  await prisma.$transaction([
+    prisma.projectFieldLead.deleteMany({ where: { projectId } }),
+    prisma.projectDivisionManager.deleteMany({ where: { projectId } }),
+    ...(uniqueFieldLeads.length
+      ? [
+          prisma.projectFieldLead.createMany({
+            data: uniqueFieldLeads.map((userId) => ({ projectId, userId })),
+          }),
+        ]
+      : []),
+    ...(uniqueManagers.length
+      ? [
+          prisma.projectDivisionManager.createMany({
+            data: uniqueManagers.map((userId) => ({ projectId, userId })),
+          }),
+        ]
+      : []),
+    prisma.project.update({
+      where: { id: projectId },
+      data: { projectManagerId: uniqueManagers[0] ?? null },
+    }),
+  ]);
+}
+
+/** Validate job number uniqueness (no auto-allocation). */
 async function resolveJobNumber(
   raw: string | null | undefined,
   excludeProjectId?: string,
 ): Promise<string> {
   const trimmed = raw?.trim();
-  if (trimmed) {
-    const jobNumber = trimmed.toUpperCase();
-    const clash = await prisma.project.findFirst({
-      where: {
-        jobNumber,
-        ...(excludeProjectId ? { NOT: { id: excludeProjectId } } : {}),
-      },
-    });
-    if (clash) throw new AppError("CONFLICT", "Job number already exists", 409);
-    return jobNumber;
+  if (!trimmed) {
+    throw new AppError("VALIDATION_ERROR", "Job number is required", 400);
   }
-
-  const year = new Date().getFullYear();
-  const prefix = `JOB-${year}-`;
-  for (let seq = 1; seq < 10_000; seq++) {
-    const jobNumber = `${prefix}${String(seq).padStart(4, "0")}`;
-    const clash = await prisma.project.findFirst({
-      where: {
-        jobNumber,
-        ...(excludeProjectId ? { NOT: { id: excludeProjectId } } : {}),
-      },
-    });
-    if (!clash) return jobNumber;
-  }
-  throw new AppError("INTERNAL_ERROR", "Could not allocate job number", 500);
+  const jobNumber = trimmed.toUpperCase();
+  const clash = await prisma.project.findFirst({
+    where: {
+      jobNumber,
+      ...(excludeProjectId ? { NOT: { id: excludeProjectId } } : {}),
+    },
+  });
+  if (clash) throw new AppError("CONFLICT", "Job number already exists", 409);
+  return jobNumber;
 }
 
 async function assertFieldLead(
@@ -618,7 +696,8 @@ projectsRouter.post(
     }
 
     await assertProjectAdmin(body.projectAdminId);
-    await assertDivisionManager(body.projectManagerId);
+    await assertDivisionManagers(body.divisionManagerIds);
+    await assertFieldLeads(body.fieldLeadIds);
 
     const project = await prisma.project.create({
       data: {
@@ -631,7 +710,7 @@ projectsRouter.post(
         ),
         projectTypeId: body.projectTypeId ?? null,
         projectAdminId: body.projectAdminId ?? null,
-        projectManagerId: body.projectManagerId ?? null,
+        projectManagerId: body.divisionManagerIds[0] ?? null,
         clientName: body.clientName ?? null,
         generalContractor: body.generalContractor ?? null,
         location: body.location ?? null,
@@ -643,6 +722,7 @@ projectsRouter.post(
       },
     });
 
+    await syncProjectTeam(project.id, body.fieldLeadIds, body.divisionManagerIds);
     await syncProjectTasks(project.id, body.taskIds ?? []);
     await syncProjectRoute(project.id, body.route);
 
@@ -654,116 +734,203 @@ projectsRouter.post(
   }),
 );
 
+async function addProjectTaskInternal(
+  projectId: string,
+  body: ProjectCreateTaskInput,
+) {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+  const allowedDivisions = projectDivisions(
+    project.division,
+    project.extraDivisions,
+  );
+  const taskDivision = (body.division ?? project.division) as Division;
+  if (!allowedDivisions.includes(taskDivision)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Task division must be on the project",
+      400,
+    );
+  }
+
+  await assertFieldLead(body.assignedToId, taskDivision);
+
+  const code = (body.code ?? body.name).trim().toUpperCase().replace(/\s+/g, "-");
+  if (!code) {
+    throw new AppError("VALIDATION_ERROR", "Task code is required", 400);
+  }
+
+  let master = await prisma.taskMaster.findUnique({ where: { code } });
+  if (!master) {
+    master = await prisma.taskMaster.create({
+      data: {
+        code,
+        name: body.name,
+        unit: body.unit ?? "LF",
+        formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
+        division: taskDivision,
+        color: body.color ?? null,
+        widthInches: body.widthInches ?? null,
+        conversionFactor: body.conversionFactor,
+        description: body.description ?? null,
+        projectTypeId: project.projectTypeId,
+        isActive: true,
+        sortOrder: 0,
+      },
+    });
+  }
+
+  const existing = await prisma.projectTask.findUnique({
+    where: {
+      projectId_taskMasterId: {
+        projectId,
+        taskMasterId: master.id,
+      },
+    },
+  });
+  if (existing) {
+    throw new AppError(
+      "CONFLICT",
+      "This task is already on the project",
+      409,
+    );
+  }
+
+  const count = await prisma.projectTask.count({ where: { projectId } });
+
+  let beginSta: string | null = null;
+  let endSta: string | null = null;
+  if (body.formType === "STA_RANGE" || body.beginSta || body.endSta) {
+    try {
+      if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
+      if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
+      if (beginSta && endSta) {
+        physicalLfFromSta(beginSta, endSta);
+      }
+    } catch (err) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        err instanceof Error ? err.message : "Invalid begin/end STA",
+        400,
+      );
+    }
+  }
+
+  await prisma.projectTask.create({
+    data: {
+      projectId,
+      taskMasterId: master.id,
+      assignedToId: body.assignedToId,
+      division: taskDivision,
+      sortOrder: count,
+      beginSta,
+      endSta,
+    },
+  });
+
+  if (project.projectManagerId) {
+    const assignee = await prisma.user.findUnique({
+      where: { id: body.assignedToId },
+      select: { division: true },
+    });
+    if (assignee) {
+      await prisma.user.update({
+        where: { id: body.assignedToId },
+        data: {
+          managerId: project.projectManagerId,
+          division: assignee.division ?? taskDivision,
+        },
+      });
+    }
+  }
+}
+
+function zImportRows(value: unknown): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new AppError("VALIDATION_ERROR", "Body must include rows: []", 400);
+  }
+  return value;
+}
+
 /** Create a work task (line code + CF) and attach it to the project */
 projectsRouter.post(
   "/:id/tasks",
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.id);
     const body = projectCreateTaskSchema.parse(req.body);
+    await addProjectTaskInternal(projectId, body);
 
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
-
-    const allowedDivisions = projectDivisions(
-      project.division,
-      project.extraDivisions,
-    );
-    const taskDivision = (body.division ?? project.division) as Division;
-    if (!allowedDivisions.includes(taskDivision)) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        "Task division must be on the project",
-        400,
-      );
-    }
-
-    await assertFieldLead(body.assignedToId, taskDivision);
-
-    const code = (body.code ?? body.name).trim().toUpperCase().replace(/\s+/g, "-");
-    if (!code) {
-      throw new AppError("VALIDATION_ERROR", "Task code is required", 400);
-    }
-
-    let master = await prisma.taskMaster.findUnique({ where: { code } });
-    if (!master) {
-      master = await prisma.taskMaster.create({
-        data: {
-          code,
-          name: body.name,
-          unit: body.unit ?? "LF",
-          formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
-          division: taskDivision,
-          color: body.color ?? null,
-          widthInches: body.widthInches ?? null,
-          conversionFactor: body.conversionFactor,
-          description: body.description ?? null,
-          projectTypeId: project.projectTypeId,
-          isActive: true,
-          sortOrder: 0,
-        },
-      });
-    }
-
-    const existing = await prisma.projectTask.findUnique({
-      where: {
-        projectId_taskMasterId: {
-          projectId,
-          taskMasterId: master.id,
-        },
-      },
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: projectInclude,
     });
-    if (existing) {
-      throw new AppError(
-        "CONFLICT",
-        "This task is already on the project",
-        409,
-      );
-    }
+    res.status(201).json({ project: mapProject(full) });
+  }),
+);
 
-    const count = await prisma.projectTask.count({ where: { projectId } });
+/** Bulk import project tasks from CSV / Excel rows */
+projectsRouter.post(
+  "/:id/tasks/import",
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.id);
+    const rows = zImportRows(req.body?.rows);
 
-    let beginSta: string | null = null;
-    let endSta: string | null = null;
-    if (body.formType === "STA_RANGE" || body.beginSta || body.endSta) {
-      try {
-        if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
-        if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
-        if (beginSta && endSta) {
-          physicalLfFromSta(beginSta, endSta);
-        }
-      } catch (err) {
-        throw new AppError(
-          "VALIDATION_ERROR",
-          err instanceof Error ? err.message : "Invalid begin/end STA",
-          400,
-        );
+    let created = 0;
+    const errors: { row: number; message: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const parsed = projectTaskImportRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        errors.push({
+          row: i + 1,
+          message: parsed.error.issues[0]?.message ?? "Invalid row",
+        });
+        continue;
       }
-    }
+      const row = parsed.data;
 
-    await prisma.projectTask.create({
-      data: {
-        projectId,
-        taskMasterId: master.id,
-        assignedToId: body.assignedToId,
-        division: taskDivision,
-        sortOrder: count,
-        beginSta,
-        endSta,
-      },
-    });
-
-    if (project.projectManagerId) {
-      const assignee = await prisma.user.findUnique({
-        where: { id: body.assignedToId },
-        select: { division: true },
+      const user = await prisma.user.findFirst({
+        where: {
+          email: { equals: row.fieldPersonEmail, mode: "insensitive" },
+          isActive: true,
+          roles: { some: { role: "FIELD_LEAD" } },
+        },
+        select: { id: true },
       });
-      if (assignee) {
-        await prisma.user.update({
-          where: { id: body.assignedToId },
-          data: {
-            managerId: project.projectManagerId,
-            division: assignee.division ?? taskDivision,
-          },
+      if (!user) {
+        errors.push({
+          row: i + 1,
+          message: `Unknown field person email: ${row.fieldPersonEmail}`,
+        });
+        continue;
+      }
+
+      try {
+        await addProjectTaskInternal(projectId, {
+          code: row.code,
+          name: row.name,
+          unit: row.unit,
+          formType: row.formType,
+          division: row.division,
+          color: row.color,
+          widthInches: row.widthInches,
+          conversionFactor: row.conversionFactor,
+          description: row.description,
+          assignedToId: user.id,
+          beginSta: row.beginSta,
+          endSta: row.endSta,
+        });
+        created += 1;
+      } catch (err) {
+        errors.push({
+          row: i + 1,
+          message:
+            err instanceof AppError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Import failed",
         });
       }
     }
@@ -772,7 +939,12 @@ projectsRouter.post(
       where: { id: projectId },
       include: projectInclude,
     });
-    res.status(201).json({ project: mapProject(full) });
+    res.json({
+      created,
+      errorCount: errors.length,
+      errors,
+      project: mapProject(full),
+    });
   }),
 );
 
@@ -842,8 +1014,12 @@ projectsRouter.patch(
       await assertProjectAdmin(body.projectAdminId);
     }
 
-    if (body.projectManagerId !== undefined) {
-      await assertDivisionManager(body.projectManagerId);
+    if (body.divisionManagerIds !== undefined) {
+      await assertDivisionManagers(body.divisionManagerIds);
+    }
+
+    if (body.fieldLeadIds !== undefined) {
+      await assertFieldLeads(body.fieldLeadIds);
     }
 
     const nextDivision = (body.division ?? existing.division) as Division;
@@ -872,9 +1048,11 @@ projectsRouter.patch(
         ...(body.projectAdminId !== undefined
           ? { projectAdminId: body.projectAdminId }
           : {}),
-        ...(body.projectManagerId !== undefined
-          ? { projectManagerId: body.projectManagerId }
-          : {}),
+        ...(body.divisionManagerIds !== undefined
+          ? { projectManagerId: body.divisionManagerIds[0] ?? null }
+          : body.projectManagerId !== undefined
+            ? { projectManagerId: body.projectManagerId }
+            : {}),
         ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
         ...(body.generalContractor !== undefined
           ? { generalContractor: body.generalContractor }
@@ -895,6 +1073,26 @@ projectsRouter.patch(
           : {}),
       },
     });
+
+    if (
+      body.fieldLeadIds !== undefined ||
+      body.divisionManagerIds !== undefined
+    ) {
+      const current = await prisma.project.findUniqueOrThrow({
+        where: { id },
+        include: {
+          fieldLeads: { select: { userId: true } },
+          divisionManagers: { select: { userId: true } },
+        },
+      });
+      await syncProjectTeam(
+        id,
+        body.fieldLeadIds ??
+          current.fieldLeads.map((fl) => fl.userId),
+        body.divisionManagerIds ??
+          current.divisionManagers.map((dm) => dm.userId),
+      );
+    }
 
     if (body.taskIds !== undefined) {
       await syncProjectTasks(id, body.taskIds);

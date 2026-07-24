@@ -395,14 +395,6 @@ export function FieldProjectDetailPage() {
                     ? ` · CF ${Number(t.taskMaster.conversionFactor).toFixed(2)}`
                     : ""}
                 </p>
-                {t.completedStaRanges.length > 0 && (
-                  <p className="mt-1 font-mono text-[11px] text-emerald-800">
-                    Completed:{" "}
-                    {t.completedStaRanges
-                      .map((r) => `${r.beginSta} → ${r.endSta}`)
-                      .join(", ")}
-                  </p>
-                )}
                 <div className="mt-2 flex flex-wrap gap-3 text-xs">
                   <span>
                     Unit:{" "}

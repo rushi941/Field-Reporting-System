@@ -12,6 +12,7 @@ import { isProjectNew, markProjectsKnown, getKnownProjectIds } from "@/lib/activ
 import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   RouteMapPicker,
   type RouteValue,
@@ -21,6 +22,7 @@ import {
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
 import { DivisionMultiSelect } from "@/components/division-multi-select";
+import { UserMultiSelect } from "@/components/user-multi-select";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type ManagerOpt = {
@@ -42,6 +44,10 @@ type Project = {
   projectAdmin: { id: string; name: string; email: string } | null;
   projectManagerId: string | null;
   projectManager: { id: string; name: string; email: string } | null;
+  fieldLeadIds?: string[];
+  fieldLeads?: { id: string; name: string; email: string }[];
+  divisionManagerIds?: string[];
+  divisionManagers?: { id: string; name: string; email: string }[];
   clientName: string | null;
   generalContractor: string | null;
   location: string | null;
@@ -62,7 +68,8 @@ const emptyForm = {
   selectedDivisions: ["PAVEMENT_MARKING"] as string[],
   projectTypeId: "",
   projectAdminId: "",
-  projectManagerId: "",
+  fieldLeadIds: [] as string[],
+  divisionManagerIds: [] as string[],
   clientName: "",
   generalContractor: "",
   location: "",
@@ -91,17 +98,46 @@ function formatDivisions(divisions: string[]) {
 const statuses = ["ACTIVE", "INACTIVE", "COMPLETED"] as const;
 
 const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex h-11 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const inputClass = "h-11 text-sm";
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-muted/15 p-5">
+      <div className="mb-4 border-b border-border pb-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">
+          {title}
+        </h3>
+        {description ? (
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-4">{children}</div>
+    </section>
+  );
+}
+
+function FormField({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={cn("space-y-1.5", className)}>{children}</div>;
+}
 
 function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
-}
-
-function divisionManagerLabel(m: ManagerOpt): string {
-  const div = m.division
-    ? divisionLabels[m.division] ?? m.division
-    : null;
-  return div ? `${m.name} · ${div}` : m.name;
 }
 
 function createEmptyForm(projectAdminId = "") {
@@ -128,6 +164,7 @@ export function ProjectsPage() {
   const [types, setTypes] = useState<ProjectTypeOpt[]>([]);
   const [projectAdmins, setProjectAdmins] = useState<ManagerOpt[]>([]);
   const [divisionManagers, setDivisionManagers] = useState<ManagerOpt[]>([]);
+  const [fieldLeads, setFieldLeads] = useState<ManagerOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -155,12 +192,14 @@ export function ProjectsPage() {
           projectTypes: ProjectTypeOpt[];
           projectAdmins: ManagerOpt[];
           divisionManagers: ManagerOpt[];
+          fieldLeads: ManagerOpt[];
         }>("/api/v1/projects/lookups"),
       ]);
       setProjects(p.projects);
       setTypes(lookups.projectTypes);
       setProjectAdmins(lookups.projectAdmins ?? []);
       setDivisionManagers(lookups.divisionManagers ?? []);
+      setFieldLeads(lookups.fieldLeads ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -207,7 +246,14 @@ export function ProjectsPage() {
       projectAdminId:
         p.projectAdminId ??
         (lockProjectAdmin && user?.id ? user.id : ""),
-      projectManagerId: p.projectManagerId ?? "",
+      fieldLeadIds:
+        p.fieldLeadIds ??
+        p.fieldLeads?.map((u) => u.id) ??
+        [],
+      divisionManagerIds:
+        p.divisionManagerIds ??
+        p.divisionManagers?.map((u) => u.id) ??
+        (p.projectManagerId ? [p.projectManagerId] : []),
       clientName: p.clientName ?? "",
       generalContractor: p.generalContractor ?? "",
       location: p.location ?? "",
@@ -250,6 +296,14 @@ export function ProjectsPage() {
       toast.error("Select at least one division", { id: "project-form" });
       return;
     }
+    if (form.fieldLeadIds.length === 0) {
+      toast.error("Select at least one field person", { id: "project-form" });
+      return;
+    }
+    if (form.divisionManagerIds.length === 0) {
+      toast.error("Select at least one division manager", { id: "project-form" });
+      return;
+    }
     setSaving(true);
     try {
       const { division, divisions } = splitProjectDivisions(
@@ -260,13 +314,14 @@ export function ProjectsPage() {
       const projectAdminId =
         lockProjectAdmin && user?.id ? user.id : form.projectAdminId;
       const raw = {
-        jobNumber: form.jobNumber.trim() || null,
+        jobNumber: form.jobNumber.trim(),
         name: form.name.trim(),
         division,
         divisions,
         projectTypeId: form.projectTypeId || null,
         projectAdminId,
-        projectManagerId: form.projectManagerId,
+        fieldLeadIds: form.fieldLeadIds,
+        divisionManagerIds: form.divisionManagerIds,
         clientName: form.clientName.trim() || null,
         generalContractor: form.generalContractor.trim() || null,
         location: form.location.trim() || null,
@@ -406,7 +461,12 @@ export function ProjectsPage() {
                       {p.projectAdmin?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {p.projectManager?.name ?? "—"}
+                      {(p.divisionManagers?.length
+                        ? p.divisionManagers.map((m) => m.name)
+                        : p.projectManager
+                          ? [p.projectManager.name]
+                          : []
+                      ).join(", ") || "—"}
                     </td>
                     <td className="px-4 py-3 text-xs">{p.status}</td>
                     <td
@@ -510,218 +570,272 @@ export function ProjectsPage() {
           <form
             id="project-form-modal"
             onSubmit={onSave}
-            className="relative z-[2001] max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+            className="relative z-[2001] max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-xl border bg-card p-6 shadow-xl sm:p-8"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">
+                <h2 className="text-xl font-semibold">
                   {editingId ? "Edit project" : "New project"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Set PM, divisions, and job details. Route is optional.
+                  Enter job details, assign the team, and optionally pin the work route.
                 </p>
               </div>
               <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Job number</Label>
-                <Input
-                  value={form.jobNumber}
-                  placeholder="Auto if blank (e.g. JOB-2026-0001)"
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, jobNumber: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <select
-                  className={selectClass}
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, status: e.target.value }))
-                  }
-                >
-                  {statuses.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Project name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Project type</Label>
-                <select
-                  className={selectClass}
-                  value={form.projectTypeId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, projectTypeId: e.target.value }))
-                  }
-                >
-                  <option value="">—</option>
-                  {types.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.code} — {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Divisions</Label>
-                <p className="text-xs text-muted-foreground">
-                  Select one or more — tasks can be created for each division
-                </p>
-                <DivisionMultiSelect
-                  value={form.selectedDivisions}
-                  onChange={(selectedDivisions) =>
-                    setForm((f) => ({ ...f, selectedDivisions }))
-                  }
-                  options={divisionOptions}
-                  disabled={saving}
-                />
-              </div>
-              {lockProjectAdmin ? (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Project admin</Label>
+            <div className="mt-6 space-y-5">
+              <FormSection
+                title="Basic information"
+                description="Core job identity and status"
+              >
+                <FormField>
+                  <Label>Job number *</Label>
                   <Input
-                    value={lockedProjectAdminName}
-                    readOnly
-                    className="bg-muted/50"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    You are assigned as the project admin for new projects.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Project admin *</Label>
-                  <select
-                    className={selectClass}
-                    value={form.projectAdminId}
+                    className={inputClass}
+                    value={form.jobNumber}
+                    placeholder="e.g. JOB-2026-0142"
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, projectAdminId: e.target.value }))
+                      setForm((f) => ({ ...f, jobNumber: e.target.value }))
                     }
                     required
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Status</Label>
+                  <select
+                    className={selectClass}
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, status: e.target.value }))
+                    }
                   >
-                    <option value="">— Select project admin —</option>
-                    {projectAdmins.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
+                    {statuses.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
                   </select>
+                </FormField>
+                <FormField>
+                  <Label>Project name *</Label>
+                  <Input
+                    className={inputClass}
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Project type</Label>
+                  <select
+                    className={selectClass}
+                    value={form.projectTypeId}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, projectTypeId: e.target.value }))
+                    }
+                  >
+                    <option value="">—</option>
+                    {types.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} — {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField>
+                  <Label>Divisions *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Select one or more
+                  </p>
+                  <DivisionMultiSelect
+                    value={form.selectedDivisions}
+                    onChange={(selectedDivisions) =>
+                      setForm((f) => ({ ...f, selectedDivisions }))
+                    }
+                    options={divisionOptions}
+                    disabled={saving}
+                  />
+                </FormField>
+              </FormSection>
+
+              <FormSection
+                title="Team & assignments"
+                description="Who manages and works this job in the field"
+              >
+                {lockProjectAdmin ? (
+                  <FormField>
+                    <Label>Project admin</Label>
+                    <Input
+                      value={lockedProjectAdminName}
+                      readOnly
+                      className={cn(inputClass, "bg-muted/50")}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Assigned as project admin for new projects.
+                    </p>
+                  </FormField>
+                ) : (
+                  <FormField>
+                    <Label>Project admin *</Label>
+                    <select
+                      className={selectClass}
+                      value={form.projectAdminId}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, projectAdminId: e.target.value }))
+                      }
+                      required
+                    >
+                      <option value="">— Select project admin —</option>
+                      {projectAdmins.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                )}
+                <FormField>
+                  <Label>Division managers *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    One or more for approvals
+                  </p>
+                  <UserMultiSelect
+                    value={form.divisionManagerIds}
+                    onChange={(divisionManagerIds) =>
+                      setForm((f) => ({ ...f, divisionManagerIds }))
+                    }
+                    options={divisionManagers.map((m) => ({
+                      id: m.id,
+                      name: m.name,
+                      hint: m.division
+                        ? divisionLabels[m.division] ?? m.division
+                        : undefined,
+                    }))}
+                    placeholder="Select division managers"
+                    minSelected={1}
+                    disabled={saving}
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Field persons *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Field leads on this job
+                  </p>
+                  <UserMultiSelect
+                    value={form.fieldLeadIds}
+                    onChange={(fieldLeadIds) =>
+                      setForm((f) => ({ ...f, fieldLeadIds }))
+                    }
+                    options={fieldLeads.map((m) => ({
+                      id: m.id,
+                      name: m.name,
+                      hint: m.division
+                        ? divisionLabels[m.division] ?? m.division
+                        : undefined,
+                    }))}
+                    placeholder="Select field persons"
+                    minSelected={1}
+                    disabled={saving}
+                  />
+                </FormField>
+              </FormSection>
+
+              <FormSection
+                title="Project details"
+                description="Client, schedule, and contract information"
+              >
+                <FormField>
+                  <Label>Client / owner</Label>
+                  <Input
+                    className={inputClass}
+                    value={form.clientName}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, clientName: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField>
+                  <Label>General contractor</Label>
+                  <Input
+                    className={inputClass}
+                    value={form.generalContractor}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, generalContractor: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Location</Label>
+                  <Input
+                    className={inputClass}
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Contract amount</Label>
+                  <Input
+                    className={inputClass}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.contractAmount}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, contractAmount: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Start date</Label>
+                  <Input
+                    className={inputClass}
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, startDate: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField>
+                  <Label>End date</Label>
+                  <Input
+                    className={inputClass}
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endDate: e.target.value }))
+                    }
+                  />
+                </FormField>
+                <FormField className="col-span-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={form.notes}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, notes: e.target.value }))
+                    }
+                  />
+                </FormField>
+              </FormSection>
+
+              <section className="rounded-xl border border-border bg-muted/15 p-5">
+                <div className="mb-4 border-b border-border pb-3">
+                  <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                    Work route
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Optional — search or click the map to set start (A) and end (B)
+                  </p>
                 </div>
-              )}
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Division manager *</Label>
-                <select
-                  className={selectClass}
-                  value={form.projectManagerId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, projectManagerId: e.target.value }))
-                  }
-                  required
-                >
-                  <option value="">— Select division manager —</option>
-                  {divisionManagers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {divisionManagerLabel(m)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Client / owner</Label>
-                <Input
-                  value={form.clientName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, clientName: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>General contractor</Label>
-                <Input
-                  value={form.generalContractor}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, generalContractor: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Location</Label>
-                <Input
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Start date</Label>
-                <Input
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, startDate: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>End date</Label>
-                <Input
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, endDate: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Contract amount</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.contractAmount}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, contractAmount: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Notes</Label>
-                <textarea
-                  className="min-h-16 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={form.notes}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                />
-              </div>
+                <RouteMapPicker value={routeDraft} onChange={setRouteDraft} />
+              </section>
             </div>
 
-            <div className="mt-5 space-y-2 border-t border-border pt-4">
-              <div>
-                <Label>Work route (optional)</Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Search or click the map to set start (A) and end (B)
-                </p>
-              </div>
-              <RouteMapPicker value={routeDraft} onChange={setRouteDraft} />
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
               <Button
                 type="button"
                 variant="outline"

@@ -62,20 +62,24 @@ export const projectRouteSchema = z.object({
 export const projectSchema = z.object({
   jobNumber: z
     .string()
+    .trim()
+    .min(1, "Job number is required")
     .max(40)
-    .optional()
-    .nullable()
-    .transform((v) => {
-      const trimmed = v?.trim();
-      return trimmed ? trimmed : undefined;
-    }),
+    .transform((v) => v.toUpperCase()),
   name: z.string().min(1).max(200),
   division: divisionEnum,
   /// Extra divisions on this job (tasks can span multiple)
   divisions: z.array(divisionEnum).optional().default([]),
   projectTypeId: z.string().optional().nullable(),
   projectAdminId: z.string().min(1, "Project admin is required"),
-  projectManagerId: z.string().min(1, "Division manager is required"),
+  /** Primary division manager (legacy); first entry of divisionManagerIds when omitted */
+  projectManagerId: z.string().optional().nullable(),
+  divisionManagerIds: z
+    .array(z.string().min(1))
+    .min(1, "Select at least one division manager"),
+  fieldLeadIds: z
+    .array(z.string().min(1))
+    .min(1, "Select at least one field person"),
   clientName: z.string().max(200).optional().nullable(),
   generalContractor: z.string().max(200).optional().nullable(),
   location: z.string().max(300).optional().nullable(),
@@ -143,6 +147,133 @@ export function splitProjectDivisions(
 }
 
 export type ProjectCreateTaskInput = z.infer<typeof projectCreateTaskSchema>;
+
+/** CSV / Excel row for bulk import onto a project */
+export const projectTaskImportRowSchema = z
+  .object({
+    code: z.string().trim().min(1).max(40),
+    name: z.string().trim().min(1).max(200),
+    unit: z.string().trim().min(1).max(20).optional().default("LF"),
+    formType: formTypeEnum.optional().default("STA_RANGE"),
+    division: divisionEnum.optional(),
+    color: z.string().trim().max(40).optional().nullable(),
+    widthInches: z.number().int().positive().optional().nullable(),
+    conversionFactor: z.number().nonnegative(),
+    fieldPersonEmail: z.string().trim().email(),
+    beginSta: z.string().trim().max(32).optional().nullable(),
+    endSta: z.string().trim().max(32).optional().nullable(),
+    description: z.string().trim().max(500).optional().nullable(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.formType !== "STA_RANGE") return;
+    if (!val.beginSta?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Begin STA is required for STA range tasks",
+        path: ["beginSta"],
+      });
+    }
+    if (!val.endSta?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End STA is required for STA range tasks",
+        path: ["endSta"],
+      });
+    }
+  });
+
+export type ProjectTaskImportRow = z.infer<typeof projectTaskImportRowSchema>;
+
+export const PROJECT_TASK_IMPORT_HEADERS = [
+  "code",
+  "name",
+  "unit",
+  "formType",
+  "division",
+  "color",
+  "widthInches",
+  "conversionFactor",
+  "fieldPersonEmail",
+  "beginSta",
+  "endSta",
+  "description",
+] as const;
+
+export const PROJECT_TASK_IMPORT_SAMPLE_ROWS: string[][] = [
+  [
+    "PM-4W-EDGE",
+    '4" Edge Line',
+    "LF",
+    "STA_RANGE",
+    "PAVEMENT_MARKING",
+    "W",
+    "4",
+    "1.00",
+    "lead@frs.local",
+    "100+00",
+    "105+00",
+    "Sample edge line task",
+  ],
+  [
+    "PM-STOP",
+    "Stop Bar",
+    "LF",
+    "STA_RANGE",
+    "PAVEMENT_MARKING",
+    "W",
+    "24",
+    "1.00",
+    "lead@frs.local",
+    "105+00",
+    "106+00",
+    "",
+  ],
+];
+
+/** Normalize spreadsheet row keys → import schema input */
+export function normalizeProjectTaskImportRow(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const pick = (...keys: string[]) => {
+    for (const key of keys) {
+      const direct = raw[key];
+      if (direct != null && String(direct).trim() !== "") {
+        return String(direct).trim();
+      }
+      const lower = raw[key.toLowerCase()];
+      if (lower != null && String(lower).trim() !== "") {
+        return String(lower).trim();
+      }
+    }
+    return "";
+  };
+
+  const widthRaw = pick("widthInches", "width_inches", "width");
+  const cfRaw = pick("conversionFactor", "conversion_factor", "cf");
+  const division = pick("division");
+  const formType = (pick("formType", "form_type") || "STA_RANGE").toUpperCase();
+
+  return {
+    code: pick("code"),
+    name: pick("name"),
+    unit: pick("unit") || "LF",
+    formType,
+    division: division || undefined,
+    color: pick("color") || null,
+    widthInches: widthRaw && !Number.isNaN(Number(widthRaw)) ? Number(widthRaw) : null,
+    conversionFactor:
+      cfRaw && !Number.isNaN(Number(cfRaw)) ? Number(cfRaw) : 1,
+    fieldPersonEmail: pick(
+      "fieldPersonEmail",
+      "field_person_email",
+      "assignedToEmail",
+      "assigned_to_email",
+    ),
+    beginSta: pick("beginSta", "begin_sta") || null,
+    endSta: pick("endSta", "end_sta") || null,
+    description: pick("description") || null,
+  };
+}
 
 export const projectUpdateTaskLimitsSchema = z
   .object({
