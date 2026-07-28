@@ -50,6 +50,7 @@ const projectInclude = {
     },
   },
   tasks: {
+    where: { isActive: true },
     include: {
       assignedTo: {
         select: { id: true, firstName: true, lastName: true, email: true },
@@ -398,44 +399,66 @@ async function syncProjectTasks(projectId: string, taskIds: string[]) {
     }
   }
 
+  const masterById = new Map(masters.map((m) => [m.id, m]));
   const existing = await prisma.projectTask.findMany({
     where: { projectId },
     select: {
       id: true,
       taskMasterId: true,
-      assignedToId: true,
       division: true,
+      _count: { select: { lineItems: true } },
     },
   });
-  const keepByMaster = new Map(
-    existing.map((t) => [
-      t.taskMasterId,
-      { assignedToId: t.assignedToId, division: t.division },
-    ]),
-  );
+  const existingByMaster = new Map(existing.map((t) => [t.taskMasterId, t]));
   const nextMasterIds = new Set(unique);
-  const toRemove = existing.filter((t) => !nextMasterIds.has(t.taskMasterId));
+  const toDrop = existing.filter((t) => !nextMasterIds.has(t.taskMasterId));
+  const softDeactivateIds = toDrop
+    .filter((t) => t._count.lineItems > 0)
+    .map((t) => t.id);
+  const hardDeleteIds = toDrop
+    .filter((t) => t._count.lineItems === 0)
+    .map((t) => t.id);
 
-  if (toRemove.length > 0) {
-    await prisma.reportLineItem.deleteMany({
-      where: { projectTaskId: { in: toRemove.map((t) => t.id) } },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    if (softDeactivateIds.length > 0) {
+      await tx.projectTask.updateMany({
+        where: { id: { in: softDeactivateIds } },
+        data: { isActive: false },
+      });
+    }
+    if (hardDeleteIds.length > 0) {
+      await tx.projectTask.deleteMany({
+        where: { id: { in: hardDeleteIds } },
+      });
+    }
 
-  await prisma.projectTask.deleteMany({ where: { projectId } });
-  if (masters.length === 0) return;
-
-  await prisma.projectTask.createMany({
-    data: masters.map((m, i) => {
-      const kept = keepByMaster.get(m.id);
-      return {
-        projectId,
-        taskMasterId: m.id,
-        division: (kept?.division ?? m.division) as Division,
-        assignedToId: kept?.assignedToId ?? null,
-        sortOrder: i,
-      };
-    }),
+    for (let i = 0; i < unique.length; i++) {
+      const masterId = unique[i]!;
+      const master = masterById.get(masterId)!;
+      const prev = existingByMaster.get(masterId);
+      if (prev) {
+        await tx.projectTask.update({
+          where: { id: prev.id },
+          data: {
+            isActive: true,
+            sortOrder: i,
+            division: (prev.division ?? master.division) as Division,
+            // Keep assignedToId / beginSta / endSta; never wipe report history.
+          },
+        });
+      } else {
+        await tx.projectTask.create({
+          data: {
+            projectId,
+            taskMasterId: masterId,
+            division: master.division as Division,
+            assignedToId: null,
+            sortOrder: i,
+            isActive: true,
+          },
+        });
+      }
+    }
   });
 }
 
