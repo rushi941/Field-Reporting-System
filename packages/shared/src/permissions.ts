@@ -203,7 +203,7 @@ export const createUserSchema = z.object({
   phone: z.string().optional().nullable(),
   isActive: z.boolean().optional().default(true),
   division: z
-    .enum(["PAVEMENT_MARKING", "TRAFFIC_CONTROL", "PERMANENT_SIGNS"])
+    .enum(["PAVEMENT_MARKING", "TRAFFIC_CONTROL", "PERMANENT_SIGNS", "MISCELLANEOUS"])
     .optional()
     .nullable(),
   managerId: z.string().optional().nullable(),

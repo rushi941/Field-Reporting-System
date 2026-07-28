@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { unitMasterSchema, updateUnitMasterSchema } from "@frs/shared";
@@ -7,6 +7,9 @@ import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 type UnitRow = {
   id: string;
@@ -24,9 +27,15 @@ export function UnitsPage() {
   const [deleteTarget, setDeleteTarget] = useState<UnitRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ code: "", name: "", isActive: true });
+  const [page, setPage] = useState(1);
 
-  async function load() {
-    setLoading(true);
+  const paginatedRows = useMemo(
+    () => paginateSlice(rows, page, ADMIN_PAGE_SIZE),
+    [rows, page],
+  );
+
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const data = await apiFetch<{ units: UnitRow[] }>("/api/v1/units");
       setRows(data.units);
@@ -82,7 +91,7 @@ export function UnitsPage() {
         toast.success("Unit created");
       }
       setOpen(false);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -97,7 +106,7 @@ export function UnitsPage() {
       await apiFetch(`/api/v1/units/${deleteTarget.id}`, { method: "DELETE" });
       toast.success(`Deleted unit ${deleteTarget.code}`);
       setDeleteTarget(null);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -128,7 +137,7 @@ export function UnitsPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {showFullPageLoader(loading, rows.length > 0) ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
@@ -137,10 +146,10 @@ export function UnitsPage() {
           <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
+                <th className="px-2 py-1">Code</th>
+                <th className="px-2 py-1">Name</th>
+                <th className="px-2 py-1">Status</th>
+                <th className="px-2 py-1" />
               </tr>
             </thead>
             <tbody>
@@ -148,30 +157,30 @@ export function UnitsPage() {
                 <tr>
                   <td
                     colSpan={4}
-                    className="px-4 py-10 text-center text-sm text-muted-foreground"
+                    className="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
                     No units yet. Add LF, EA, and other codes used on bids.
                   </td>
                 </tr>
               )}
-              {rows.map((r) => (
+              {paginatedRows.items.map((r) => (
                 <tr
                   key={r.id}
                   className="border-b last:border-0 hover:bg-muted/30"
                 >
-                  <td className="px-4 py-3 font-medium">{r.code}</td>
-                  <td className="px-4 py-3">{r.name}</td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-2 py-1 font-medium">{r.code}</td>
+                  <td className="px-2 py-1">{r.name}</td>
+                  <td className="px-2 py-1 text-xs">
                     {r.isActive ? "Active" : "Inactive"}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                  <td className="px-2 py-1 text-right">
+                    <div className="flex justify-end gap-0">
+                      <Button variant="ghost" size="iconSm" onClick={() => openEdit(r)}>
                         <Pencil className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="iconSm"
                         title="Delete unit"
                         onClick={() => setDeleteTarget(r)}
                       >
@@ -183,6 +192,14 @@ export function UnitsPage() {
               ))}
             </tbody>
           </table>
+          {rows.length > 0 && (
+            <TablePagination
+              page={paginatedRows.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedRows.total}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       )}
 

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { projectSchema, updateProjectSchema, splitProjectDivisions } from "@frs/shared";
+import { projectSchema, splitProjectDivisions, billingRelationshipLabels, billingRelationshipDescriptions, type BillingRelationship } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -13,18 +13,23 @@ import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import {
-  RouteMapPicker,
-  type RouteValue,
-} from "@/components/route-map-picker";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
 import { DivisionMultiSelect } from "@/components/division-multi-select";
 import { UserMultiSelect } from "@/components/user-multi-select";
+import { ClientSuggestInput } from "@/components/client-suggest-input";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
+type ClientOpt = {
+  id: string;
+  name: string;
+  foundationNumber?: number | null;
+};
 type ManagerOpt = {
   id: string;
   name: string;
@@ -50,6 +55,7 @@ type Project = {
   divisionManagers?: { id: string; name: string; email: string }[];
   clientName: string | null;
   generalContractor: string | null;
+  billingRelationship: BillingRelationship;
   location: string | null;
   contractAmount: number | null;
   startDate: string | null;
@@ -58,7 +64,6 @@ type Project = {
   status: string;
   bidItemCount: number;
   taskIds: string[];
-  route: RouteValue | null;
   createdAt?: string;
 };
 
@@ -72,6 +77,7 @@ const emptyForm = {
   divisionManagerIds: [] as string[],
   clientName: "",
   generalContractor: "",
+  billingRelationship: "DIRECT_CLIENT" as BillingRelationship,
   location: "",
   contractAmount: "",
   startDate: "",
@@ -84,6 +90,7 @@ const divisionLabels: Record<string, string> = {
   PAVEMENT_MARKING: "Pavement Marking",
   TRAFFIC_CONTROL: "Traffic Control",
   PERMANENT_SIGNS: "Permanent Signs",
+  MISCELLANEOUS: "Miscellaneous",
 };
 
 const divisionOptions = Object.entries(divisionLabels).map(([value, label]) => ({
@@ -93,6 +100,34 @@ const divisionOptions = Object.entries(divisionLabels).map(([value, label]) => (
 
 function formatDivisions(divisions: string[]) {
   return divisions.map((d) => divisionLabels[d] ?? d).join(", ");
+}
+
+function isProjectUnread(
+  userId: string | undefined,
+  project: Pick<Project, "id" | "projectAdminId">,
+): boolean {
+  if (!userId) return false;
+  if (project.projectAdminId === userId) return false;
+  return isProjectNew(userId, project.id);
+}
+
+function ProjectStatusBadge({ status }: { status: string }) {
+  const normalized = status.toUpperCase();
+  const className =
+    normalized === "ACTIVE"
+      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200"
+      : normalized === "COMPLETED"
+        ? "inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-200"
+        : "inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200";
+  const label =
+    normalized === "ACTIVE"
+      ? "Active"
+      : normalized === "COMPLETED"
+        ? "Completed"
+        : normalized === "INACTIVE"
+          ? "Inactive"
+          : status;
+  return <span className={className}>{label}</span>;
 }
 
 const statuses = ["ACTIVE", "INACTIVE", "COMPLETED"] as const;
@@ -165,6 +200,7 @@ export function ProjectsPage() {
   const [projectAdmins, setProjectAdmins] = useState<ManagerOpt[]>([]);
   const [divisionManagers, setDivisionManagers] = useState<ManagerOpt[]>([]);
   const [fieldLeads, setFieldLeads] = useState<ManagerOpt[]>([]);
+  const [clients, setClients] = useState<ClientOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -172,19 +208,24 @@ export function ProjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [routeDraft, setRouteDraft] = useState<RouteValue | null>(null);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+  const [page, setPage] = useState(1);
 
-  function snapshotForm(nextForm: typeof emptyForm, nextRoute: RouteValue | null) {
-    return JSON.stringify({ form: nextForm, route: nextRoute });
+  function snapshotForm(nextForm: typeof emptyForm) {
+    return JSON.stringify(nextForm);
   }
 
   const isDirty =
-    open && formBaseline !== "" && snapshotForm(form, routeDraft) !== formBaseline;
+    open && formBaseline !== "" && snapshotForm(form) !== formBaseline;
 
-  async function load() {
-    setLoading(true);
+  const paginatedProjects = useMemo(
+    () => paginateSlice(projects, page, ADMIN_PAGE_SIZE),
+    [projects, page],
+  );
+
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const [p, lookups] = await Promise.all([
         apiFetch<{ projects: Project[] }>("/api/v1/projects"),
@@ -193,6 +234,7 @@ export function ProjectsPage() {
           projectAdmins: ManagerOpt[];
           divisionManagers: ManagerOpt[];
           fieldLeads: ManagerOpt[];
+          clients: ClientOpt[];
         }>("/api/v1/projects/lookups"),
       ]);
       setProjects(p.projects);
@@ -200,6 +242,7 @@ export function ProjectsPage() {
       setProjectAdmins(lookups.projectAdmins ?? []);
       setDivisionManagers(lookups.divisionManagers ?? []);
       setFieldLeads(lookups.fieldLeads ?? []);
+      setClients(lookups.clients ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -229,8 +272,7 @@ export function ProjectsPage() {
       lockProjectAdmin && user?.id ? user.id : "",
     );
     setForm(nextForm);
-    setRouteDraft(null);
-    setFormBaseline(snapshotForm(nextForm, null));
+    setFormBaseline(snapshotForm(nextForm));
     setUnsavedPrompt(false);
     setOpen(true);
   }
@@ -256,6 +298,7 @@ export function ProjectsPage() {
         (p.projectManagerId ? [p.projectManagerId] : []),
       clientName: p.clientName ?? "",
       generalContractor: p.generalContractor ?? "",
+      billingRelationship: p.billingRelationship ?? "DIRECT_CLIENT",
       location: p.location ?? "",
       contractAmount: p.contractAmount != null ? String(p.contractAmount) : "",
       startDate: p.startDate ?? "",
@@ -264,8 +307,7 @@ export function ProjectsPage() {
       status: p.status,
     };
     setForm(nextForm);
-    setRouteDraft(p.route);
-    setFormBaseline(snapshotForm(nextForm, p.route));
+    setFormBaseline(snapshotForm(nextForm));
     setUnsavedPrompt(false);
     setOpen(true);
   }
@@ -324,16 +366,16 @@ export function ProjectsPage() {
         divisionManagerIds: form.divisionManagerIds,
         clientName: form.clientName.trim() || null,
         generalContractor: form.generalContractor.trim() || null,
+        billingRelationship: form.billingRelationship,
         location: form.location.trim() || null,
         contractAmount: form.contractAmount ? Number(form.contractAmount) : null,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
         notes: form.notes.trim() || null,
         status: form.status,
-        route: routeDraft ?? null,
         taskIds: [] as string[],
       };
-      const schema = editingId ? updateProjectSchema : projectSchema;
+      const schema = projectSchema;
       const parsed = schema.safeParse(raw);
       if (!parsed.success) {
         toast.error(firstZodIssueMessage(parsed.error), { id: "project-form" });
@@ -351,14 +393,14 @@ export function ProjectsPage() {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        markProjectsKnown(user?.id, [created.project.id]);
         toast.success("Project created", { id: "project-form" });
         closeForm();
-        await load();
         navigate(`${base}/projects/${created.project.id}`);
         return;
       }
       closeForm();
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed", {
         id: "project-form",
@@ -392,21 +434,22 @@ export function ProjectsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Projects
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Projects
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create a project with project admin, division manager, and work route A → B
-          </p>
         </div>
         <Button className="bg-asphalt-mid text-white hover:bg-asphalt" onClick={openCreate}>
           <Plus className="size-4" /> Add project
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {showFullPageLoader(loading, projects.length > 0) ? (
+        <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          No projects yet. Click <strong>Add project</strong> to create one.
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -414,53 +457,47 @@ export function ProjectsPage() {
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">Job #</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Division</th>
-                  <th className="px-4 py-3">Route</th>
-                  <th className="px-4 py-3">Project admin</th>
-                  <th className="px-4 py-3">Division manager</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-2 py-1">Job #</th>
+                  <th className="px-2 py-1">Name</th>
+                  <th className="px-2 py-1">Division</th>
+                  <th className="px-2 py-1">Project admin</th>
+                  <th className="px-2 py-1">Division manager</th>
+                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
-                {projects.map((p) => {
-                  const unread = isProjectNew(user?.id, p.id);
+                {paginatedProjects.items.map((p) => {
+                  const unread = isProjectUnread(user?.id, p);
                   return (
                   <tr
                     key={p.id}
-                    className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
+                    className="cursor-pointer border-b border-border/80 last:border-0 hover:bg-muted/30"
                     onClick={() => openDetail(p.id)}
                   >
-                    <td className="px-4 py-3 font-medium">
-                      <span className="relative inline-flex items-center">
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-2 font-medium text-foreground">
                         {unread && (
-                          <ActivityDot className="-left-2 top-1/2 -translate-y-1/2" />
+                          <ActivityDot inline label="New project" />
                         )}
-                        <span className={unread ? "pl-2" : undefined}>
-                          {p.jobNumber}
-                        </span>
-                      </span>
+                        <span>{p.jobNumber}</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div>{p.name}</div>
+                    <td className="px-2 py-1.5">
+                      <div className="font-medium text-foreground">{p.name}</div>
                       {p.location && (
                         <div className="text-xs text-muted-foreground">{p.location}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-2 py-1.5 text-xs text-foreground/80">
                       {formatDivisions(
                         p.divisions.length > 0 ? p.divisions : [p.division],
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs">
-                      {p.route ? "Pinned" : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-2 py-1.5 text-xs text-foreground/80">
                       {p.projectAdmin?.name ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-2 py-1.5 text-xs text-foreground/80">
                       {(p.divisionManagers?.length
                         ? p.divisionManagers.map((m) => m.name)
                         : p.projectManager
@@ -468,9 +505,11 @@ export function ProjectsPage() {
                           : []
                       ).join(", ") || "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs">{p.status}</td>
+                    <td className="px-2 py-1.5">
+                      <ProjectStatusBadge status={p.status} />
+                    </td>
                     <td
-                      className="px-4 py-3 text-right"
+                      className="px-2 py-1.5"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex justify-end gap-1">
@@ -478,6 +517,7 @@ export function ProjectsPage() {
                           variant="ghost"
                           size="icon"
                           title="Edit project"
+                          aria-label="Edit project"
                           onClick={() => openEdit(p)}
                         >
                           <Pencil className="size-4" />
@@ -486,6 +526,7 @@ export function ProjectsPage() {
                           variant="ghost"
                           size="icon"
                           title="Delete project"
+                          aria-label="Delete project"
                           onClick={() => setDeleteTarget(p)}
                         >
                           <Trash2 className="size-4 text-destructive" />
@@ -498,6 +539,12 @@ export function ProjectsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={paginatedProjects.page}
+            pageSize={ADMIN_PAGE_SIZE}
+            total={paginatedProjects.total}
+            onPageChange={setPage}
+          />
         </div>
       )}
 
@@ -578,7 +625,7 @@ export function ProjectsPage() {
                   {editingId ? "Edit project" : "New project"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Enter job details, assign the team, and optionally pin the work route.
+                  Enter job details and assign the team.
                 </p>
               </div>
               <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
@@ -743,28 +790,90 @@ export function ProjectsPage() {
 
               <FormSection
                 title="Project details"
-                description="Client, schedule, and contract information"
+                description="Billing relationship, client, schedule, and contract"
               >
-                <FormField>
-                  <Label>Client / owner</Label>
-                  <Input
-                    className={inputClass}
-                    value={form.clientName}
+                <FormField className="sm:col-span-2">
+                  <Label>Billing / work type</Label>
+                  <select
+                    className={selectClass}
+                    value={form.billingRelationship}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, clientName: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        billingRelationship: e.target
+                          .value as BillingRelationship,
+                      }))
                     }
-                  />
+                    disabled={saving}
+                  >
+                    {(Object.entries(billingRelationshipLabels) as [
+                      BillingRelationship,
+                      string,
+                    ][]).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {billingRelationshipDescriptions[form.billingRelationship]}
+                  </p>
                 </FormField>
-                <FormField>
-                  <Label>General contractor</Label>
-                  <Input
-                    className={inputClass}
-                    value={form.generalContractor}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, generalContractor: e.target.value }))
-                    }
-                  />
-                </FormField>
+                {(form.billingRelationship === "DIRECT_CLIENT" ||
+                  form.billingRelationship === "CLIENT_AND_GC") && (
+                  <FormField>
+                    <Label>
+                      Client / owner
+                      {form.billingRelationship !== "GC_DIRECT" ? " *" : ""}
+                    </Label>
+                    <ClientSuggestInput
+                      className={inputClass}
+                      value={form.clientName}
+                      onChange={(clientName) =>
+                        setForm((f) => ({ ...f, clientName }))
+                      }
+                      options={clients}
+                      placeholder="Client or owner name"
+                      disabled={saving}
+                    />
+                  </FormField>
+                )}
+                {form.billingRelationship === "GC_DIRECT" && (
+                  <FormField>
+                    <Label>End client (optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Owner or agency if known — not required for direct GC work
+                    </p>
+                    <ClientSuggestInput
+                      className={inputClass}
+                      value={form.clientName}
+                      onChange={(clientName) =>
+                        setForm((f) => ({ ...f, clientName }))
+                      }
+                      options={clients}
+                      placeholder="Optional end client"
+                      disabled={saving}
+                    />
+                  </FormField>
+                )}
+                {form.billingRelationship !== "DIRECT_CLIENT" && (
+                  <FormField>
+                    <Label>
+                      General contractor
+                      {form.billingRelationship !== "DIRECT_CLIENT" ? " *" : ""}
+                    </Label>
+                    <ClientSuggestInput
+                      className={inputClass}
+                      value={form.generalContractor}
+                      onChange={(generalContractor) =>
+                        setForm((f) => ({ ...f, generalContractor }))
+                      }
+                      options={clients}
+                      placeholder="General contractor name"
+                      disabled={saving}
+                    />
+                  </FormField>
+                )}
                 <FormField>
                   <Label>Location</Label>
                   <Input
@@ -821,18 +930,6 @@ export function ProjectsPage() {
                   />
                 </FormField>
               </FormSection>
-
-              <section className="rounded-xl border border-border bg-muted/15 p-5">
-                <div className="mb-4 border-b border-border pb-3">
-                  <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                    Work route
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Optional — search or click the map to set start (A) and end (B)
-                  </p>
-                </div>
-                <RouteMapPicker value={routeDraft} onChange={setRouteDraft} />
-              </section>
             </div>
 
             <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">

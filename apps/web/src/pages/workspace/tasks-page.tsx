@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   Loader2,
   Pencil,
   Plus,
@@ -16,10 +17,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
+import {
+  downloadBidSampleCsv,
+  downloadBidSampleExcel,
+  parseBidSpreadsheet,
+} from "@/lib/bid-spreadsheet";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type UnitOpt = { id: string; code: string; name: string; isActive?: boolean };
@@ -55,6 +64,7 @@ const divisionLabels: Record<string, string> = {
   PAVEMENT_MARKING: "Pavement Marking",
   TRAFFIC_CONTROL: "Traffic Control",
   PERMANENT_SIGNS: "Permanent Signs",
+  MISCELLANEOUS: "Miscellaneous",
 };
 
 const selectClass =
@@ -69,6 +79,9 @@ const emptyForm = {
   parentId: "",
   division: "PAVEMENT_MARKING",
   description: "",
+  color: "",
+  widthInches: "",
+  conversionFactor: "",
   isActive: true,
 };
 
@@ -88,7 +101,11 @@ export function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [csvText, setCsvText] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [divisionFilter, setDivisionFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"master" | "sub">("master");
@@ -106,8 +123,8 @@ export function TasksPage() {
   const isDirty =
     open && formBaseline !== "" && snapshotForm(form) !== formBaseline;
 
-  async function load() {
-    setLoading(true);
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const [t, pt, u] = await Promise.all([
         apiFetch<{ tasks: Bid[] }>("/api/v1/tasks"),
@@ -149,13 +166,33 @@ export function TasksPage() {
     return opts;
   }, [units, form.unit]);
 
-  useEffect(() => {
-    void load();
-  }, []);
+  const filteredMasters = useMemo(() => {
+    const list = bids
+      .filter((b) => !b.parentId)
+      .sort((a, b) => a.code.localeCompare(b.code));
+    const q = search.trim().toLowerCase();
+    return list.filter((master) => {
+      if (divisionFilter !== "ALL" && master.division !== divisionFilter) {
+        const kids = bids.filter((b) => b.parentId === master.id);
+        if (!kids.some((k) => k.division === divisionFilter)) return false;
+      }
+      if (!q) return true;
+      const kids = bids.filter((b) => b.parentId === master.id);
+      return (
+        master.code.toLowerCase().includes(q) ||
+        master.name.toLowerCase().includes(q) ||
+        kids.some(
+          (k) =>
+            k.code.toLowerCase().includes(q) ||
+            k.name.toLowerCase().includes(q),
+        )
+      );
+    });
+  }, [bids, search, divisionFilter]);
 
-  const masters = useMemo(
-    () => bids.filter((b) => !b.parentId),
-    [bids],
+  const paginatedMasters = useMemo(
+    () => paginateSlice(filteredMasters, page, ADMIN_PAGE_SIZE),
+    [filteredMasters, page],
   );
 
   const childrenByParent = useMemo(() => {
@@ -169,20 +206,20 @@ export function TasksPage() {
     return map;
   }, [bids]);
 
-  const showGenericNameColumn = useMemo(
-    () =>
-      bids.some((b) => {
-        if (!b.parentId) return false;
-        const parent = masters.find((m) => m.id === b.parentId);
-        return Boolean(parent?.name?.trim());
-      }),
-    [bids, masters],
-  );
+  const masters = useMemo(() => bids.filter((b) => !b.parentId), [bids]);
 
   const selectedMaster = useMemo(
     () => masters.find((m) => m.id === form.parentId) ?? null,
     [masters, form.parentId],
   );
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, divisionFilter]);
 
   const title = useMemo(() => {
     if (editingId) return mode === "sub" ? "Edit sub-bid" : "Edit master bid";
@@ -209,6 +246,7 @@ export function TasksPage() {
       projectTypeId: parent.projectType?.id ?? "",
       unit: parent.unit || defaultUnitCode,
       formType: parent.formType || "STA_RANGE",
+      conversionFactor: "1.00",
     };
     setForm(next);
     setFormBaseline(snapshotForm(next));
@@ -228,6 +266,10 @@ export function TasksPage() {
       parentId: bid.parentId ?? "",
       division: bid.division ?? "PAVEMENT_MARKING",
       description: bid.description ?? "",
+      color: bid.color ?? "",
+      widthInches: bid.widthInches != null ? String(bid.widthInches) : "",
+      conversionFactor:
+        bid.conversionFactor != null ? String(bid.conversionFactor) : "",
       isActive: bid.isActive,
     };
     setForm(next);
@@ -267,6 +309,15 @@ export function TasksPage() {
         parentId: mode === "sub" ? form.parentId || null : null,
         division: form.division || null,
         description: form.description.trim() || null,
+        color: mode === "sub" && form.color.trim() ? form.color.trim() : null,
+        widthInches:
+          mode === "sub" && form.widthInches.trim()
+            ? Number(form.widthInches)
+            : null,
+        conversionFactor:
+          mode === "sub" && form.conversionFactor.trim()
+            ? Number(form.conversionFactor)
+            : null,
         isActive: form.isActive,
       };
       if (mode === "sub" && !raw.parentId) {
@@ -297,7 +348,7 @@ export function TasksPage() {
         });
       }
       closeForm();
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed", {
         id: "bid-master",
@@ -307,62 +358,36 @@ export function TasksPage() {
     }
   }
 
-  function parseCsv(text: string) {
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    return lines.slice(1).map((line) => {
-      const cols = line.split(",").map((c) => c.trim());
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        row[h] = cols[i] ?? "";
-      });
-      return {
-        code: row.code,
-        name: row.name,
-        unit: row.unit || "LF",
-        formType: (row.formtype || row.form_type || "STA_RANGE").toUpperCase(),
-        projectTypeCode: row.projecttypecode || row.project_type_code || null,
-        parentCode: row.parentcode || row.parent_code || null,
-        division: row.division || null,
-        description: row.description || null,
-      };
-    });
-  }
-
-  async function onImport() {
-    setSaving(true);
+  async function onReplaceImport() {
+    if (!importFile || importing) return;
+    setImporting(true);
     try {
-      const rows = parseCsv(csvText);
-      if (!rows.length) {
-        toast.error("CSV needs a header and at least one data row", {
-          id: "bid-master",
-        });
+      const rows = await parseBidSpreadsheet(importFile);
+      if (rows.length === 0) {
+        toast.error("No rows found in file", { id: "bid-master" });
         return;
       }
       const result = await apiFetch<{
         upserted: number;
         errorCount: number;
-      }>("/api/v1/tasks/import", {
+        errors: { row: number; message: string }[];
+      }>("/api/v1/tasks/replace-import", {
         method: "POST",
         body: JSON.stringify({ rows }),
       });
       toast.success(
-        `Imported ${result.upserted} bid(s)${result.errorCount ? `, ${result.errorCount} error(s)` : ""}`,
+        `Replaced bid master with ${result.upserted} item(s)${result.errorCount ? `, ${result.errorCount} error(s)` : ""}`,
         { id: "bid-master" },
       );
       setImportOpen(false);
-      setCsvText("");
-      await load();
+      setImportFile(null);
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed", {
         id: "bid-master",
       });
     } finally {
-      setSaving(false);
+      setImporting(false);
     }
   }
 
@@ -373,7 +398,7 @@ export function TasksPage() {
       await apiFetch(`/api/v1/tasks/${deleteTarget.id}`, { method: "DELETE" });
       toast.success(`Deleted ${deleteTarget.code}`, { id: "bid-master" });
       setDeleteTarget(null);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed", {
         id: "bid-master",
@@ -390,17 +415,17 @@ export function TasksPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Masters
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Bid master
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Line codes XXC## (type + color + width). CF for Reported LF = (End
-            STA − Begin STA) × 100 × CF. Widths 4″ / 6″ / 10″ / 24″.
+            Excel import loads master bids. Add sub-bids under each master for line
+            codes, color, width, and conversion factor.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="size-4" /> Import CSV
+            <Upload className="size-4" /> Import Excel
           </Button>
           <Button
             className="bg-asphalt-mid text-white hover:bg-asphalt"
@@ -411,41 +436,63 @@ export function TasksPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="mb-4 flex flex-wrap gap-3">
+        <Input
+          className="max-w-xs"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search bid items…"
+        />
+        <select
+          className={cn(selectClass, "max-w-xs")}
+          value={divisionFilter}
+          onChange={(e) => setDivisionFilter(e.target.value)}
+        >
+          <option value="ALL">All divisions</option>
+          {Object.entries(divisionLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {showFullPageLoader(loading, bids.length > 0) ? (
+        <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">Line code</th>
-                  {showGenericNameColumn && (
-                    <th className="px-4 py-3">Generic name</th>
-                  )}
-                  <th className="px-4 py-3">Bid / Sub-bid</th>
-                  <th className="px-4 py-3">Color</th>
-                  <th className="px-4 py-3">Width</th>
-                  <th className="px-4 py-3">CF</th>
-                  <th className="px-4 py-3">Division</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-2 py-1">Ref #</th>
+                  <th className="px-2 py-1">Generic name</th>
+                  <th className="px-2 py-1">Sub-bid</th>
+                  <th className="px-2 py-1">Unit</th>
+                  <th className="px-2 py-1">Color</th>
+                  <th className="px-2 py-1">Width</th>
+                  <th className="px-2 py-1">CF</th>
+                  <th className="px-2 py-1">Division</th>
+                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
-                {masters.length === 0 && (
+                {filteredMasters.length === 0 && (
                   <tr>
                     <td
-                      colSpan={showGenericNameColumn ? 9 : 8}
-                      className="px-4 py-10 text-center text-sm text-muted-foreground"
+                      colSpan={10}
+                      className="px-2 py-4 text-center text-sm text-muted-foreground"
                     >
-                      No bids yet. Add a master bid, then add sub-bids under it.
+                      {bids.length === 0
+                        ? "No bid items yet. Import Bid Item List.xlsx or add manually."
+                        : "No bid items match your search."}
                     </td>
                   </tr>
                 )}
-                {masters.map((master) => {
+                {paginatedMasters.items.map((master) => {
                   const kids =
                     childrenByParent.get(master.id) ??
                     (master.children as Bid[] | undefined) ??
@@ -453,8 +500,8 @@ export function TasksPage() {
                   const openRow = expanded[master.id] ?? true;
                   return (
                     <Fragment key={master.id}>
-                      <tr className="border-b bg-muted/20 font-medium last:border-0">
-                        <td className="px-4 py-2.5">
+                      <tr className="border-b border-border/80 bg-muted/20 font-medium">
+                        <td className="px-2 py-1.5">
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
@@ -466,41 +513,39 @@ export function TasksPage() {
                                 }))
                               }
                             >
-                              {openRow ? (
-                                <ChevronDown className="size-4" />
+                              {kids.length > 0 ? (
+                                openRow ? (
+                                  <ChevronDown className="size-4" />
+                                ) : (
+                                  <ChevronRight className="size-4" />
+                                )
                               ) : (
-                                <ChevronRight className="size-4" />
+                                <span className="inline-block size-4" />
                               )}
                             </button>
                             <span className="font-mono text-xs">{master.code}</span>
                           </div>
                         </td>
-                        {showGenericNameColumn && (
-                          <td className="px-4 py-2.5 text-muted-foreground">
-                            —
-                          </td>
-                        )}
-                        <td className="px-4 py-2.5">
-                          <span className="mr-2 rounded bg-asphalt px-1.5 py-0.5 text-[10px] font-semibold text-white uppercase">
+                        <td className="px-2 py-1.5">{master.name}</td>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                          <span className="mr-1 rounded bg-asphalt px-1.5 py-0.5 text-[10px] font-semibold text-white uppercase">
                             Master
                           </span>
-                          {master.name}
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">
-                            {kids.length} sub-bid{kids.length === 1 ? "" : "s"}
-                          </span>
+                          {kids.length} sub-bid{kids.length === 1 ? "" : "s"}
                         </td>
-                        <td className="px-4 py-2.5 text-xs">—</td>
-                        <td className="px-4 py-2.5 text-xs">—</td>
-                        <td className="px-4 py-2.5 text-xs">—</td>
-                        <td className="px-4 py-2.5 text-xs">
+                        <td className="px-2 py-1.5 text-xs">{master.unit}</td>
+                        <td className="px-2 py-1.5 text-xs">—</td>
+                        <td className="px-2 py-1.5 text-xs">—</td>
+                        <td className="px-2 py-1.5 text-xs">—</td>
+                        <td className="px-2 py-1.5 text-xs text-foreground/80">
                           {master.division
                             ? divisionLabels[master.division] ?? master.division
                             : "—"}
                         </td>
-                        <td className="px-4 py-2.5 text-xs">
+                        <td className="px-2 py-1.5 text-xs">
                           {master.isActive ? "Active" : "Inactive"}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
+                        <td className="px-2 py-1.5">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -512,6 +557,7 @@ export function TasksPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Edit master bid"
                               onClick={() => openEdit(master)}
                             >
                               <Pencil className="size-4" />
@@ -520,6 +566,7 @@ export function TasksPage() {
                               variant="ghost"
                               size="icon"
                               title="Delete master bid"
+                              aria-label="Delete master bid"
                               onClick={() => setDeleteTarget(master)}
                             >
                               <Trash2 className="size-4 text-destructive" />
@@ -531,48 +578,43 @@ export function TasksPage() {
                         kids.map((sub) => (
                           <tr
                             key={sub.id}
-                            className="border-b last:border-0 hover:bg-muted/30"
+                            className="border-b border-border/80 last:border-0 hover:bg-muted/30"
                           >
-                            <td className="px-4 py-2 pl-10 font-mono text-xs font-semibold text-asphalt-mid">
+                            <td className="px-2 py-1.5 pl-8 font-mono text-xs font-semibold text-asphalt-mid">
                               {sub.code}
                             </td>
-                            {showGenericNameColumn && (
-                              <td className="px-4 py-2 pl-6 text-muted-foreground">
-                                {master.name?.trim() || "—"}
-                              </td>
-                            )}
-                            <td className="px-4 py-2 pl-6">
-                              <span className="mr-2 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
-                                Sub
-                              </span>
-                              {sub.name}
+                            <td className="px-2 py-1.5 pl-4 text-muted-foreground">
+                              {master.name}
                             </td>
-                            <td className="px-4 py-2 text-xs">
+                            <td className="px-2 py-1.5 pl-4">{sub.name}</td>
+                            <td className="px-2 py-1.5 text-xs">{sub.unit}</td>
+                            <td className="px-2 py-1.5 text-xs">
                               {sub.color ?? "—"}
                             </td>
-                            <td className="px-4 py-2 text-xs">
+                            <td className="px-2 py-1.5 text-xs">
                               {sub.widthInches != null
                                 ? `${sub.widthInches}"`
                                 : "—"}
                             </td>
-                            <td className="px-4 py-2 font-mono text-xs font-semibold">
+                            <td className="px-2 py-1.5 font-mono text-xs font-semibold">
                               {sub.conversionFactor != null
                                 ? Number(sub.conversionFactor).toFixed(2)
                                 : "—"}
                             </td>
-                            <td className="px-4 py-2 text-xs">
+                            <td className="px-2 py-1.5 text-xs text-foreground/80">
                               {sub.division
                                 ? divisionLabels[sub.division] ?? sub.division
                                 : "—"}
                             </td>
-                            <td className="px-4 py-2 text-xs">
+                            <td className="px-2 py-1.5 text-xs">
                               {sub.isActive ? "Active" : "Inactive"}
                             </td>
-                            <td className="px-4 py-2 text-right">
+                            <td className="px-2 py-1.5">
                               <div className="flex justify-end gap-1">
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  aria-label="Edit sub-bid"
                                   onClick={() => openEdit(sub)}
                                 >
                                   <Pencil className="size-4" />
@@ -581,6 +623,7 @@ export function TasksPage() {
                                   variant="ghost"
                                   size="icon"
                                   title="Delete sub-bid"
+                                  aria-label="Delete sub-bid"
                                   onClick={() => setDeleteTarget(sub)}
                                 >
                                   <Trash2 className="size-4 text-destructive" />
@@ -595,6 +638,14 @@ export function TasksPage() {
               </tbody>
             </table>
           </div>
+          {filteredMasters.length > 0 && (
+            <TablePagination
+              page={paginatedMasters.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedMasters.total}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       )}
 
@@ -624,8 +675,8 @@ export function TasksPage() {
                 <h2 className="text-lg font-semibold">{title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {mode === "sub"
-                    ? "Sub-bid inherits context from its master — set division clearly."
-                    : "Create a master bid, then add sub-bids under it."}
+                    ? "Sub-bid under a master — set line code details (color, width, CF)."
+                    : "Master bid generic name from the bid item list."}
                 </p>
               </div>
               <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
@@ -699,9 +750,9 @@ export function TasksPage() {
                   </p>
                 )}
               </div>
-              {mode === "sub" && selectedMaster?.name?.trim() && (
+              {mode === "sub" && selectedMaster && (
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Generic name</Label>
+                  <Label>Generic name (from master)</Label>
                   <Input
                     readOnly
                     className="bg-muted text-muted-foreground"
@@ -756,6 +807,48 @@ export function TasksPage() {
                   <option value="SINGLE_LOCATION">Single Location</option>
                 </select>
               </div>
+              {mode === "sub" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Color</Label>
+                    <Input
+                      value={form.color}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, color: e.target.value }))
+                      }
+                      placeholder="White, Yellow, …"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Width (inches)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.widthInches}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, widthInches: e.target.value }))
+                      }
+                      placeholder="4, 6, 10, 24"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Conversion factor (CF)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.conversionFactor}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          conversionFactor: e.target.value,
+                        }))
+                      }
+                      placeholder="1.00"
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Description</Label>
                 <Input
@@ -804,28 +897,61 @@ export function TasksPage() {
       {importOpen && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
           <div className="relative z-[2001] w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">Import bids (CSV)</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Headers: code,name,unit,formType,projectTypeCode,parentCode,division,description
+            <h2 className="text-lg font-semibold">Replace bid master (Excel)</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Upload <strong>Bid Item List.xlsx</strong> with columns: Item Reference #,
+              Description, Unit, Division. This replaces all <strong>master</strong> bids.
+              Any sub-bids you added will also be removed.
             </p>
-            <textarea
-              className={cn(
-                "mt-3 min-h-40 w-full rounded-md border border-input bg-card px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              )}
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              placeholder={`code,name,unit,formType,projectTypeCode,parentCode,division,description\nPM-LONG,Longitudinal Striping,LOT,STA_RANGE,PM,,PAVEMENT_MARKING,\nPM-4W-EDGE,4" Edge Line,LF,STA_RANGE,PM,PM-LONG,PAVEMENT_MARKING,`}
-            />
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadBidSampleCsv()}
+              >
+                <Download className="size-4" /> Sample CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadBidSampleExcel()}
+              >
+                <Download className="size-4" /> Sample Excel
+              </Button>
+            </div>
+            <div className="mt-4">
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setImportOpen(false);
+                  setImportFile(null);
+                }}
+              >
                 Cancel
               </Button>
               <Button
                 className="bg-asphalt-mid text-white hover:bg-asphalt"
-                disabled={saving}
-                onClick={() => void onImport()}
+                disabled={!importFile || importing}
+                onClick={() => void onReplaceImport()}
               >
-                {saving ? "Importing…" : "Import"}
+                {importing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Importing…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-4" /> Replace master
+                  </>
+                )}
               </Button>
             </div>
           </div>

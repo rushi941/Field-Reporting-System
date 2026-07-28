@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Download, Loader2 } from "lucide-react";
@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { ActivityDot } from "@/components/activity-dot";
 import { useBillingActivity } from "@/hooks/use-billing-activity";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 type RollupProject = {
   id: string;
@@ -16,6 +18,11 @@ type RollupProject = {
   location: string | null;
   division: string;
   clientName: string | null;
+  generalContractor?: string | null;
+  billingRelationship?: string;
+  billTo?: string | null;
+  billToLabel?: string;
+  billingPartyLine?: string;
   approvedCount: number;
   pendingCount: number;
   returnedCount: number;
@@ -30,6 +37,12 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
   const [projects, setProjects] = useState<RollupProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const paginatedProjects = useMemo(
+    () => paginateSlice(projects, page, ADMIN_PAGE_SIZE),
+    [projects, page],
+  );
 
   useEffect(() => {
     void (async () => {
@@ -111,25 +124,26 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
         </p>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-lg border md:block">
+          <div className="hidden overflow-hidden rounded-lg border md:block">
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Job</th>
-                  <th className="px-3 py-2 font-medium">Client / location</th>
-                  <th className="px-3 py-2 font-medium text-right">Approved</th>
-                  <th className="px-3 py-2 font-medium text-right">Pending</th>
-                  <th className="px-3 py-2 font-medium">Last report</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                  <th className="px-2 py-1 font-medium">Job</th>
+                  <th className="px-2 py-1 font-medium">Bill to</th>
+                  <th className="px-2 py-1 font-medium text-right">Approved</th>
+                  <th className="px-2 py-1 font-medium text-right">Pending</th>
+                  <th className="px-2 py-1 font-medium">Last report</th>
+                  <th className="px-2 py-1 font-medium">Status</th>
+                  <th className="px-2 py-1 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {projects.map((p) => {
+                {paginatedProjects.items.map((p) => {
                   const unread = isUnread(p);
                   return (
                   <tr key={p.id} className="border-b last:border-0">
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-1">
                       <Link
                         to={`/${base}/billing/${p.id}`}
                         className="relative inline-flex items-center font-semibold hover:underline"
@@ -143,25 +157,27 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                       </Link>
                       <p className="text-xs text-muted-foreground">{p.name}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
-                        "—"}
+                    <td className="px-2 py-1 text-xs text-muted-foreground">
+                      {(p.billingPartyLine ??
+                        [p.billTo ?? p.clientName, p.location]
+                          .filter(Boolean)
+                          .join(" · ")) || "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
+                    <td className="px-2 py-1 text-right tabular-nums">
                       {p.approvedCount}
                     </td>
                     <td
                       className={cn(
-                        "px-3 py-2.5 text-right tabular-nums font-medium",
+                        "px-2 py-1 text-right tabular-nums font-medium",
                         p.pendingCount > 0 && "text-amber-700",
                       )}
                     >
                       {p.pendingCount}
                     </td>
-                    <td className="px-3 py-2.5 text-xs tabular-nums">
+                    <td className="px-2 py-1 text-xs tabular-nums">
                       {p.lastReportDate ?? "—"}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-1">
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
@@ -173,7 +189,7 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                         {p.billingReady ? "Ready" : "Waiting"}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-1">
                       <div className="flex justify-end gap-2">
                         <Button asChild variant="outline" size="sm">
                           <Link to={`/${base}/billing/${p.id}`}>Drilldown</Link>
@@ -199,10 +215,11 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
           <ul className="space-y-2 md:hidden">
-            {projects.map((p) => {
+            {paginatedProjects.items.map((p) => {
               const unread = isUnread(p);
               return (
               <li
@@ -223,8 +240,10 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                       </span>
                     </Link>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
-                        "—"}
+                      {(p.billingPartyLine ??
+                        [p.billTo ?? p.clientName, p.location]
+                          .filter(Boolean)
+                          .join(" · ")) || "—"}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs">
                       <span>
@@ -289,6 +308,14 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
               );
             })}
           </ul>
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <TablePagination
+              page={paginatedProjects.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedProjects.total}
+              onPageChange={setPage}
+            />
+          </div>
         </>
       )}
     </div>

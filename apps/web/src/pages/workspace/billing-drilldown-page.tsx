@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Loader2, Paperclip } from "lucide-react";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/auth-context";
 import { markBillingProjectSeen } from "@/lib/activity-seen";
 import { cn } from "@/lib/utils";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 type Drilldown = {
   project: {
@@ -15,6 +17,11 @@ type Drilldown = {
     name: string;
     location: string | null;
     clientName: string | null;
+    generalContractor?: string | null;
+    billingRelationship?: string;
+    billTo?: string | null;
+    billToLabel?: string;
+    billingPartyLine?: string;
     pendingCount: number;
     billingReady: boolean;
   };
@@ -58,6 +65,16 @@ export function BillingDrilldownPage({
   const [data, setData] = useState<Drilldown | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [quantitiesPage, setQuantitiesPage] = useState(1);
+
+  const paginatedQuantities = useMemo(() => {
+    const rows = data?.quantitiesByBidItem ?? [];
+    return paginateSlice(rows, quantitiesPage, ADMIN_PAGE_SIZE);
+  }, [data?.quantitiesByBidItem, quantitiesPage]);
+
+  useEffect(() => {
+    setQuantitiesPage(1);
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -142,8 +159,10 @@ export function BillingDrilldownPage({
             {project.jobNumber} — {project.name}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {[project.clientName, project.location].filter(Boolean).join(" · ") ||
-              "—"}
+            {(project.billingPartyLine ??
+              [project.billTo ?? project.clientName, project.location]
+                .filter(Boolean)
+                .join(" · ")) || "—"}
           </p>
           <p className="mt-2 text-xs">
             Pending approvals:{" "}
@@ -183,7 +202,7 @@ export function BillingDrilldownPage({
       </div>
 
       {!project.billingReady && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-sm text-amber-950">
           Wait for pending approvals before export.
         </p>
       )}
@@ -195,29 +214,37 @@ export function BillingDrilldownPage({
             No approved reports yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[28rem] text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Code</th>
-                  <th className="px-3 py-2 font-medium">Item</th>
-                  <th className="px-3 py-2 font-medium">Unit</th>
-                  <th className="px-3 py-2 font-medium text-right">Quantity</th>
+                  <th className="px-2 py-1 font-medium">Code</th>
+                  <th className="px-2 py-1 font-medium">Item</th>
+                  <th className="px-2 py-1 font-medium">Unit</th>
+                  <th className="px-2 py-1 font-medium text-right">Quantity</th>
                 </tr>
               </thead>
               <tbody>
-                {data.quantitiesByBidItem.map((row) => (
+                {paginatedQuantities.items.map((row) => (
                   <tr key={row.code} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs">{row.code}</td>
-                    <td className="px-3 py-2">{row.name}</td>
-                    <td className="px-3 py-2">{row.unit}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                    <td className="px-2 py-1 font-mono text-xs">{row.code}</td>
+                    <td className="px-2 py-1">{row.name}</td>
+                    <td className="px-2 py-1">{row.unit}</td>
+                    <td className="px-2 py-1 text-right tabular-nums font-medium">
                       {row.quantity.toLocaleString()}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
+            <TablePagination
+              page={paginatedQuantities.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedQuantities.total}
+              onPageChange={setQuantitiesPage}
+            />
           </div>
         )}
       </section>

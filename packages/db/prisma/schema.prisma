@@ -23,12 +23,19 @@ enum Division {
   PAVEMENT_MARKING
   TRAFFIC_CONTROL
   PERMANENT_SIGNS
+  MISCELLANEOUS
 }
 
 enum ProjectStatus {
   ACTIVE
   INACTIVE
   COMPLETED
+}
+
+enum BillingRelationship {
+  DIRECT_CLIENT
+  CLIENT_AND_GC
+  GC_DIRECT
 }
 
 enum BidItemStatus {
@@ -226,6 +233,19 @@ model UnitMaster {
   @@index([isActive, sortOrder])
 }
 
+/// Clients / contractors from Foundation customer list (used for project autocomplete)
+model ClientMaster {
+  id               String   @id @default(cuid())
+  foundationNumber Int?
+  name             String   @unique
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 /// Catalog of standard roadway contractor work items (task master)
 /// Parent rows are master tasks; children are sub-tasks (`parentId`).
 model TaskMaster {
@@ -280,6 +300,8 @@ model Project {
   /// Owner / agency (e.g. TxDOT, City of Dallas)
   clientName        String?
   generalContractor String?
+  /// Billing setup — direct client, client+GC, or direct GC
+  billingRelationship BillingRelationship @default(DIRECT_CLIENT)
   /// Work location — route, city, county, state
   location          String?
   contractAmount    Decimal?      @db.Decimal(14, 2)

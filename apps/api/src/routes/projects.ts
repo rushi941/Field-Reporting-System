@@ -15,10 +15,13 @@ import {
   projectDivisions,
   normalizeSta,
   physicalLfFromSta,
+  validateProjectBillingParties,
   type ProjectCreateTaskInput,
+  type BillingRelationship,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
+import { ensureClientMasters } from "../lib/ensure-client-masters.js";
 import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
@@ -139,6 +142,7 @@ function mapProject(p: ProjectLoaded) {
     divisionManagers: p.divisionManagers.map((dm) => mapUserBrief(dm.user)),
     clientName: p.clientName,
     generalContractor: p.generalContractor,
+    billingRelationship: p.billingRelationship,
     location: p.location,
     contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
     startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : null,
@@ -381,6 +385,31 @@ async function deleteProjectCascade(
   await tx.project.delete({ where: { id: projectId } });
 }
 
+function normalizeBillingFields(input: {
+  billingRelationship: BillingRelationship;
+  clientName?: string | null;
+  generalContractor?: string | null;
+}) {
+  const relationship = input.billingRelationship;
+  const clientName = input.clientName?.trim() || null;
+  let generalContractor = input.generalContractor?.trim() || null;
+
+  if (relationship === "DIRECT_CLIENT") {
+    generalContractor = null;
+  }
+
+  const message = validateProjectBillingParties({
+    billingRelationship: relationship,
+    clientName,
+    generalContractor,
+  });
+  if (message) {
+    throw new AppError("VALIDATION_ERROR", message, 400);
+  }
+
+  return { relationship, clientName, generalContractor };
+}
+
 async function syncProjectTasks(projectId: string, taskIds: string[]) {
   const unique = [...new Set(taskIds)];
   const masters = await prisma.taskMaster.findMany({
@@ -554,7 +583,7 @@ projectsRouter.get(
 projectsRouter.get(
   "/lookups",
   asyncHandler(async (_req, res) => {
-    const [projectTypes, projectAdmins, divisionManagers, fieldLeads, taskRows, units] = await Promise.all([
+    const [projectTypes, projectAdmins, divisionManagers, fieldLeads, taskRows, units, clients] = await Promise.all([
       prisma.projectType.findMany({
         where: { isActive: true },
         select: { id: true, code: true, name: true, division: true },
@@ -626,6 +655,11 @@ projectsRouter.get(
         select: { id: true, code: true, name: true },
         orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       }),
+      prisma.clientMaster.findMany({
+        where: { isActive: true },
+        select: { id: true, foundationNumber: true, name: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
     ]);
 
     const childrenByParent = new Map<string, typeof taskRows>();
@@ -673,6 +707,7 @@ projectsRouter.get(
       })),
       taskTree,
       units,
+      clients,
     });
   }),
 );
@@ -722,6 +757,14 @@ projectsRouter.post(
     await assertDivisionManagers(body.divisionManagerIds);
     await assertFieldLeads(body.fieldLeadIds);
 
+    await ensureClientMasters([body.clientName, body.generalContractor]);
+
+    const billing = normalizeBillingFields({
+      billingRelationship: body.billingRelationship ?? "DIRECT_CLIENT",
+      clientName: body.clientName,
+      generalContractor: body.generalContractor,
+    });
+
     const project = await prisma.project.create({
       data: {
         jobNumber,
@@ -734,8 +777,9 @@ projectsRouter.post(
         projectTypeId: body.projectTypeId ?? null,
         projectAdminId: body.projectAdminId ?? null,
         projectManagerId: body.divisionManagerIds[0] ?? null,
-        clientName: body.clientName ?? null,
-        generalContractor: body.generalContractor ?? null,
+        clientName: billing.clientName,
+        generalContractor: billing.generalContractor,
+        billingRelationship: billing.relationship,
         location: body.location ?? null,
         contractAmount: body.contractAmount ?? null,
         startDate: parseOptionalDate(body.startDate) ?? null,
@@ -1054,6 +1098,34 @@ projectsRouter.patch(
           )
         : undefined;
 
+    if (
+      body.clientName !== undefined ||
+      body.generalContractor !== undefined ||
+      body.billingRelationship !== undefined
+    ) {
+      await ensureClientMasters([body.clientName, body.generalContractor]);
+    }
+
+    const nextBillingRelationship = (body.billingRelationship ??
+      existing.billingRelationship) as BillingRelationship;
+    const nextClientName =
+      body.clientName !== undefined ? body.clientName : existing.clientName;
+    const nextGeneralContractor =
+      body.generalContractor !== undefined
+        ? body.generalContractor
+        : existing.generalContractor;
+
+    const billing =
+      body.clientName !== undefined ||
+      body.generalContractor !== undefined ||
+      body.billingRelationship !== undefined
+        ? normalizeBillingFields({
+            billingRelationship: nextBillingRelationship,
+            clientName: nextClientName,
+            generalContractor: nextGeneralContractor,
+          })
+        : null;
+
     await prisma.project.update({
       where: { id },
       data: {
@@ -1076,10 +1148,23 @@ projectsRouter.patch(
           : body.projectManagerId !== undefined
             ? { projectManagerId: body.projectManagerId }
             : {}),
-        ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
-        ...(body.generalContractor !== undefined
-          ? { generalContractor: body.generalContractor }
-          : {}),
+        ...(billing
+          ? {
+              clientName: billing.clientName,
+              generalContractor: billing.generalContractor,
+              billingRelationship: billing.relationship,
+            }
+          : {
+              ...(body.clientName !== undefined
+                ? { clientName: body.clientName }
+                : {}),
+              ...(body.generalContractor !== undefined
+                ? { generalContractor: body.generalContractor }
+                : {}),
+              ...(body.billingRelationship !== undefined
+                ? { billingRelationship: body.billingRelationship }
+                : {}),
+            }),
         ...(body.location !== undefined ? { location: body.location } : {}),
         ...(body.contractAmount !== undefined
           ? { contractAmount: body.contractAmount }

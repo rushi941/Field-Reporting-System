@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import {
@@ -12,6 +12,9 @@ import {
 import { apiFetch, type PermissionMatrixRow } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 const yesNoOptions: { value: PermissionAccessValue; label: string }[] = [
   { value: "YES", label: "Yes" },
@@ -35,9 +38,15 @@ export function SystemPermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [page, setPage] = useState(1);
 
-  async function load() {
-    setLoading(true);
+  const paginatedMatrix = useMemo(
+    () => paginateSlice(matrix, page, ADMIN_PAGE_SIZE),
+    [matrix, page],
+  );
+
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const data = await apiFetch<{ matrix: PermissionMatrixRow[] }>(
         "/api/v1/permissions/matrix",
@@ -134,7 +143,7 @@ export function SystemPermissionsPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {showFullPageLoader(loading, matrix.length > 0) ? (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
@@ -143,20 +152,20 @@ export function SystemPermissionsPage() {
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="sticky left-0 z-10 bg-muted/60 px-4 py-3 font-semibold">
+                <th className="sticky left-0 z-10 bg-muted/60 px-2 py-1 font-semibold">
                   Feature
                 </th>
                 {roles.map((role) => (
-                  <th key={role} className="px-3 py-3 font-medium">
+                  <th key={role} className="px-2 py-1 font-medium">
                     {roleLabels[role]}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {matrix.map((row) => (
+              {paginatedMatrix.items.map((row) => (
                 <tr key={row.key} className="border-b last:border-0">
-                  <td className="sticky left-0 z-10 bg-card px-3 py-2">
+                  <td className="sticky left-0 z-10 bg-card px-2 py-1">
                     <div className="font-medium">{row.label}</div>
                   </td>
                   {roles.map((role) => (
@@ -180,6 +189,14 @@ export function SystemPermissionsPage() {
               ))}
             </tbody>
           </table>
+          {matrix.length > 0 && (
+            <TablePagination
+              page={paginatedMatrix.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedMatrix.total}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       )}
     </div>

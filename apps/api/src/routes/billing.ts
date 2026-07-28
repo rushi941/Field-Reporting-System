@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { prisma } from "@frs/db";
-import { APPROVED_REPORT_STATUSES } from "@frs/shared";
+import {
+  APPROVED_REPORT_STATUSES,
+  billingPartySummary,
+  formatBillingPartyLine,
+} from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
@@ -54,6 +58,8 @@ billingRouter.get(
         location: true,
         division: true,
         clientName: true,
+        generalContractor: true,
+        billingRelationship: true,
       },
       orderBy: { jobNumber: "asc" },
     });
@@ -123,11 +129,15 @@ billingRouter.get(
       const stats = byProject.get(p.id)!;
       const billingReady =
         stats.approvedCount > 0 && stats.pendingCount === 0;
+      const parties = billingPartySummary(p);
       return {
         ...p,
         ...stats,
         billingReady,
         billingReadinessFlag: billingReady ? "READY" : "WAITING",
+        billTo: parties.billTo,
+        billToLabel: parties.billToLabel,
+        billingPartyLine: formatBillingPartyLine(p),
       };
     });
 
@@ -164,9 +174,12 @@ billingRouter.get(
         division: true,
         clientName: true,
         generalContractor: true,
+        billingRelationship: true,
       },
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+    const parties = billingPartySummary(project);
 
     const pendingCount = await prisma.report.count({
       where: { projectId, status: "SUBMITTED" },
@@ -231,6 +244,9 @@ billingRouter.get(
         ...project,
         pendingCount,
         billingReady: reports.length > 0 && pendingCount === 0,
+        billTo: parties.billTo,
+        billToLabel: parties.billToLabel,
+        billingPartyLine: formatBillingPartyLine(project),
       },
       quantitiesByBidItem: [...quantityByBid.values()].sort((a, b) =>
         a.code.localeCompare(b.code),
@@ -285,7 +301,15 @@ billingRouter.get(
     const projectId = routeParam(req.params.projectId);
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true, jobNumber: true, name: true },
+      select: {
+        id: true,
+        jobNumber: true,
+        name: true,
+        clientName: true,
+        generalContractor: true,
+        billingRelationship: true,
+        location: true,
+      },
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
 
@@ -331,9 +355,16 @@ billingRouter.get(
       return s;
     };
 
+    const parties = billingPartySummary(project);
+
     const headers = [
       "JobNumber",
       "ProjectName",
+      "BillingRelationship",
+      "BillTo",
+      "ClientOwner",
+      "GeneralContractor",
+      "Location",
       "ReportNumber",
       "ReportDate",
       "Status",
@@ -359,6 +390,11 @@ billingRouter.get(
           [
             escape(project.jobNumber),
             escape(project.name),
+            escape(project.billingRelationship),
+            escape(parties.billTo),
+            escape(project.clientName),
+            escape(project.generalContractor),
+            escape(project.location),
             escape(r.reportNumber),
             escape(r.reportDate.toISOString().slice(0, 10)),
             escape(r.status),

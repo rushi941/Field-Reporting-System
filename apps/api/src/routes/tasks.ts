@@ -5,7 +5,7 @@ import {
   type Division,
 } from "@frs/db";
 import {
-  taskImportRowSchema,
+  bidImportRowSchema,
   taskMasterSchema,
   updateTaskMasterSchema,
 } from "@frs/shared";
@@ -240,75 +240,92 @@ tasksRouter.post(
   "/import",
   asyncHandler(async (req, res) => {
     const rows = zArray(req.body?.rows);
-    const types = await prisma.projectType.findMany();
-    const byCode = Object.fromEntries(types.map((t) => [t.code.toUpperCase(), t.id]));
-
-    let upserted = 0;
-    const errors: { row: number; message: string }[] = [];
-
-    for (let i = 0; i < rows.length; i++) {
-      const parsed = taskImportRowSchema.safeParse(rows[i]);
-      if (!parsed.success) {
-        errors.push({ row: i + 1, message: parsed.error.issues[0]?.message ?? "Invalid" });
-        continue;
-      }
-      const row = parsed.data;
-      const code = row.code.toUpperCase();
-      const projectTypeId = row.projectTypeCode
-        ? byCode[row.projectTypeCode.toUpperCase()] ?? null
-        : null;
-      if (row.projectTypeCode && !projectTypeId) {
-        errors.push({
-          row: i + 1,
-          message: `Unknown project type code: ${row.projectTypeCode}`,
-        });
-        continue;
-      }
-
-      let parentId: string | null = null;
-      if (row.parentCode) {
-        const parent = await prisma.taskMaster.findUnique({
-          where: { code: row.parentCode.toUpperCase() },
-        });
-        if (!parent) {
-          errors.push({
-            row: i + 1,
-            message: `Unknown parent task code: ${row.parentCode}`,
-          });
-          continue;
-        }
-        parentId = parent.id;
-      }
-
-      await prisma.taskMaster.upsert({
-        where: { code },
-        update: {
-          name: row.name,
-          unit: row.unit,
-          formType: row.formType as BidItemFormType,
-          projectTypeId,
-          parentId,
-          division: (row.division as Division | null | undefined) ?? null,
-          description: row.description ?? null,
-          isActive: true,
-        },
-        create: {
-          code,
-          name: row.name,
-          unit: row.unit,
-          formType: (row.formType as BidItemFormType) ?? "STA_RANGE",
-          projectTypeId,
-          parentId,
-          division: (row.division as Division | null | undefined) ?? null,
-          description: row.description ?? null,
-        },
-      });
-      upserted += 1;
-    }
-
-    res.json({ upserted, errorCount: errors.length, errors });
+    const result = await importBidRows(rows, { replace: false });
+    res.json(result);
   }),
 );
+
+/** Replace entire bid master catalog (removes old items first) */
+tasksRouter.post(
+  "/replace-import",
+  asyncHandler(async (req, res) => {
+    const rows = zArray(req.body?.rows);
+    const result = await importBidRows(rows, { replace: true });
+    res.json(result);
+  }),
+);
+
+async function importBidRows(
+  rows: unknown[],
+  opts: { replace: boolean },
+) {
+  if (opts.replace) {
+    await prisma.reportLineItem.deleteMany({});
+    await prisma.projectTask.deleteMany({});
+    await prisma.taskMaster.deleteMany({});
+  }
+
+  const types = await prisma.projectType.findMany();
+  const byCode = Object.fromEntries(types.map((t) => [t.code.toUpperCase(), t.id]));
+
+  let upserted = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const parsed = bidImportRowSchema.safeParse(rows[i]);
+    if (!parsed.success) {
+      errors.push({
+        row: i + 1,
+        message: parsed.error.issues[0]?.message ?? "Invalid",
+      });
+      continue;
+    }
+    const row = parsed.data;
+    const code = row.code.toUpperCase();
+    const projectTypeId = row.projectTypeCode
+      ? byCode[row.projectTypeCode.toUpperCase()] ?? null
+      : null;
+    if (row.projectTypeCode && !projectTypeId) {
+      errors.push({
+        row: i + 1,
+        message: `Unknown project type code: ${row.projectTypeCode}`,
+      });
+      continue;
+    }
+
+    await prisma.taskMaster.upsert({
+      where: { code },
+      update: {
+        name: row.name,
+        unit: row.unit.trim().toUpperCase(),
+        formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
+        projectTypeId,
+        parentId: null,
+        division: (row.division as Division | null | undefined) ?? null,
+        description: row.description ?? row.name,
+        sortOrder: row.sortOrder ?? 0,
+        color: null,
+        widthInches: null,
+        conversionFactor: null,
+        isActive: true,
+      },
+      create: {
+        code,
+        name: row.name,
+        unit: row.unit.trim().toUpperCase(),
+        formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
+        projectTypeId,
+        parentId: null,
+        division: (row.division as Division | null | undefined) ?? null,
+        description: row.description ?? row.name,
+        sortOrder: row.sortOrder ?? 0,
+      },
+    });
+    upserted += 1;
+  }
+
+  return { upserted, errorCount: errors.length, errors, replaced: opts.replace };
+}
 
 function zArray(value: unknown): unknown[] {
   if (!Array.isArray(value)) {

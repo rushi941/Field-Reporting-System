@@ -10,6 +10,7 @@ import {
   Shield,
   Tags,
   Users,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { apiFetch } from "@/lib/api";
@@ -98,6 +99,13 @@ export function WorkspaceOverviewPage({
       title: "Units",
       body: "Units of measure — LF, EA, LS, and more for bids and reporting.",
       icon: Ruler,
+      permission: "projects.manage",
+    },
+    {
+      to: `${base}/clients`,
+      title: "Clients",
+      body: "Customer / contractor master list with CSV or Excel import.",
+      icon: Building2,
       permission: "projects.manage",
     },
     {

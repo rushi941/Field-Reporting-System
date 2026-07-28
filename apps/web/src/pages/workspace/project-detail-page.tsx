@@ -102,6 +102,7 @@ const divisionLabels: Record<string, string> = {
   PAVEMENT_MARKING: "Pavement Marking",
   TRAFFIC_CONTROL: "Traffic Control",
   PERMANENT_SIGNS: "Permanent Signs",
+  MISCELLANEOUS: "Miscellaneous",
 };
 
 const formLabels: Record<string, string> = {
@@ -578,7 +579,7 @@ export function ProjectDetailPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
+        <div className="flex items-center justify-between border-b bg-muted/40 px-2 py-1">
           <div>
             <h2 className="text-sm font-semibold">Project tasks</h2>
             <p className="text-xs text-muted-foreground">
@@ -593,21 +594,21 @@ export function ProjectDetailPage() {
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="border-b bg-muted/50 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="w-20 px-4 py-3">WBS</th>
-                <th className="w-28 px-4 py-3">Code</th>
+                <th className="w-20 px-2 py-1">WBS</th>
+                <th className="w-28 px-2 py-1">Code</th>
                 {showGenericNameColumn && (
-                  <th className="px-4 py-3">Generic name</th>
+                  <th className="px-2 py-1">Generic name</th>
                 )}
-                <th className="px-4 py-3">Task name</th>
-                <th className="w-36 px-4 py-3">Division</th>
-                <th className="w-20 px-4 py-3">Unit</th>
-                <th className="w-28 px-4 py-3">Form</th>
-                <th className="w-20 px-4 py-3">Color</th>
-                <th className="w-20 px-4 py-3">Width</th>
-                <th className="w-16 px-4 py-3">CF</th>
-                <th className="w-36 px-4 py-3">Work STA</th>
-                <th className="w-36 px-4 py-3">Field person</th>
-                <th className="w-16 px-4 py-3" />
+                <th className="px-2 py-1">Task name</th>
+                <th className="w-36 px-2 py-1">Division</th>
+                <th className="w-20 px-2 py-1">Unit</th>
+                <th className="w-28 px-2 py-1">Form</th>
+                <th className="w-20 px-2 py-1">Color</th>
+                <th className="w-20 px-2 py-1">Width</th>
+                <th className="w-16 px-2 py-1">CF</th>
+                <th className="w-36 px-2 py-1">Work STA</th>
+                <th className="w-36 px-2 py-1">Field person</th>
+                <th className="w-16 px-2 py-1" />
               </tr>
             </thead>
             <tbody>
@@ -615,7 +616,7 @@ export function ProjectDetailPage() {
                 <tr>
                   <td
                     colSpan={showGenericNameColumn ? 13 : 12}
-                    className="px-4 py-10 text-center text-sm text-muted-foreground"
+                    className="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> or{" "}
                     <strong>Import tasks</strong> to add work scope.
@@ -627,45 +628,45 @@ export function ProjectDetailPage() {
                   key={row.taskMasterId}
                   className="border-b last:border-0 hover:bg-muted/10"
                 >
-                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+                  <td className="px-2 py-1 tabular-nums text-muted-foreground">
                     {row.wbs}
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{row.code}</td>
+                  <td className="px-2 py-1 font-mono text-xs">{row.code}</td>
                   {showGenericNameColumn && (
-                    <td className="px-4 py-2.5 text-muted-foreground">
+                    <td className="px-2 py-1 text-muted-foreground">
                       {row.genericName ?? "—"}
                     </td>
                   )}
-                  <td className="px-4 py-2.5">{row.name}</td>
-                  <td className="px-4 py-2.5 text-xs">
+                  <td className="px-2 py-1">{row.name}</td>
+                  <td className="px-2 py-1 text-xs">
                     {divisionLabels[row.division] ?? row.division}
                   </td>
-                  <td className="px-4 py-2.5 text-xs">{row.unit}</td>
-                  <td className="px-4 py-2.5 text-xs">
+                  <td className="px-2 py-1 text-xs">{row.unit}</td>
+                  <td className="px-2 py-1 text-xs">
                     {formLabels[row.formType] ?? row.formType}
                   </td>
-                  <td className="px-4 py-2.5 text-xs">{row.color ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs">
+                  <td className="px-2 py-1 text-xs">{row.color ?? "—"}</td>
+                  <td className="px-2 py-1 text-xs">
                     {row.widthInches != null ? `${row.widthInches}"` : "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-xs tabular-nums">
+                  <td className="px-2 py-1 text-xs tabular-nums">
                     {row.conversionFactor != null
                       ? Number(row.conversionFactor).toFixed(2)
                       : "—"}
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-[11px]">
+                  <td className="px-2 py-1 font-mono text-[11px]">
                     {row.formType === "STA_RANGE" && row.beginSta && row.endSta
                       ? `${row.beginSta} → ${row.endSta}`
                       : row.formType === "STA_RANGE"
                         ? "— set limits"
                         : "—"}
                   </td>
-                  <td className="px-4 py-2.5 text-xs">{row.fieldPerson}</td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-2 py-1 text-xs">{row.fieldPerson}</td>
+                  <td className="px-2 py-1 text-right">
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon"
+                      size="iconSm"
                       disabled={saving}
                       title="Remove task"
                       onClick={() => void removeTask(row.taskMasterId)}
@@ -968,7 +969,7 @@ export function ProjectDetailPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-md border border-border bg-card px-4 py-3 text-sm">
+            <div className="mt-4 rounded-md border border-border bg-card px-2 py-1 text-sm">
               <p className="font-medium">Calculation</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Physical LF = (End STA − Begin STA) × 100 · Reported LF =

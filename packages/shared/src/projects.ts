@@ -1,11 +1,16 @@
 import { z } from "zod";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
 import { normalizeSta, physicalLfFromSta } from "./sta.js";
+import {
+  billingRelationshipEnum,
+  validateProjectBillingParties,
+} from "./billing-parties.js";
 
 export const divisionEnum = z.enum([
   "PAVEMENT_MARKING",
   "TRAFFIC_CONTROL",
   "PERMANENT_SIGNS",
+  "MISCELLANEOUS",
 ]);
 
 export const projectStatusEnum = z.enum(["ACTIVE", "INACTIVE", "COMPLETED"]);
@@ -59,7 +64,7 @@ export const projectRouteSchema = z.object({
   distanceMeters: z.number().nonnegative().optional().nullable(),
 });
 
-export const projectSchema = z.object({
+const projectBaseSchema = z.object({
   jobNumber: z
     .string()
     .trim()
@@ -82,6 +87,7 @@ export const projectSchema = z.object({
     .min(1, "Select at least one field person"),
   clientName: z.string().max(200).optional().nullable(),
   generalContractor: z.string().max(200).optional().nullable(),
+  billingRelationship: billingRelationshipEnum.optional().default("DIRECT_CLIENT"),
   location: z.string().max(300).optional().nullable(),
   contractAmount: z.number().nonnegative().optional().nullable(),
   startDate: optionalDate,
@@ -93,7 +99,22 @@ export const projectSchema = z.object({
   route: projectRouteSchema.optional().nullable(),
 });
 
-export const updateProjectSchema = projectSchema.partial();
+export const projectSchema = projectBaseSchema.superRefine((val, ctx) => {
+  const message = validateProjectBillingParties({
+    billingRelationship: val.billingRelationship ?? "DIRECT_CLIENT",
+    clientName: val.clientName,
+    generalContractor: val.generalContractor,
+  });
+  if (message) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message,
+      path: ["clientName"],
+    });
+  }
+});
+
+export const updateProjectSchema = projectBaseSchema.partial();
 
 /** Create a work task on a project (line code + CF + form) */
 export const projectCreateTaskSchema = z.object({

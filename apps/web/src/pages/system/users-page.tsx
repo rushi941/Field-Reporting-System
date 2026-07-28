@@ -8,6 +8,9 @@ import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 type FormState = {
   email: string;
@@ -58,6 +61,12 @@ export function SystemUsersPage() {
   const [managers, setManagers] = useState<
     { id: string; name: string; email: string; division: string | null }[]
   >([]);
+  const [page, setPage] = useState(1);
+
+  const paginatedUsers = useMemo(
+    () => paginateSlice(users, page, ADMIN_PAGE_SIZE),
+    [users, page],
+  );
 
   const needsDivision = form.roles.some(
     (r) => r === "FIELD_LEAD" || r === "DIVISION_MANAGER",
@@ -69,8 +78,8 @@ export function SystemUsersPage() {
     [editingId],
   );
 
-  async function load() {
-    setLoading(true);
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const u = await apiFetch<{ users: ManagedUser[] }>("/api/v1/users");
       setUsers(u.users);
@@ -191,7 +200,7 @@ export function SystemUsersPage() {
         toast.success("User created successfully");
       }
       setOpen(false);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save user");
     } finally {
@@ -246,7 +255,7 @@ export function SystemUsersPage() {
         );
       }
       setDeleteTarget(null);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -274,7 +283,7 @@ export function SystemUsersPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {showFullPageLoader(loading, users.length > 0) ? (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
@@ -284,30 +293,30 @@ export function SystemUsersPage() {
             <table className="w-full min-w-[520px] text-left text-sm">
               <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Roles</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-2 py-1">Name</th>
+                  <th className="px-2 py-1">Roles</th>
+                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {paginatedUsers.items.map((u) => (
                   <tr
                     key={u.id}
                     className="border-b border-border/80 last:border-0 hover:bg-muted/30"
                   >
-                    <td className="px-4 py-3.5">
+                    <td className="px-2 py-1.5">
                       <div className="font-medium text-foreground">
                         {u.firstName} {u.lastName}
                       </div>
                       <div className="text-xs text-muted-foreground">{u.email}</div>
                     </td>
-                    <td className="px-4 py-3.5 text-xs text-foreground/80">
+                    <td className="px-2 py-1.5 text-xs text-foreground/80">
                       {u.roles
                         .map((r) => roleLabels[r as AppRole] ?? r)
                         .join(", ")}
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-2 py-1.5">
                       <button
                         type="button"
                         disabled={togglingId === u.id}
@@ -328,7 +337,7 @@ export function SystemUsersPage() {
                         )}
                       </button>
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-2 py-1.5">
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
@@ -355,6 +364,14 @@ export function SystemUsersPage() {
               </tbody>
             </table>
           </div>
+          {users.length > 0 && (
+            <TablePagination
+              page={paginatedUsers.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedUsers.total}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       )}
 

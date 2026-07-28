@@ -1,6 +1,9 @@
 /**
  * Dev seed — users, permissions, USA road contractor masters, sample project.
  */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   PrismaClient,
   Role,
@@ -14,7 +17,6 @@ import {
   permissionCatalog,
   roles as appRoles,
   seedProjectTypes,
-  seedTaskMasters,
   seedUnitMasters,
   type AppRole,
   type PermissionAccessValue,
@@ -106,53 +108,101 @@ async function seedMasters() {
     typeIds[t.code] = row.id;
   }
 
-  // Parents first, then children (so parentId resolves)
-  const parents = seedTaskMasters.filter((t) => !t.parentCode);
-  const children = seedTaskMasters.filter((t) => t.parentCode);
-  const taskIds: Record<string, string> = {};
+  // Bid master from Bid Item List.xlsx
+  await seedBidMasters(typeIds);
 
-  for (const task of [...parents, ...children]) {
-    const parentId = task.parentCode ? taskIds[task.parentCode] ?? null : null;
-    const row = await prisma.taskMaster.upsert({
-      where: { code: task.code },
+  return { typeIds, taskIds: {} as Record<string, string> };
+}
+
+async function seedBidMasters(typeIds: Record<string, string>) {
+  const seedPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "bid-seed.json",
+  );
+  if (!fs.existsSync(seedPath)) {
+    console.warn("bid-seed.json not found — skipping bid master seed");
+    return 0;
+  }
+
+  const rows = JSON.parse(fs.readFileSync(seedPath, "utf8")) as {
+    code: string;
+    name: string;
+    unit: string;
+    formType: BidItemFormType;
+    projectTypeCode?: string | null;
+    division?: Division | null;
+    description?: string | null;
+    sortOrder?: number;
+  }[];
+
+  await prisma.reportLineItem.deleteMany({});
+  await prisma.projectTask.deleteMany({});
+  await prisma.taskMaster.deleteMany({});
+
+  let count = 0;
+  for (const row of rows) {
+    const code = row.code.toUpperCase();
+    await prisma.taskMaster.create({
+      data: {
+        code,
+        name: row.name,
+        description: row.description ?? row.name,
+        unit: row.unit.trim().toUpperCase(),
+        formType: row.formType,
+        projectTypeId: row.projectTypeCode
+          ? typeIds[row.projectTypeCode] ?? null
+          : null,
+        division: row.division ?? null,
+        sortOrder: row.sortOrder ?? count + 1,
+      },
+    });
+    count += 1;
+  }
+  return count;
+}
+
+async function seedClients() {
+  const seedPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "client-seed.json",
+  );
+  if (!fs.existsSync(seedPath)) {
+    console.warn("client-seed.json not found — skipping client master seed");
+    return 0;
+  }
+
+  const rows = JSON.parse(fs.readFileSync(seedPath, "utf8")) as {
+    foundationNumber?: number | null;
+    name: string;
+  }[];
+
+  let count = 0;
+  for (const row of rows) {
+    const name = row.name?.trim();
+    if (!name) continue;
+    await prisma.clientMaster.upsert({
+      where: { name },
       update: {
-        name: task.name,
-        description: task.description,
-        unit: task.unit,
-        formType: task.formType as BidItemFormType,
-        projectTypeId: typeIds[task.projectTypeCode] ?? null,
-        division: task.division,
-        parentId,
-        color: task.color ?? null,
-        widthInches: task.widthInches ?? null,
-        conversionFactor: task.conversionFactor ?? null,
-        sortOrder: task.sortOrder,
+        foundationNumber: row.foundationNumber ?? null,
+        sortOrder: row.foundationNumber ?? 0,
         isActive: true,
       },
       create: {
-        code: task.code,
-        name: task.name,
-        description: task.description,
-        unit: task.unit,
-        formType: task.formType as BidItemFormType,
-        projectTypeId: typeIds[task.projectTypeCode] ?? null,
-        division: task.division,
-        parentId,
-        color: task.color ?? null,
-        widthInches: task.widthInches ?? null,
-        conversionFactor: task.conversionFactor ?? null,
-        sortOrder: task.sortOrder,
+        name,
+        foundationNumber: row.foundationNumber ?? null,
+        sortOrder: row.foundationNumber ?? 0,
       },
     });
-    taskIds[task.code] = row.id;
+    count += 1;
   }
-
-  return { typeIds, taskIds };
+  return count;
 }
 
 async function main() {
   await seedPermissions();
   const { typeIds } = await seedMasters();
+  const clientCount = await seedClients();
+  const bidCount = await prisma.taskMaster.count();
 
   const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
 
@@ -360,7 +410,8 @@ async function main() {
   console.log("Seed OK:", {
     admin: admin.email,
     projectTypes: seedProjectTypes.length,
-    tasks: seedTaskMasters.length,
+    tasks: bidCount,
+    clients: clientCount,
     project: project.jobNumber,
     password: "ChangeMe123!",
   });

@@ -10,6 +10,7 @@ import {
   ListChecks,
   FileSpreadsheet,
   Ruler,
+  Building2,
   LogOut,
   Menu,
   X,
@@ -41,6 +42,7 @@ const navByKind: Record<
     { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/system/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/system/units", label: "Units", icon: Ruler, permission: "projects.manage" },
+    { to: "/system/clients", label: "Clients", icon: Building2, permission: "projects.manage" },
     { to: "/system/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
     { to: "/system/users", label: "Users", icon: Users, permission: "users.manage" },
     { to: "/system/permissions", label: "Permissions", icon: Shield, permission: "permissions.manage" },
@@ -51,6 +53,7 @@ const navByKind: Record<
     { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/office/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/office/units", label: "Units", icon: Ruler, permission: "projects.manage" },
+    { to: "/office/clients", label: "Clients", icon: Building2, permission: "projects.manage" },
     { to: "/office/bids", label: "Bid master", icon: ListChecks, permission: "projects.manage" },
   ],
 };

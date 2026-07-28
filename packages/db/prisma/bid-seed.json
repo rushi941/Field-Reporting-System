@@ -1,0 +1,1482 @@
+[
+  {
+    "code": "BI-0001",
+    "name": "AIRPORT PAVEMENT MARKINGS REMOVED",
+    "unit": "SF",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "AIRPORT PAVEMENT MARKINGS REMOVED",
+    "sortOrder": 1
+  },
+  {
+    "code": "BI-0002",
+    "name": "CONCRETE BARRIER RAIL BA-107",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER RAIL BA-107",
+    "sortOrder": 2
+  },
+  {
+    "code": "BI-0003",
+    "name": "CONCRETE BARRIER BA-100",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-100",
+    "sortOrder": 3
+  },
+  {
+    "code": "BI-0004",
+    "name": "CONCRETE BARRIER BA-101",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-101",
+    "sortOrder": 4
+  },
+  {
+    "code": "BI-0005",
+    "name": "CONCRETE BARRIER BA-102",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-102",
+    "sortOrder": 5
+  },
+  {
+    "code": "BI-0006",
+    "name": "CONCRETE BARRIER BA-103",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-103",
+    "sortOrder": 6
+  },
+  {
+    "code": "BI-0007",
+    "name": "CONCRETE BARRIER BA-104",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-104",
+    "sortOrder": 7
+  },
+  {
+    "code": "BI-0008",
+    "name": "CONCRETE BARRIER BA-105",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-105",
+    "sortOrder": 8
+  },
+  {
+    "code": "BI-0009",
+    "name": "CONCRETE BARRIER BA-110",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER BA-110",
+    "sortOrder": 9
+  },
+  {
+    "code": "BI-0010",
+    "name": "CONCRETE BARRIER TAPERED END BA-108",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "CONCRETE BARRIER TAPERED END BA-108",
+    "sortOrder": 10
+  },
+  {
+    "code": "BI-0030",
+    "name": "MOBILIZATION",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "MOBILIZATION",
+    "sortOrder": 30
+  },
+  {
+    "code": "BI-0064",
+    "name": "PROJECT MANAGEMENT",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "PROJECT MANAGEMENT",
+    "sortOrder": 64
+  },
+  {
+    "code": "BI-0127",
+    "name": "STOCKPILED MATERIALS",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "STOCKPILED MATERIALS",
+    "sortOrder": 127
+  },
+  {
+    "code": "BI-0128",
+    "name": "BONDS",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "BONDS",
+    "sortOrder": 128
+  },
+  {
+    "code": "BI-0129",
+    "name": "REMOVAL OF STEEL BEAM GUARDRAIL",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "REMOVAL OF STEEL BEAM GUARDRAIL",
+    "sortOrder": 129
+  },
+  {
+    "code": "BI-0130",
+    "name": "HIGH TENSION CABLE GUARDRAIL",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "HIGH TENSION CABLE GUARDRAIL",
+    "sortOrder": 130
+  },
+  {
+    "code": "BI-0131",
+    "name": "HIGH TENSION CABLE GUARDRAIL END ANCHOR",
+    "unit": "EA",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "HIGH TENSION CABLE GUARDRAIL END ANCHOR",
+    "sortOrder": 131
+  },
+  {
+    "code": "BI-00C1",
+    "name": "Contract Deduct",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "Contract Deduct",
+    "sortOrder": 18
+  },
+  {
+    "code": "BI-0143",
+    "name": "CURB & GUTTER",
+    "unit": "LF",
+    "division": "MISCELLANEOUS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "COMBINED",
+    "description": "CURB & GUTTER",
+    "sortOrder": 143
+  },
+  {
+    "code": "BI-0144",
+    "name": "REMOVAL OF PAVEMENT",
+    "unit": "SY",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "REMOVAL OF PAVEMENT",
+    "sortOrder": 144
+  },
+  {
+    "code": "BI-0147",
+    "name": "Subcontractor Work",
+    "unit": "LS",
+    "division": "MISCELLANEOUS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "COMBINED",
+    "description": "Subcontractor Work",
+    "sortOrder": 147
+  },
+  {
+    "code": "BI-0022",
+    "name": "GROOVES CUT FOR PAVEMENT MARKINGS",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "GROOVES CUT FOR PAVEMENT MARKINGS",
+    "sortOrder": 22
+  },
+  {
+    "code": "BI-0023",
+    "name": "GROOVES CUT FOR SYMBOLS AND LEGENDS",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "GROOVES CUT FOR SYMBOLS AND LEGENDS",
+    "sortOrder": 23
+  },
+  {
+    "code": "BI-0027",
+    "name": "MILLED CENTERLINE RUMBLE STRIPS HMA SURFACE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "MILLED CENTERLINE RUMBLE STRIPS HMA SURFACE",
+    "sortOrder": 27
+  },
+  {
+    "code": "BI-0028",
+    "name": "MILLED CENTERLINE RUMBLE STRIPS PCC SURFACE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "MILLED CENTERLINE RUMBLE STRIPS PCC SURFACE",
+    "sortOrder": 28
+  },
+  {
+    "code": "BI-0029",
+    "name": "MILLED SHOULDER RUMBLE STRIPS PCC SURFACE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "MILLED SHOULDER RUMBLE STRIPS PCC SURFACE",
+    "sortOrder": 29
+  },
+  {
+    "code": "BI-0034",
+    "name": "PAINTED PAVEMENT MARKING MULTI-COMPONENT LIQUID",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PAINTED PAVEMENT MARKING MULTI-COMPONENT LIQUID",
+    "sortOrder": 34
+  },
+  {
+    "code": "BI-0035",
+    "name": "PAINTED PAVEMENT MARKING WATERBORNE OR SOLVENT-BASED",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PAINTED PAVEMENT MARKING WATERBORNE OR SOLVENT-BASED",
+    "sortOrder": 35
+  },
+  {
+    "code": "BI-0036",
+    "name": "PAINTED PAVEMENT MARKINGS DURABLE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PAINTED PAVEMENT MARKINGS DURABLE",
+    "sortOrder": 36
+  },
+  {
+    "code": "BI-0037",
+    "name": "PAINTED PAVEMENT MARKINGS HIGH-BUILD WATERBORNE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PAINTED PAVEMENT MARKINGS HIGH-BUILD WATERBORNE",
+    "sortOrder": 37
+  },
+  {
+    "code": "BI-0038",
+    "name": "PAINTED SYMBOLS AND LEGENDS DURABLE",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PAINTED SYMBOLS AND LEGENDS DURABLE",
+    "sortOrder": 38
+  },
+  {
+    "code": "BI-0039",
+    "name": "PAINTED SYMBOLS AND LEGENDS HIGH-BUILD WATERBORNE",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PAINTED SYMBOLS AND LEGENDS HIGH-BUILD WATERBORNE",
+    "sortOrder": 39
+  },
+  {
+    "code": "BI-0040",
+    "name": "PAINTED SYMBOLS AND LEGENDS MULTI-COMPONENT LIQUID",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PAINTED SYMBOLS AND LEGENDS MULTI-COMPONENT LIQUID",
+    "sortOrder": 40
+  },
+  {
+    "code": "BI-0041",
+    "name": "PAINTED SYMBOLS AND LEGENDS WATERBORNE OR SOLVENT-BASED",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PAINTED SYMBOLS AND LEGENDS WATERBORNE OR SOLVENT-BASED",
+    "sortOrder": 41
+  },
+  {
+    "code": "BI-0042",
+    "name": "PAVEMENT MARKINGS REMOVED",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PAVEMENT MARKINGS REMOVED",
+    "sortOrder": 42
+  },
+  {
+    "code": "BI-0053",
+    "name": "PERMANENT TAPE MARKINGS INTERSECTION MARKING TAPE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PERMANENT TAPE MARKINGS INTERSECTION MARKING TAPE",
+    "sortOrder": 53
+  },
+  {
+    "code": "BI-0054",
+    "name": "PERMANENT TAPE MARKINGS PREFORMED POLYMER MARKING MATERIAL",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PERMANENT TAPE MARKINGS PREFORMED POLYMER MARKING MATERIAL",
+    "sortOrder": 54
+  },
+  {
+    "code": "BI-0055",
+    "name": "PERMANENT TAPE MARKINGS PREFORMED THERMOPLASTIC MARKING MATERIAL",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PERMANENT TAPE MARKINGS PREFORMED THERMOPLASTIC MARKING MATERIAL",
+    "sortOrder": 55
+  },
+  {
+    "code": "BI-0056",
+    "name": "PERMANENT TAPE MARKINGS PROFILED PAVEMENT MARKING TAPE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PERMANENT TAPE MARKINGS PROFILED PAVEMENT MARKING TAPE",
+    "sortOrder": 56
+  },
+  {
+    "code": "BI-0057",
+    "name": "PERMANENT TAPE MARKINGS REGULAR MARKING TAPE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "PERMANENT TAPE MARKINGS REGULAR MARKING TAPE",
+    "sortOrder": 57
+  },
+  {
+    "code": "BI-0060",
+    "name": "PRE-CUT SYMBOLS AND LEGENDS PREFORMED POLYMER MARKING MATERIAL",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PRE-CUT SYMBOLS AND LEGENDS PREFORMED POLYMER MARKING MATERIAL",
+    "sortOrder": 60
+  },
+  {
+    "code": "BI-0061",
+    "name": "PRE-CUT SYMBOLS AND LEGENDS PREFORMED THERMOPLASTIC MARKING MATERIAL",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PRE-CUT SYMBOLS AND LEGENDS PREFORMED THERMOPLASTIC MARKING MATERIAL",
+    "sortOrder": 61
+  },
+  {
+    "code": "BI-0062",
+    "name": "PRE-CUT SYMBOLS AND LEGENDS PROFILED PAVEMENT MARKING TAPE",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PRE-CUT SYMBOLS AND LEGENDS PROFILED PAVEMENT MARKING TAPE",
+    "sortOrder": 62
+  },
+  {
+    "code": "BI-0063",
+    "name": "PRE-CUT SYMBOLS AND LEGENDS REGULAR MARKING TAPE",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "PRE-CUT SYMBOLS AND LEGENDS REGULAR MARKING TAPE",
+    "sortOrder": 63
+  },
+  {
+    "code": "BI-0065",
+    "name": "RAISED PAVEMENT MARKERS",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "RAISED PAVEMENT MARKERS",
+    "sortOrder": 65
+  },
+  {
+    "code": "BI-0069",
+    "name": "REMOVABLE NONREFLECTIVE PREFORMED TAPE",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "REMOVABLE NONREFLECTIVE PREFORMED TAPE",
+    "sortOrder": 69
+  },
+  {
+    "code": "BI-0111",
+    "name": "SYMBOLS AND LEGENDS REMOVED",
+    "unit": "EA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "SYMBOLS AND LEGENDS REMOVED",
+    "sortOrder": 111
+  },
+  {
+    "code": "BI-0125",
+    "name": "WET RETROREFLECTIVE REMOVABLE TAPE MARKINGS",
+    "unit": "STA",
+    "division": "PAVEMENT_MARKING",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PM",
+    "description": "WET RETROREFLECTIVE REMOVABLE TAPE MARKINGS",
+    "sortOrder": 125
+  },
+  {
+    "code": "BI-0139",
+    "name": "Painted Crosswalks",
+    "unit": "SF",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "Painted Crosswalks",
+    "sortOrder": 139
+  },
+  {
+    "code": "BI-0140",
+    "name": "Painting Misc.",
+    "unit": "LS",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "Painting Misc.",
+    "sortOrder": 140
+  },
+  {
+    "code": "BI-0145",
+    "name": "REFLECTIVE MEDIA",
+    "unit": "LB",
+    "division": "PAVEMENT_MARKING",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PM",
+    "description": "REFLECTIVE MEDIA",
+    "sortOrder": 145
+  },
+  {
+    "code": "BI-0011",
+    "name": "CONCRETE FOOTING FOR BREAKAWAY SIGN POST 2'-8in DIA. X 6'-0in",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "CONCRETE FOOTING FOR BREAKAWAY SIGN POST 2'-8in DIA. X 6'-0in",
+    "sortOrder": 11
+  },
+  {
+    "code": "BI-0012",
+    "name": "CONCRETE FOOTING FOR BREAKAWAY SIGN POST 2'-8in DIA. X 7'-6in",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "CONCRETE FOOTING FOR BREAKAWAY SIGN POST 2'-8in DIA. X 7'-6in",
+    "sortOrder": 12
+  },
+  {
+    "code": "BI-0013",
+    "name": "CONSTRUCTION SURVEY",
+    "unit": "LS",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "CONSTRUCTION SURVEY",
+    "sortOrder": 13
+  },
+  {
+    "code": "BI-0014",
+    "name": "DELINEATOR RIGID - TYPE I",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DELINEATOR RIGID - TYPE I",
+    "sortOrder": 14
+  },
+  {
+    "code": "BI-0015",
+    "name": "DELINEATOR RIGID - TYPE IA",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DELINEATOR RIGID - TYPE IA",
+    "sortOrder": 15
+  },
+  {
+    "code": "BI-0016",
+    "name": "DELINEATOR RIGID - TYPE II",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DELINEATOR RIGID - TYPE II",
+    "sortOrder": 16
+  },
+  {
+    "code": "BI-0017",
+    "name": "DELINEATOR RIGID - TYPE III",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DELINEATOR RIGID - TYPE III",
+    "sortOrder": 17
+  },
+  {
+    "code": "BI-0018",
+    "name": "DYNAMIC MESSAGE SIGN (D.M.S.) INSTALLATION",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DYNAMIC MESSAGE SIGN (D.M.S.) INSTALLATION",
+    "sortOrder": 18
+  },
+  {
+    "code": "BI-0019",
+    "name": "EXCAVATION CLASS 20",
+    "unit": "CY",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "EXCAVATION CLASS 20",
+    "sortOrder": 19
+  },
+  {
+    "code": "BI-0024",
+    "name": "GUIDANCE MARKER CHEVRON W1-8 (SPECIAL)",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "GUIDANCE MARKER CHEVRON W1-8 (SPECIAL)",
+    "sortOrder": 24
+  },
+  {
+    "code": "BI-0025",
+    "name": "INSTALL TYPE A SIGN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "INSTALL TYPE A SIGN",
+    "sortOrder": 25
+  },
+  {
+    "code": "BI-0026",
+    "name": "INSTALL TYPE B SIGN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "INSTALL TYPE B SIGN",
+    "sortOrder": 26
+  },
+  {
+    "code": "BI-0033",
+    "name": "OVERLAY TYPE B GUIDE SIGNS",
+    "unit": "SF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "OVERLAY TYPE B GUIDE SIGNS",
+    "sortOrder": 33
+  },
+  {
+    "code": "BI-0044",
+    "name": "PERFORATED SQUARE STEEL TUBE POST ANCHOR BREAK-AWAY CONCRETE INSTALLATION",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "PERFORATED SQUARE STEEL TUBE POST ANCHOR BREAK-AWAY CONCRETE INSTALLATION",
+    "sortOrder": 44
+  },
+  {
+    "code": "BI-0045",
+    "name": "PERFORATED SQUARE STEEL TUBE POST ANCHOR BREAK-AWAY SOIL INSTALLATION",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "PERFORATED SQUARE STEEL TUBE POST ANCHOR BREAK-AWAY SOIL INSTALLATION",
+    "sortOrder": 45
+  },
+  {
+    "code": "BI-0046",
+    "name": "PERFORATED SQUARE STEEL TUBE POST ANCHOR TRIANGULAR SLIP BASE ASSEMBLY",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "PERFORATED SQUARE STEEL TUBE POST ANCHOR TRIANGULAR SLIP BASE ASSEMBLY",
+    "sortOrder": 46
+  },
+  {
+    "code": "BI-0047",
+    "name": "PERFORATED SQUARE STEEL TUBE POSTS",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "PERFORATED SQUARE STEEL TUBE POSTS",
+    "sortOrder": 47
+  },
+  {
+    "code": "BI-0051",
+    "name": "PERMANENT ROAD CLOSURE RURAL SI-181",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "PERMANENT ROAD CLOSURE RURAL SI-181",
+    "sortOrder": 51
+  },
+  {
+    "code": "BI-0052",
+    "name": "PERMANENT ROAD CLOSURE URBAN SI-182",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "PERMANENT ROAD CLOSURE URBAN SI-182",
+    "sortOrder": 52
+  },
+  {
+    "code": "BI-0066",
+    "name": "REFERENCE LOCATION SIGNS",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REFERENCE LOCATION SIGNS",
+    "sortOrder": 66
+  },
+  {
+    "code": "BI-0067",
+    "name": "REINFORCING STEEL EPOXY COATED",
+    "unit": "LB",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REINFORCING STEEL EPOXY COATED",
+    "sortOrder": 67
+  },
+  {
+    "code": "BI-0068",
+    "name": "RELOCATION OF MAIL BOXES",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "RELOCATION OF MAIL BOXES",
+    "sortOrder": 68
+  },
+  {
+    "code": "BI-0070",
+    "name": "REMOVAL OF CONCRETE FOUNDATIONS OF HIGHWAY SIGNS",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF CONCRETE FOUNDATIONS OF HIGHWAY SIGNS",
+    "sortOrder": 70
+  },
+  {
+    "code": "BI-0071",
+    "name": "REMOVAL OF ROAD CLOSURE BARRICADE",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF ROAD CLOSURE BARRICADE",
+    "sortOrder": 71
+  },
+  {
+    "code": "BI-0072",
+    "name": "REMOVAL OF SIGN SUPPORT STRUCTURE AND FOUNDATION",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF SIGN SUPPORT STRUCTURE AND FOUNDATION",
+    "sortOrder": 72
+  },
+  {
+    "code": "BI-0073",
+    "name": "REMOVAL OF TYPE A SIGN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF TYPE A SIGN",
+    "sortOrder": 73
+  },
+  {
+    "code": "BI-0074",
+    "name": "REMOVAL OF TYPE A SIGN ASSEMBLY",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF TYPE A SIGN ASSEMBLY",
+    "sortOrder": 74
+  },
+  {
+    "code": "BI-0075",
+    "name": "REMOVAL OF TYPE B SIGN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF TYPE B SIGN",
+    "sortOrder": 75
+  },
+  {
+    "code": "BI-0076",
+    "name": "REMOVAL OF TYPE B SIGN ASSEMBLY",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVAL OF TYPE B SIGN ASSEMBLY",
+    "sortOrder": 76
+  },
+  {
+    "code": "BI-0077",
+    "name": "REMOVE AND REINSTALL DELINEATOR POSTS",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVE AND REINSTALL DELINEATOR POSTS",
+    "sortOrder": 77
+  },
+  {
+    "code": "BI-0078",
+    "name": "REMOVE AND REINSTALL REFERENCE LOCATION SIGN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVE AND REINSTALL REFERENCE LOCATION SIGN",
+    "sortOrder": 78
+  },
+  {
+    "code": "BI-0079",
+    "name": "REMOVE AND REINSTALL SIGN AS PER PLAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVE AND REINSTALL SIGN AS PER PLAN",
+    "sortOrder": 79
+  },
+  {
+    "code": "BI-0080",
+    "name": "ROADSIDE DYNAMIC MESSAGE SIGN (D.M.S.) SUPPORT",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "ROADSIDE DYNAMIC MESSAGE SIGN (D.M.S.) SUPPORT",
+    "sortOrder": 80
+  },
+  {
+    "code": "BI-0081",
+    "name": "ROADSIDE DYNAMIC MESSAGE SIGN (D.M.S.) INSTALL",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "ROADSIDE DYNAMIC MESSAGE SIGN (D.M.S.) INSTALL",
+    "sortOrder": 81
+  },
+  {
+    "code": "BI-0083",
+    "name": "SIGN MOUNTING BRACKETS SPECIAL",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "SIGN MOUNTING BRACKETS SPECIAL",
+    "sortOrder": 83
+  },
+  {
+    "code": "BI-0084",
+    "name": "STEEL BREAKAWAY SIGN POSTS FOR TYPE A OR B SIGNS W 12 X 26",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "STEEL BREAKAWAY SIGN POSTS FOR TYPE A OR B SIGNS W 12 X 26",
+    "sortOrder": 84
+  },
+  {
+    "code": "BI-0085",
+    "name": "STEEL BREAKAWAY SIGN POSTS FOR TYPE A OR B SIGNS W 8 X 21",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "STEEL BREAKAWAY SIGN POSTS FOR TYPE A OR B SIGNS W 8 X 21",
+    "sortOrder": 85
+  },
+  {
+    "code": "BI-0086",
+    "name": "STEEL BREAKAWAY SIGN POSTS RECTANGULAR TUBE 4in X 6in",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "STEEL BREAKAWAY SIGN POSTS RECTANGULAR TUBE 4in X 6in",
+    "sortOrder": 86
+  },
+  {
+    "code": "BI-0087",
+    "name": "STEEL CANTILEVER SIGN TRUSS 30 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 30 FT. ARM",
+    "sortOrder": 87
+  },
+  {
+    "code": "BI-0088",
+    "name": "STEEL CANTILEVER SIGN TRUSS 32 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 32 FT. ARM",
+    "sortOrder": 88
+  },
+  {
+    "code": "BI-0089",
+    "name": "STEEL CANTILEVER SIGN TRUSS 34 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 34 FT. ARM",
+    "sortOrder": 89
+  },
+  {
+    "code": "BI-0090",
+    "name": "STEEL CANTILEVER SIGN TRUSS 36 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 36 FT. ARM",
+    "sortOrder": 90
+  },
+  {
+    "code": "BI-0091",
+    "name": "STEEL CANTILEVER SIGN TRUSS 38 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 38 FT. ARM",
+    "sortOrder": 91
+  },
+  {
+    "code": "BI-0092",
+    "name": "STEEL CANTILEVER SIGN TRUSS 40 FT. ARM",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL CANTILEVER SIGN TRUSS 40 FT. ARM",
+    "sortOrder": 92
+  },
+  {
+    "code": "BI-0093",
+    "name": "STEEL OVERHEAD SIGN TRUSS 100 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 100 FT. SPAN",
+    "sortOrder": 93
+  },
+  {
+    "code": "BI-0094",
+    "name": "STEEL OVERHEAD SIGN TRUSS 105 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 105 FT. SPAN",
+    "sortOrder": 94
+  },
+  {
+    "code": "BI-0095",
+    "name": "STEEL OVERHEAD SIGN TRUSS 110 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 110 FT. SPAN",
+    "sortOrder": 95
+  },
+  {
+    "code": "BI-0096",
+    "name": "STEEL OVERHEAD SIGN TRUSS 115 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 115 FT. SPAN",
+    "sortOrder": 96
+  },
+  {
+    "code": "BI-0097",
+    "name": "STEEL OVERHEAD SIGN TRUSS 120 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 120 FT. SPAN",
+    "sortOrder": 97
+  },
+  {
+    "code": "BI-0098",
+    "name": "STEEL OVERHEAD SIGN TRUSS 125 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 125 FT. SPAN",
+    "sortOrder": 98
+  },
+  {
+    "code": "BI-0099",
+    "name": "STEEL OVERHEAD SIGN TRUSS 130 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 130 FT. SPAN",
+    "sortOrder": 99
+  },
+  {
+    "code": "BI-0100",
+    "name": "STEEL OVERHEAD SIGN TRUSS 50 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 50 FT. SPAN",
+    "sortOrder": 100
+  },
+  {
+    "code": "BI-0101",
+    "name": "STEEL OVERHEAD SIGN TRUSS 55 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 55 FT. SPAN",
+    "sortOrder": 101
+  },
+  {
+    "code": "BI-0102",
+    "name": "STEEL OVERHEAD SIGN TRUSS 60 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 60 FT. SPAN",
+    "sortOrder": 102
+  },
+  {
+    "code": "BI-0103",
+    "name": "STEEL OVERHEAD SIGN TRUSS 65 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 65 FT. SPAN",
+    "sortOrder": 103
+  },
+  {
+    "code": "BI-0104",
+    "name": "STEEL OVERHEAD SIGN TRUSS 70 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 70 FT. SPAN",
+    "sortOrder": 104
+  },
+  {
+    "code": "BI-0105",
+    "name": "STEEL OVERHEAD SIGN TRUSS 75 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 75 FT. SPAN",
+    "sortOrder": 105
+  },
+  {
+    "code": "BI-0106",
+    "name": "STEEL OVERHEAD SIGN TRUSS 80 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 80 FT. SPAN",
+    "sortOrder": 106
+  },
+  {
+    "code": "BI-0107",
+    "name": "STEEL OVERHEAD SIGN TRUSS 85 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 85 FT. SPAN",
+    "sortOrder": 107
+  },
+  {
+    "code": "BI-0108",
+    "name": "STEEL OVERHEAD SIGN TRUSS 90 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 90 FT. SPAN",
+    "sortOrder": 108
+  },
+  {
+    "code": "BI-0109",
+    "name": "STEEL OVERHEAD SIGN TRUSS 95 FT. SPAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STEEL OVERHEAD SIGN TRUSS 95 FT. SPAN",
+    "sortOrder": 109
+  },
+  {
+    "code": "BI-0110",
+    "name": "STRUCTURAL CONCRETE (MISCELLANEOUS)",
+    "unit": "CY",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "STRUCTURAL CONCRETE (MISCELLANEOUS)",
+    "sortOrder": 110
+  },
+  {
+    "code": "BI-0121",
+    "name": "TYPE A SIGNS MODIFICATION AS PER PLAN",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "TYPE A SIGNS MODIFICATION AS PER PLAN",
+    "sortOrder": 121
+  },
+  {
+    "code": "BI-0122",
+    "name": "TYPE A SIGNS PLYWOOD",
+    "unit": "SF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "TYPE A SIGNS PLYWOOD",
+    "sortOrder": 122
+  },
+  {
+    "code": "BI-0123",
+    "name": "TYPE A SIGNS SHEET ALUMINUM",
+    "unit": "SF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "TYPE A SIGNS SHEET ALUMINUM",
+    "sortOrder": 123
+  },
+  {
+    "code": "BI-0124",
+    "name": "TYPE B SIGNS EXTRUDED ALUMINUM STRUCTURAL PANEL",
+    "unit": "SF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "TYPE B SIGNS EXTRUDED ALUMINUM STRUCTURAL PANEL",
+    "sortOrder": 124
+  },
+  {
+    "code": "BI-0126",
+    "name": "OBJECT MARKER",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "OBJECT MARKER",
+    "sortOrder": 126
+  },
+  {
+    "code": "BI-0132",
+    "name": "REMOVE OVERHEAD DMS",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "REMOVE OVERHEAD DMS",
+    "sortOrder": 132
+  },
+  {
+    "code": "BI-0133",
+    "name": "ANCHOR BOLT ASSEMBLY- INSTALL",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "ANCHOR BOLT ASSEMBLY- INSTALL",
+    "sortOrder": 133
+  },
+  {
+    "code": "BI-0134",
+    "name": "DMS LADDER, GATE, & RUNWAY",
+    "unit": "EA",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "DMS LADDER, GATE, & RUNWAY",
+    "sortOrder": 134
+  },
+  {
+    "code": "BI-0135",
+    "name": "ANCHOR BOLT ASSEMBLY- FURNISH",
+    "unit": "LB",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "ANCHOR BOLT ASSEMBLY- FURNISH",
+    "sortOrder": 135
+  },
+  {
+    "code": "BI-0136",
+    "name": "Wooden Post for Type A or B Sign",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "Wooden Post for Type A or B Sign",
+    "sortOrder": 136
+  },
+  {
+    "code": "BI-0137",
+    "name": "Parking Sign Bollard",
+    "unit": "LF",
+    "division": "PERMANENT_SIGNS",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "PS",
+    "description": "Parking Sign Bollard",
+    "sortOrder": 137
+  },
+  {
+    "code": "BI-0138",
+    "name": "Special Backfill",
+    "unit": "CY",
+    "division": "PERMANENT_SIGNS",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "PS",
+    "description": "Special Backfill",
+    "sortOrder": 138
+  },
+  {
+    "code": "BI-0020",
+    "name": "FENCE SAFETY",
+    "unit": "LF",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "TC",
+    "description": "FENCE SAFETY",
+    "sortOrder": 20
+  },
+  {
+    "code": "BI-0021",
+    "name": "FLAGGERS",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "FLAGGERS",
+    "sortOrder": 21
+  },
+  {
+    "code": "BI-0031",
+    "name": "MODULAR GLARE SCREEN SYSTEM",
+    "unit": "LF",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "TC",
+    "description": "MODULAR GLARE SCREEN SYSTEM",
+    "sortOrder": 31
+  },
+  {
+    "code": "BI-0032",
+    "name": "MONITORING WITH INCIDENT RESPONSE",
+    "unit": "CDAY",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "MONITORING WITH INCIDENT RESPONSE",
+    "sortOrder": 32
+  },
+  {
+    "code": "BI-0043",
+    "name": "PEDESTRIAN CHANNELIZER",
+    "unit": "LF",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "TC",
+    "description": "PEDESTRIAN CHANNELIZER",
+    "sortOrder": 43
+  },
+  {
+    "code": "BI-0048",
+    "name": "PERMANENT CRASH CUSHION",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "PERMANENT CRASH CUSHION",
+    "sortOrder": 48
+  },
+  {
+    "code": "BI-0049",
+    "name": "PERMANENT CRASH CUSHION SPARE PARTS KIT",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "PERMANENT CRASH CUSHION SPARE PARTS KIT",
+    "sortOrder": 49
+  },
+  {
+    "code": "BI-0050",
+    "name": "PERMANENT CRASH CUSHION SEVERE USE (SU)",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "PERMANENT CRASH CUSHION SEVERE USE (SU)",
+    "sortOrder": 50
+  },
+  {
+    "code": "BI-0058",
+    "name": "PILOT CARS",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "PILOT CARS",
+    "sortOrder": 58
+  },
+  {
+    "code": "BI-0059",
+    "name": "PORTABLE DYNAMIC MESSAGE SIGN (PDMS)",
+    "unit": "CDAY",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "PORTABLE DYNAMIC MESSAGE SIGN (PDMS)",
+    "sortOrder": 59
+  },
+  {
+    "code": "BI-0082",
+    "name": "SAFETY CLOSURE",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "SAFETY CLOSURE",
+    "sortOrder": 82
+  },
+  {
+    "code": "BI-0112",
+    "name": "TEMP CRASH CUSHION",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMP CRASH CUSHION",
+    "sortOrder": 112
+  },
+  {
+    "code": "BI-0113",
+    "name": "TEMP CRASH CUSHION REDIRECTIVE (R)",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMP CRASH CUSHION REDIRECTIVE (R)",
+    "sortOrder": 113
+  },
+  {
+    "code": "BI-0114",
+    "name": "TEMP CRASH CUSHION SEVERE USE (SU)",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMP CRASH CUSHION SEVERE USE (SU)",
+    "sortOrder": 114
+  },
+  {
+    "code": "BI-0115",
+    "name": "TEMPORARY BARRIER RAIL CONCRETE",
+    "unit": "LF",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "TC",
+    "description": "TEMPORARY BARRIER RAIL CONCRETE",
+    "sortOrder": 115
+  },
+  {
+    "code": "BI-0116",
+    "name": "TEMPORARY DELINEATORS",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMPORARY DELINEATORS",
+    "sortOrder": 116
+  },
+  {
+    "code": "BI-0117",
+    "name": "TEMPORARY FLOODLIGHTING LUMINAIRE",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMPORARY FLOODLIGHTING LUMINAIRE",
+    "sortOrder": 117
+  },
+  {
+    "code": "BI-0118",
+    "name": "TEMPORARY LANE SEPARATOR SYSTEM",
+    "unit": "LF",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "STA_RANGE",
+    "projectTypeCode": "TC",
+    "description": "TEMPORARY LANE SEPARATOR SYSTEM",
+    "sortOrder": 118
+  },
+  {
+    "code": "BI-0119",
+    "name": "TEMPORARY TRAFFIC SIGNALS",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TEMPORARY TRAFFIC SIGNALS",
+    "sortOrder": 119
+  },
+  {
+    "code": "BI-0120",
+    "name": "TRAFFIC CONTROL",
+    "unit": "LS",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "TRAFFIC CONTROL",
+    "sortOrder": 120
+  },
+  {
+    "code": "BI-0141",
+    "name": "Temp Road Closure",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "Temp Road Closure",
+    "sortOrder": 141
+  },
+  {
+    "code": "BI-0142",
+    "name": "Permanent Tubular Markings",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "Permanent Tubular Markings",
+    "sortOrder": 142
+  },
+  {
+    "code": "BI-0146",
+    "name": "Special Signs",
+    "unit": "EA",
+    "division": "TRAFFIC_CONTROL",
+    "formType": "SINGLE_LOCATION",
+    "projectTypeCode": "TC",
+    "description": "Special Signs",
+    "sortOrder": 146
+  }
+]

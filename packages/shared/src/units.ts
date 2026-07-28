@@ -17,6 +17,10 @@ export const seedUnitMasters = [
   { code: "LF", name: "Linear Feet", sortOrder: 10 },
   { code: "EA", name: "Each", sortOrder: 20 },
   { code: "LS", name: "Lump Sum", sortOrder: 30 },
-  { code: "SQFT", name: "Square Feet", sortOrder: 40 },
+  { code: "SF", name: "Square Feet", sortOrder: 40 },
   { code: "SY", name: "Square Yard", sortOrder: 50 },
+  { code: "STA", name: "Station", sortOrder: 60 },
+  { code: "CY", name: "Cubic Yard", sortOrder: 70 },
+  { code: "LB", name: "Pound", sortOrder: 80 },
+  { code: "CDAY", name: "Calendar Day", sortOrder: 90 },
 ] as const;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { projectTypeSchema, updateProjectTypeSchema } from "@frs/shared";
@@ -7,6 +7,9 @@ import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { showFullPageLoader } from "@/lib/page-load";
+import { TablePagination } from "@/components/table-pagination";
+import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
 
 type ProjectType = {
   id: string;
@@ -44,9 +47,15 @@ export function ProjectTypesPage() {
     division: "",
     isActive: true,
   });
+  const [page, setPage] = useState(1);
 
-  async function load() {
-    setLoading(true);
+  const paginatedRows = useMemo(
+    () => paginateSlice(rows, page, ADMIN_PAGE_SIZE),
+    [rows, page],
+  );
+
+  async function load(background = false) {
+    if (!background) setLoading(true);
     try {
       const data = await apiFetch<{ projectTypes: ProjectType[] }>(
         "/api/v1/project-types",
@@ -112,7 +121,7 @@ export function ProjectTypesPage() {
         toast.success("Project type created");
       }
       setOpen(false);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -129,7 +138,7 @@ export function ProjectTypesPage() {
       });
       toast.success(`Deleted project type ${deleteTarget.code}`);
       setDeleteTarget(null);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -153,7 +162,7 @@ export function ProjectTypesPage() {
         </Button>
       </div>
 
-      {loading ? (
+      {showFullPageLoader(loading, rows.length > 0) ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
@@ -162,39 +171,39 @@ export function ProjectTypesPage() {
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Division</th>
-                <th className="px-4 py-3">Usage</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
+                <th className="px-2 py-1">Code</th>
+                <th className="px-2 py-1">Name</th>
+                <th className="px-2 py-1">Division</th>
+                <th className="px-2 py-1">Usage</th>
+                <th className="px-2 py-1">Status</th>
+                <th className="px-2 py-1" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {paginatedRows.items.map((r) => (
                 <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{r.code}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-1 font-medium">{r.code}</td>
+                  <td className="px-2 py-1">
                     <div>{r.name}</div>
                     {r.description && (
                       <div className="text-xs text-muted-foreground">{r.description}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs">{r.division ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-2 py-1 text-xs">{r.division ?? "—"}</td>
+                  <td className="px-2 py-1 text-xs">
                     {r.projectCount} projects · {r.taskCount} bids
                   </td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-2 py-1 text-xs">
                     {r.isActive ? "Active" : "Inactive"}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                  <td className="px-2 py-1 text-right">
+                    <div className="flex justify-end gap-0">
+                      <Button variant="ghost" size="iconSm" onClick={() => openEdit(r)}>
                         <Pencil className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="iconSm"
                         title="Delete project type"
                         onClick={() => setDeleteTarget(r)}
                       >
@@ -206,6 +215,14 @@ export function ProjectTypesPage() {
               ))}
             </tbody>
           </table>
+          {rows.length > 0 && (
+            <TablePagination
+              page={paginatedRows.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={paginatedRows.total}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       )}
 
