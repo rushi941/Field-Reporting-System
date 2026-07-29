@@ -1,0 +1,36 @@
+# Apply Prisma migrations + full demo seed to Neon (manual).
+# Repo secret required: DATABASE_URL (Neon connection string with ?sslmode=require)
+
+name: Neon seed
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: neon-seed
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate -w @frs/db
+
+      - name: Migrate and seed Neon
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/seed-deploy.mjs
