@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
 import { normalizeSta, physicalLfFromSta } from "./sta.js";
-import {
-  billingRelationshipEnum,
-  validateProjectBillingParties,
-} from "./billing-parties.js";
 
 export const divisionEnum = z.enum([
   "PAVEMENT_MARKING",
@@ -87,7 +83,6 @@ const projectBaseSchema = z.object({
     .min(1, "Select at least one field person"),
   clientName: z.string().max(200).optional().nullable(),
   generalContractor: z.string().max(200).optional().nullable(),
-  billingRelationship: billingRelationshipEnum.optional().default("DIRECT_CLIENT"),
   location: z.string().max(300).optional().nullable(),
   contractAmount: z.number().nonnegative().optional().nullable(),
   startDate: optionalDate,
@@ -99,54 +94,60 @@ const projectBaseSchema = z.object({
   route: projectRouteSchema.optional().nullable(),
 });
 
-export const projectSchema = projectBaseSchema.superRefine((val, ctx) => {
-  const message = validateProjectBillingParties({
-    billingRelationship: val.billingRelationship ?? "DIRECT_CLIENT",
-    clientName: val.clientName,
-    generalContractor: val.generalContractor,
-  });
-  if (message) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message,
-      path: ["clientName"],
-    });
-  }
-});
+export const projectSchema = projectBaseSchema;
 
 export const updateProjectSchema = projectBaseSchema.partial();
 
-/** Create a work task on a project (line code + CF + form) */
-export const projectCreateTaskSchema = z.object({
-  name: z.string().min(1).max(200),
-  code: z.string().min(1).max(40).optional(),
-  unit: z.string().min(1).max(20).optional().default("LF"),
-  formType: formTypeEnum.optional().default("STA_RANGE"),
-  division: divisionEnum.optional(),
-  color: z.string().max(40).optional().nullable(),
-  widthInches: z.number().int().positive().optional().nullable(),
-  conversionFactor: z.number().nonnegative(),
-  description: z.string().max(500).optional().nullable(),
-  assignedToId: z.string().min(1),
-  beginSta: z.string().trim().max(32).optional().nullable(),
-  endSta: z.string().trim().max(32).optional().nullable(),
-}).superRefine((val, ctx) => {
-  if (val.formType !== "STA_RANGE") return;
-  if (!val.beginSta?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Begin STA is required for STA range tasks",
-      path: ["beginSta"],
-    });
-  }
-  if (!val.endSta?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "End STA is required for STA range tasks",
-      path: ["endSta"],
-    });
-  }
-});
+/** Create a work task on a project — link existing sub-bid or create ad-hoc line */
+export const projectCreateTaskSchema = z
+  .object({
+    taskMasterId: z.string().min(1).optional(),
+    name: z.string().min(1).max(200).optional(),
+    code: z.string().min(1).max(40).optional(),
+    unit: z.string().min(1).max(20).optional().default("LF"),
+    formType: formTypeEnum.optional().default("STA_RANGE"),
+    division: divisionEnum.optional(),
+    color: z.string().max(40).optional().nullable(),
+    widthInches: z.number().int().positive().optional().nullable(),
+    conversionFactor: z.number().nonnegative().optional(),
+    description: z.string().max(500).optional().nullable(),
+    assignedToId: z.string().min(1),
+    beginSta: z.string().trim().max(32).optional().nullable(),
+    endSta: z.string().trim().max(32).optional().nullable(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.taskMasterId) {
+      if (!val.name?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Task name is required",
+          path: ["name"],
+        });
+      }
+      if (val.conversionFactor == null || Number.isNaN(val.conversionFactor)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Conversion factor is required",
+          path: ["conversionFactor"],
+        });
+      }
+    }
+    if (val.formType !== "STA_RANGE") return;
+    if (!val.beginSta?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Begin STA is required for STA range tasks",
+        path: ["beginSta"],
+      });
+    }
+    if (!val.endSta?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End STA is required for STA range tasks",
+        path: ["endSta"],
+      });
+    }
+  });
 
 /** All divisions on a project (primary + extras, deduped). */
 export function projectDivisions(
@@ -172,20 +173,45 @@ export type ProjectCreateTaskInput = z.infer<typeof projectCreateTaskSchema>;
 /** CSV / Excel row for bulk import onto a project */
 export const projectTaskImportRowSchema = z
   .object({
-    code: z.string().trim().min(1).max(40),
-    name: z.string().trim().min(1).max(200),
+    masterBidCode: z.string().trim().max(40).optional(),
+    subBidCode: z.string().trim().max(40).optional(),
+    code: z.string().trim().max(40).optional(),
+    name: z.string().trim().max(200).optional(),
     unit: z.string().trim().min(1).max(20).optional().default("LF"),
     formType: formTypeEnum.optional().default("STA_RANGE"),
     division: divisionEnum.optional(),
     color: z.string().trim().max(40).optional().nullable(),
     widthInches: z.number().int().positive().optional().nullable(),
-    conversionFactor: z.number().nonnegative(),
+    conversionFactor: z.number().nonnegative().optional(),
     fieldPersonEmail: z.string().trim().email(),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
     description: z.string().trim().max(500).optional().nullable(),
   })
   .superRefine((val, ctx) => {
+    if (!val.subBidCode?.trim() && !val.code?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "subBidCode (or code) is required",
+        path: ["subBidCode"],
+      });
+    }
+    if (!val.subBidCode?.trim()) {
+      if (!val.name?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "name is required when subBidCode is omitted",
+          path: ["name"],
+        });
+      }
+      if (val.conversionFactor == null || Number.isNaN(val.conversionFactor)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "conversionFactor is required when subBidCode is omitted",
+          path: ["conversionFactor"],
+        });
+      }
+    }
     if (val.formType !== "STA_RANGE") return;
     if (!val.beginSta?.trim()) {
       ctx.addIssue({
@@ -206,14 +232,9 @@ export const projectTaskImportRowSchema = z
 export type ProjectTaskImportRow = z.infer<typeof projectTaskImportRowSchema>;
 
 export const PROJECT_TASK_IMPORT_HEADERS = [
-  "code",
-  "name",
-  "unit",
-  "formType",
+  "masterBidCode",
+  "subBidCode",
   "division",
-  "color",
-  "widthInches",
-  "conversionFactor",
   "fieldPersonEmail",
   "beginSta",
   "endSta",
@@ -222,32 +243,22 @@ export const PROJECT_TASK_IMPORT_HEADERS = [
 
 export const PROJECT_TASK_IMPORT_SAMPLE_ROWS: string[][] = [
   [
-    "PM-4W-EDGE",
-    '4" Edge Line',
-    "LF",
-    "STA_RANGE",
+    "BI-0035",
+    "WB-ELW4",
     "PAVEMENT_MARKING",
-    "W",
-    "4",
-    "1.00",
     "lead@frs.local",
     "100+00",
     "105+00",
-    "Sample edge line task",
+    "Edge line right white",
   ],
   [
-    "PM-STOP",
-    "Stop Bar",
-    "LF",
-    "STA_RANGE",
+    "BI-0035",
+    "WB-SLW2-4",
     "PAVEMENT_MARKING",
-    "W",
-    "24",
-    "1.00",
     "lead@frs.local",
     "105+00",
     "106+00",
-    "",
+    "Stop line",
   ],
 ];
 
@@ -257,13 +268,11 @@ export function normalizeProjectTaskImportRow(
 ): Record<string, unknown> {
   const pick = (...keys: string[]) => {
     for (const key of keys) {
-      const direct = raw[key];
-      if (direct != null && String(direct).trim() !== "") {
-        return String(direct).trim();
-      }
-      const lower = raw[key.toLowerCase()];
-      if (lower != null && String(lower).trim() !== "") {
-        return String(lower).trim();
+      const hit = Object.entries(raw).find(
+        ([k]) => k.replace(/^\uFEFF/, "").trim().toLowerCase() === key.toLowerCase(),
+      );
+      if (hit && String(hit[1] ?? "").trim() !== "") {
+        return String(hit[1]).trim();
       }
     }
     return "";
@@ -275,7 +284,9 @@ export function normalizeProjectTaskImportRow(
   const formType = (pick("formType", "form_type") || "STA_RANGE").toUpperCase();
 
   return {
-    code: pick("code"),
+    masterBidCode: pick("masterBidCode", "master_bid_code", "masterCode", "master_code"),
+    subBidCode: pick("subBidCode", "sub_bid_code", "subCode", "sub_code", "code"),
+    code: pick("code", "lineCode", "line_code"),
     name: pick("name"),
     unit: pick("unit") || "LF",
     formType,
@@ -283,7 +294,7 @@ export function normalizeProjectTaskImportRow(
     color: pick("color") || null,
     widthInches: widthRaw && !Number.isNaN(Number(widthRaw)) ? Number(widthRaw) : null,
     conversionFactor:
-      cfRaw && !Number.isNaN(Number(cfRaw)) ? Number(cfRaw) : 1,
+      cfRaw && !Number.isNaN(Number(cfRaw)) ? Number(cfRaw) : undefined,
     fieldPersonEmail: pick(
       "fieldPersonEmail",
       "field_person_email",

@@ -44,6 +44,8 @@ type ProjectInfo = {
   jobNumber: string;
   name: string;
   location: string | null;
+  projectManagerId: string | null;
+  divisionManagers: { id: string; name: string; email: string }[];
   route: {
     beginSta: string | null;
     endSta: string | null;
@@ -62,6 +64,7 @@ type FieldReport = {
   reportNumber: string;
   notes: string | null;
   status: string;
+  divisionManagerId: string | null;
   lineItems: {
     id: string;
     projectTaskId: string;
@@ -107,6 +110,10 @@ const selectClass =
   "flex h-12 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 const inputClass = "h-12 text-base";
+
+function defaultManagerIdForProject(project: ProjectInfo) {
+  return project.projectManagerId ?? project.divisionManagers[0]?.id ?? "";
+}
 
 function emptySta(cf: number): StaSeg {
   return {
@@ -189,6 +196,7 @@ export function FieldTaskEntryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [divisionManagerId, setDivisionManagerId] = useState("");
   const [notes, setNotes] = useState("");
   const [notesError, setNotesError] = useState<string | undefined>();
   const [staSegs, setStaSegs] = useState<StaSeg[]>([emptySta(1)]);
@@ -216,6 +224,16 @@ export function FieldTaskEntryPage() {
   const editable =
     report?.status === "DRAFT" || report?.status === "RETURNED";
   const busy = saving || uploading || submitting;
+
+  const managerOptions = useMemo(() => {
+    if (!project) return [];
+    const primaryId = project.projectManagerId;
+    return [...project.divisionManagers].sort((a, b) => {
+      if (a.id === primaryId) return -1;
+      if (b.id === primaryId) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [project]);
 
   const reportTotal = useMemo(() => {
     if (isSta) {
@@ -330,6 +348,7 @@ export function FieldTaskEntryPage() {
             reportNumber: "LOCAL",
             notes: null,
             status: "DRAFT",
+            divisionManagerId: null,
             lineItems: [],
             attachments: [],
           };
@@ -338,6 +357,9 @@ export function FieldTaskEntryPage() {
 
         setReport(reportData);
         setNotes(reportData.notes ?? "");
+        setDivisionManagerId(
+          reportData.divisionManagerId ?? defaultManagerIdForProject(found),
+        );
 
         const existing = reportData.lineItems.filter(
           (li) => li.projectTaskId === taskId,
@@ -518,6 +540,12 @@ export function FieldTaskEntryPage() {
 
   async function saveAndSubmit() {
     if (!report || !task || !editable) return;
+    if (!divisionManagerId) {
+      toast.error("Select a division manager for this project", {
+        id: "field-entry",
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const saved = await persistTask();
@@ -528,7 +556,10 @@ export function FieldTaskEntryPage() {
       }
       const data = await apiFetch<{ report: FieldReport }>(
         `/api/v1/field/reports/${saved.id}/submit`,
-        { method: "POST" },
+        {
+          method: "POST",
+          body: JSON.stringify({ divisionManagerId }),
+        },
       );
       setReport(data.report);
       notifyPendingQueueRefresh();
@@ -1080,6 +1111,34 @@ export function FieldTaskEntryPage() {
       {editable && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
           <div className="mx-auto flex max-w-lg flex-col gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs" htmlFor="division-manager">
+                Division manager
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Project managers only — change if needed before submit
+              </p>
+              <select
+                id="division-manager"
+                className={selectClass}
+                value={divisionManagerId}
+                disabled={busy || managerOptions.length === 0}
+                onChange={(e) => setDivisionManagerId(e.target.value)}
+              >
+                {managerOptions.length === 0 ? (
+                  <option value="">No managers on this project</option>
+                ) : (
+                  managerOptions.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.id === project?.projectManagerId
+                        ? " (project default)"
+                        : ""}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
             <Button
               type="button"
               variant="outline"

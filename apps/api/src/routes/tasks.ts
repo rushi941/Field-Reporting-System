@@ -268,7 +268,8 @@ async function importBidRows(
   const types = await prisma.projectType.findMany();
   const byCode = Object.fromEntries(types.map((t) => [t.code.toUpperCase(), t.id]));
 
-  let upserted = 0;
+  let added = 0;
+  let skipped = 0;
   const errors: { row: number; message: string }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -293,38 +294,48 @@ async function importBidRows(
       continue;
     }
 
-    await prisma.taskMaster.upsert({
-      where: { code },
-      update: {
-        name: row.name,
-        unit: row.unit.trim().toUpperCase(),
-        formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
-        projectTypeId,
-        parentId: null,
-        division: (row.division as Division | null | undefined) ?? null,
-        description: row.description ?? row.name,
-        sortOrder: row.sortOrder ?? 0,
-        color: null,
-        widthInches: null,
-        conversionFactor: null,
-        isActive: true,
-      },
-      create: {
-        code,
-        name: row.name,
-        unit: row.unit.trim().toUpperCase(),
-        formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
-        projectTypeId,
-        parentId: null,
-        division: (row.division as Division | null | undefined) ?? null,
-        description: row.description ?? row.name,
-        sortOrder: row.sortOrder ?? 0,
-      },
-    });
-    upserted += 1;
+    const existing = await prisma.taskMaster.findUnique({ where: { code } });
+    if (existing && !opts.replace) {
+      skipped += 1;
+      continue;
+    }
+
+    const data = {
+      name: row.name,
+      unit: row.unit.trim().toUpperCase(),
+      formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
+      projectTypeId,
+      parentId: null,
+      division: (row.division as Division | null | undefined) ?? null,
+      description: row.description ?? row.name,
+      sortOrder: row.sortOrder ?? 0,
+      isActive: true,
+    };
+
+    if (existing) {
+      await prisma.taskMaster.update({
+        where: { code },
+        data: {
+          ...data,
+          color: null,
+          widthInches: null,
+          conversionFactor: null,
+        },
+      });
+    } else {
+      await prisma.taskMaster.create({ data: { code, ...data } });
+    }
+    added += 1;
   }
 
-  return { upserted, errorCount: errors.length, errors, replaced: opts.replace };
+  return {
+    added,
+    skipped,
+    upserted: added,
+    errorCount: errors.length,
+    errors,
+    replaced: opts.replace,
+  };
 }
 
 function zArray(value: unknown): unknown[] {

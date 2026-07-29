@@ -68,13 +68,30 @@ fieldProjectsRouter.get(
       },
       include: {
         route: true,
-        tasks: {
-          where: {
-            isActive: true,
-            ...(isFieldLead ? { assignedToId: userId } : {}),
-          },
+        divisionManagers: {
           include: {
-          taskMaster: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+        tasks: {
+          where: { isActive: true },
+          include: {
+            assignedTo: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            taskMaster: {
               select: {
                 id: true,
                 code: true,
@@ -109,9 +126,24 @@ fieldProjectsRouter.get(
         location: p.location,
         projectType: p.projectType,
         divisions: projectDivisions(p.division, p.extraDivisions),
+        projectManagerId: p.projectManagerId,
+        divisionManagers: p.divisionManagers.map((dm) => ({
+          id: dm.user.id,
+          name: `${dm.user.firstName} ${dm.user.lastName}`.trim(),
+          email: dm.user.email,
+        })),
         tasks: p.tasks.map((t) => ({
           id: t.id,
           division: t.division,
+          assignedToId: t.assignedToId,
+          assignedTo: t.assignedTo
+            ? {
+                id: t.assignedTo.id,
+                name: `${t.assignedTo.firstName} ${t.assignedTo.lastName}`.trim(),
+                email: t.assignedTo.email,
+              }
+            : null,
+          isMine: t.assignedToId === userId,
           beginSta: t.beginSta,
           endSta: t.endSta,
           completedStaRanges: completedMap.get(t.id) ?? [],

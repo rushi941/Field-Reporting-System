@@ -59,10 +59,14 @@ export function bidCodeFromReference(ref: string | number): string {
   return `BI-${(n || "0").padStart(4, "0")}`;
 }
 
+function normalizeSpreadsheetKey(key: string): string {
+  return key.replace(/^\uFEFF/, "").trim().toLowerCase();
+}
+
 function pickField(row: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     const hit = Object.entries(row).find(
-      ([k]) => k.trim().toLowerCase() === key.toLowerCase(),
+      ([k]) => normalizeSpreadsheetKey(k) === key.toLowerCase(),
     );
     if (hit && String(hit[1] ?? "").trim() !== "") return hit[1];
   }

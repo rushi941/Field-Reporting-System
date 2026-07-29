@@ -173,7 +173,9 @@ export function ClientsPage() {
     try {
       const rows = await parseClientSpreadsheet(importFile);
       if (rows.length === 0) {
-        toast.error("No rows found in file");
+        toast.error(
+          "No valid rows found. Use columns Foundation # and Name, or download the sample file.",
+        );
         return;
       }
       const result = await apiFetch<{
@@ -187,6 +189,14 @@ export function ClientsPage() {
       toast.success(
         `Imported ${result.upserted} client(s)${result.errorCount ? `, ${result.errorCount} error(s)` : ""}`,
       );
+      if (result.upserted === 0 && result.errors.length > 0) {
+        toast.error(
+          result.errors
+            .slice(0, 3)
+            .map((e) => `Row ${e.row}: ${e.message}`)
+            .join(" · "),
+        );
+      }
       setImportOpen(false);
       setImportFile(null);
       await load(true);

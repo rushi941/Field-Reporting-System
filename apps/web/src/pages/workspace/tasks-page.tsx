@@ -358,27 +358,44 @@ export function TasksPage() {
     }
   }
 
-  async function onReplaceImport() {
+  async function onImport() {
     if (!importFile || importing) return;
     setImporting(true);
     try {
       const rows = await parseBidSpreadsheet(importFile);
       if (rows.length === 0) {
-        toast.error("No rows found in file", { id: "bid-master" });
+        toast.error(
+          "No valid rows found. Use Item Reference #, Description, Unit, Division — or download the sample file.",
+          { id: "bid-master" },
+        );
         return;
       }
       const result = await apiFetch<{
-        upserted: number;
+        added: number;
+        skipped: number;
         errorCount: number;
         errors: { row: number; message: string }[];
-      }>("/api/v1/tasks/replace-import", {
+      }>("/api/v1/tasks/import", {
         method: "POST",
         body: JSON.stringify({ rows }),
       });
-      toast.success(
-        `Replaced bid master with ${result.upserted} item(s)${result.errorCount ? `, ${result.errorCount} error(s)` : ""}`,
-        { id: "bid-master" },
-      );
+      const parts = [`Added ${result.added} new bid item(s)`];
+      if (result.skipped > 0) {
+        parts.push(`${result.skipped} already existed (skipped)`);
+      }
+      if (result.errorCount > 0) {
+        parts.push(`${result.errorCount} error(s)`);
+      }
+      toast.success(parts.join(", "), { id: "bid-master" });
+      if (result.added === 0 && result.errors.length > 0) {
+        toast.error(
+          result.errors
+            .slice(0, 3)
+            .map((e) => `Row ${e.row}: ${e.message}`)
+            .join(" · "),
+          { id: "bid-master", duration: 8000 },
+        );
+      }
       setImportOpen(false);
       setImportFile(null);
       await load(true);
@@ -419,7 +436,8 @@ export function TasksPage() {
             Bid master
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Excel import loads master bids. Add sub-bids under each master for line
+            Excel import adds new master bids. Existing items and sub-bids are kept.
+            Add sub-bids under each master for line
             codes, color, width, and conversion factor.
           </p>
         </div>
@@ -897,11 +915,11 @@ export function TasksPage() {
       {importOpen && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
           <div className="relative z-[2001] w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">Replace bid master (Excel)</h2>
+            <h2 className="text-lg font-semibold">Import bid master (Excel)</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Upload <strong>Bid Item List.xlsx</strong> with columns: Item Reference #,
-              Description, Unit, Division. This replaces all <strong>master</strong> bids.
-              Any sub-bids you added will also be removed.
+              Description, Unit, Division. Only <strong>new</strong> items are added;
+              existing bids with the same code are skipped.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
@@ -941,7 +959,7 @@ export function TasksPage() {
               <Button
                 className="bg-asphalt-mid text-white hover:bg-asphalt"
                 disabled={!importFile || importing}
-                onClick={() => void onReplaceImport()}
+                onClick={() => void onImport()}
               >
                 {importing ? (
                   <>
@@ -949,7 +967,7 @@ export function TasksPage() {
                   </>
                 ) : (
                   <>
-                    <Upload className="size-4" /> Replace master
+                    <Upload className="size-4" /> Import
                   </>
                 )}
               </Button>

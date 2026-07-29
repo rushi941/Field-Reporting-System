@@ -19,6 +19,8 @@ import { ClientsPage } from "@/pages/workspace/clients-page";
 import { TasksPage } from "@/pages/workspace/tasks-page";
 import { BillingRollupPage } from "@/pages/workspace/billing-rollup-page";
 import { BillingDrilldownPage } from "@/pages/workspace/billing-drilldown-page";
+import { WorkspaceReportsRollupPage } from "@/pages/workspace/reports-rollup-page";
+import { WorkspaceReportsDetailPage } from "@/pages/workspace/reports-detail-page";
 import { FieldProjectsPage } from "@/pages/field/projects-page";
 import { FieldProjectDetailPage } from "@/pages/field/project-detail-page";
 import { FieldTaskEntryPage } from "@/pages/field/task-entry-page";
@@ -96,6 +98,22 @@ function projectRoutes(base: "system" | "office") {
       <Route
         path="tasks"
         element={<Navigate to="bids" relative="path" replace />}
+      />
+      <Route
+        path="reports"
+        element={
+          <RequirePermission permission="reports.view_project_history">
+            <WorkspaceReportsRollupPage base={base} />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="reports/:projectId"
+        element={
+          <RequirePermission permission="reports.view_project_history">
+            <WorkspaceReportsDetailPage base={base} />
+          </RequirePermission>
+        }
       />
       <Route
         path="billing"

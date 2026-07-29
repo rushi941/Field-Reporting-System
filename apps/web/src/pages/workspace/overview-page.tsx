@@ -11,6 +11,7 @@ import {
   Tags,
   Users,
   Building2,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { apiFetch } from "@/lib/api";
@@ -79,6 +80,13 @@ export function WorkspaceOverviewPage({
       body: "Create and manage jobs with project type, division, and status.",
       icon: FolderKanban,
       permission: "projects.manage",
+    },
+    {
+      to: `${base}/reports`,
+      title: "Reports",
+      body: "Project-wise field report tracking — statuses, tasks, and progress.",
+      icon: ClipboardList,
+      permission: "reports.view_project_history",
     },
     {
       to: `${base}/billing`,

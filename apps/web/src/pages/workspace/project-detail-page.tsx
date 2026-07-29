@@ -10,18 +10,10 @@ import {
   Upload,
 } from "lucide-react";
 import {
-  LINE_COLORS,
-  LINE_WIDTHS,
-  buildLineCode,
-  conversionFactorFor,
-  pavementLineTypes,
   physicalLf,
   reportedLf,
   projectCreateTaskSchema,
   PROJECT_TASK_IMPORT_HEADERS,
-  type LineColorCode,
-  type LineTypeDef,
-  type LineWidth,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
@@ -84,9 +76,10 @@ type TableRow = {
   id: string;
   wbs: string;
   taskMasterId: string;
-  code: string;
+  masterBidCode: string | null;
+  masterBidName: string | null;
+  subBidCode: string;
   name: string;
-  genericName: string | null;
   division: string;
   unit: string;
   formType: string;
@@ -115,23 +108,17 @@ const selectClass =
 
 const emptyTaskForm = {
   division: "",
-  lineTypeKey: "",
-  taskTemplateId: "",
+  masterBidId: "",
+  subBidId: "",
   name: "",
-  color: "W" as LineColorCode,
-  widthInches: 4 as LineWidth,
-  conversionFactor: "1.00",
   unit: "LF",
   formType: "STA_RANGE",
+  conversionFactor: "1.00",
   beginSta: "",
   endSta: "",
   description: "",
   assignedToId: "",
 };
-
-function lineTypeKey(def: LineTypeDef) {
-  return `${def.prefix}|${def.color}|${def.name}`;
-}
 
 function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
@@ -142,9 +129,10 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
     id: t.id,
     wbs: String(i + 1),
     taskMasterId: t.taskMasterId,
-    code: t.taskMaster.code,
+    masterBidCode: t.taskMaster.parent?.code ?? null,
+    masterBidName: t.taskMaster.parent?.name ?? null,
+    subBidCode: t.taskMaster.code,
     name: t.taskMaster.name,
-    genericName: t.taskMaster.parent?.name ?? null,
     division: t.division,
     unit: t.taskMaster.unit,
     formType: t.taskMaster.formType,
@@ -231,8 +219,8 @@ export function ProjectDetailPage() {
     [project],
   );
 
-  const showGenericNameColumn = useMemo(
-    () => taskRows.some((row) => row.genericName),
+  const showMasterBidColumn = useMemo(
+    () => taskRows.some((row) => row.masterBidCode),
     [taskRows],
   );
 
@@ -253,43 +241,21 @@ export function ProjectDetailPage() {
     );
   }, [fieldLeads, form.division]);
 
-  const isPavementTask = form.division === "PAVEMENT_MARKING";
+  const divisionMasters = useMemo(() => {
+    if (!form.division) return [];
+    return taskTree.filter((t) => t.division === form.division);
+  }, [taskTree, form.division]);
 
-  const divisionTaskOptions = useMemo(() => {
-    if (!form.division || isPavementTask) return [];
-    return taskTree
-      .filter((t) => t.division === form.division)
-      .flatMap((master) => [
-        master,
-        ...master.children.map((child) => ({
-          ...child,
-          children: [],
-        })),
-      ]);
-  }, [taskTree, form.division, isPavementTask]);
+  const subBidOptions = useMemo(() => {
+    if (!form.masterBidId) return [];
+    const master = taskTree.find((m) => m.id === form.masterBidId);
+    return master?.children ?? [];
+  }, [taskTree, form.masterBidId]);
 
-  const selectedLineType = useMemo(
-    () =>
-      pavementLineTypes.find((d) => lineTypeKey(d) === form.lineTypeKey) ?? null,
-    [form.lineTypeKey],
+  const selectedSubBid = useMemo(
+    () => subBidOptions.find((s) => s.id === form.subBidId) ?? null,
+    [subBidOptions, form.subBidId],
   );
-
-  const templateGenericName = useMemo(() => {
-    if (!form.taskTemplateId) return null;
-    const template = divisionTaskOptions.find((t) => t.id === form.taskTemplateId);
-    if (!template?.parentId) return null;
-    const master = taskTree.find((m) => m.id === template.parentId);
-    return master?.name ?? null;
-  }, [form.taskTemplateId, divisionTaskOptions, taskTree]);
-
-  const lineCode = useMemo(() => {
-    if (!selectedLineType) return "";
-    return buildLineCode(
-      selectedLineType.prefix,
-      form.color,
-      form.widthInches,
-    );
-  }, [selectedLineType, form.color, form.widthInches]);
 
   const calc = useMemo(() => {
     const begin = parseStaInput(form.beginSta);
@@ -332,73 +298,40 @@ export function ProjectDetailPage() {
     setForm((f) => ({
       ...f,
       division,
-      lineTypeKey: "",
-      taskTemplateId: "",
+      masterBidId: "",
+      subBidId: "",
       name: "",
       assignedToId: "",
       conversionFactor: "1.00",
     }));
   }
 
-  function onTaskTemplateChange(id: string) {
-    const template = divisionTaskOptions.find((t) => t.id === id);
-    if (!template) {
-      setForm((f) => ({ ...f, taskTemplateId: id }));
+  function onMasterBidChange(id: string) {
+    setForm((f) => ({
+      ...f,
+      masterBidId: id,
+      subBidId: "",
+      name: "",
+      conversionFactor: "1.00",
+    }));
+  }
+
+  function onSubBidChange(id: string) {
+    const sub = subBidOptions.find((s) => s.id === id);
+    if (!sub) {
+      setForm((f) => ({ ...f, subBidId: id }));
       return;
     }
     setForm((f) => ({
       ...f,
-      taskTemplateId: id,
-      name: template.name,
-      unit: template.unit,
-      formType: template.formType,
+      subBidId: id,
+      name: sub.name,
+      unit: sub.unit,
+      formType: sub.formType,
       conversionFactor:
-        template.conversionFactor != null
-          ? Number(template.conversionFactor).toFixed(2)
+        sub.conversionFactor != null
+          ? Number(sub.conversionFactor).toFixed(2)
           : "1.00",
-    }));
-  }
-
-  function onLineTypeChange(key: string) {
-    const def = pavementLineTypes.find((d) => lineTypeKey(d) === key);
-    if (!def) {
-      setForm((f) => ({ ...f, lineTypeKey: key }));
-      return;
-    }
-    const width = (def.widths[0] ?? 4) as LineWidth;
-    const cf = conversionFactorFor(def, width);
-    setForm((f) => ({
-      ...f,
-      lineTypeKey: key,
-      name: `${def.name} ${LINE_COLORS[def.color]}`,
-      color: def.color,
-      widthInches: width,
-      conversionFactor: cf.toFixed(2),
-      formType: def.formType ?? "STA_RANGE",
-    }));
-  }
-
-  function onWidthChange(width: LineWidth) {
-    const cf = selectedLineType
-      ? conversionFactorFor(selectedLineType, width)
-      : Number(form.conversionFactor);
-    setForm((f) => ({
-      ...f,
-      widthInches: width,
-      conversionFactor: Number.isFinite(cf) ? cf.toFixed(2) : f.conversionFactor,
-      name: selectedLineType
-        ? `${selectedLineType.name} ${LINE_COLORS[f.color]} ${width}"`
-        : f.name,
-    }));
-  }
-
-  function onColorChange(color: LineColorCode) {
-    setForm((f) => ({
-      ...f,
-      color,
-      name: selectedLineType
-        ? `${selectedLineType.name} ${LINE_COLORS[color]} ${f.widthInches}"`
-        : f.name,
     }));
   }
 
@@ -432,26 +365,21 @@ export function ProjectDetailPage() {
   async function onCreateTask(e: React.FormEvent) {
     e.preventDefault();
     if (!projectId) return;
-    const cf = Number(form.conversionFactor);
-    const code =
-      lineCode ||
-      form.name.trim().toUpperCase().replace(/\s+/g, "-").slice(0, 40);
+    if (!form.subBidId) {
+      toast.error("Select a master bid and sub-bid", { id: "project-tasks" });
+      return;
+    }
 
     setSaving(true);
     try {
       const raw = {
-        name: form.name.trim(),
-        code,
-        unit: form.unit,
-        formType: form.formType,
-        color: LINE_COLORS[form.color],
-        widthInches: form.widthInches,
-        conversionFactor: cf,
-        description: form.description.trim() || null,
+        taskMasterId: form.subBidId,
         assignedToId: form.assignedToId,
         division: form.division,
+        formType: form.formType,
         beginSta: form.beginSta.trim() || null,
         endSta: form.endSta.trim() || null,
+        description: form.description.trim() || null,
       };
       const parsed = projectCreateTaskSchema.safeParse(raw);
       if (!parsed.success) {
@@ -486,9 +414,10 @@ export function ProjectDetailPage() {
     try {
       const rows = await parseProjectTaskSpreadsheet(importFile);
       if (!rows.length) {
-        toast.error("File needs a header row and at least one task row", {
-          id: "project-import",
-        });
+        toast.error(
+          "No valid task rows found. Download the sample file and match the column headers exactly.",
+          { id: "project-import" },
+        );
         return;
       }
       const result = await apiFetch<{
@@ -595,11 +524,11 @@ export function ProjectDetailPage() {
             <thead className="border-b bg-muted/50 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="w-20 px-2 py-1">WBS</th>
-                <th className="w-28 px-2 py-1">Code</th>
-                {showGenericNameColumn && (
-                  <th className="px-2 py-1">Generic name</th>
+                {showMasterBidColumn && (
+                  <th className="px-2 py-1">Master bid</th>
                 )}
-                <th className="px-2 py-1">Task name</th>
+                <th className="w-28 px-2 py-1">Sub-bid code</th>
+                <th className="px-2 py-1">Sub-bid name</th>
                 <th className="w-36 px-2 py-1">Division</th>
                 <th className="w-20 px-2 py-1">Unit</th>
                 <th className="w-28 px-2 py-1">Form</th>
@@ -615,7 +544,7 @@ export function ProjectDetailPage() {
               {taskRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={showGenericNameColumn ? 13 : 12}
+                    colSpan={showMasterBidColumn ? 13 : 12}
                     className="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> or{" "}
@@ -631,12 +560,17 @@ export function ProjectDetailPage() {
                   <td className="px-2 py-1 tabular-nums text-muted-foreground">
                     {row.wbs}
                   </td>
-                  <td className="px-2 py-1 font-mono text-xs">{row.code}</td>
-                  {showGenericNameColumn && (
-                    <td className="px-2 py-1 text-muted-foreground">
-                      {row.genericName ?? "—"}
+                  {showMasterBidColumn && (
+                    <td className="px-2 py-1 text-xs">
+                      <span className="font-mono">{row.masterBidCode ?? "—"}</span>
+                      {row.masterBidName && (
+                        <p className="mt-0.5 text-muted-foreground">
+                          {row.masterBidName}
+                        </p>
+                      )}
                     </td>
                   )}
+                  <td className="px-2 py-1 font-mono text-xs">{row.subBidCode}</td>
                   <td className="px-2 py-1">{row.name}</td>
                   <td className="px-2 py-1 text-xs">
                     {divisionLabels[row.division] ?? row.division}
@@ -706,8 +640,8 @@ export function ProjectDetailPage() {
               <div>
                 <h2 className="text-lg font-semibold">Create task</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Line code is built as type + color + width. Reported LF = (End
-                  STA − Begin STA) × 100 × CF.
+                  Select master bid and sub-bid from Bid Master, then assign field
+                  person and STA limits.
                 </p>
               </div>
               <ModalCloseButton
@@ -735,68 +669,63 @@ export function ProjectDetailPage() {
                 </div>
               )}
 
-              {isPavementTask ? (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Line type</Label>
-                  <select
-                    className={selectClass}
-                    value={form.lineTypeKey}
-                    onChange={(e) => onLineTypeChange(e.target.value)}
-                  >
-                    <option value="">— Select line type —</option>
-                    {pavementLineTypes.map((d) => (
-                      <option key={lineTypeKey(d)} value={lineTypeKey(d)}>
-                        {d.prefix}
-                        {d.color} — {d.name} ({LINE_COLORS[d.color]})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Task type</Label>
-                  <select
-                    className={selectClass}
-                    value={form.taskTemplateId}
-                    onChange={(e) => onTaskTemplateChange(e.target.value)}
-                  >
-                    <option value="">— Select task type —</option>
-                    {divisionTaskOptions.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.code} — {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  {divisionTaskOptions.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No master tasks for this division yet — enter a name below
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Master bid *</Label>
+                <select
+                  className={selectClass}
+                  value={form.masterBidId}
+                  onChange={(e) => onMasterBidChange(e.target.value)}
+                  required
+                >
+                  <option value="">— Select master bid —</option>
+                  {divisionMasters.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.code} — {m.name}
+                      {m.children.length
+                        ? ` (${m.children.length} sub-bids)`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              {templateGenericName && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Sub-bid *</Label>
+                <select
+                  className={selectClass}
+                  value={form.subBidId}
+                  onChange={(e) => onSubBidChange(e.target.value)}
+                  required
+                  disabled={!form.masterBidId}
+                >
+                  <option value="">— Select sub-bid —</option>
+                  {subBidOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} — {s.name}
+                      {s.widthInches != null ? ` · ${s.widthInches}"` : ""}
+                      {s.conversionFactor != null
+                        ? ` · CF ${Number(s.conversionFactor).toFixed(2)}`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                {form.masterBidId && subBidOptions.length === 0 && (
+                  <p className="text-xs text-amber-700">
+                    No sub-bids under this master — add them in Bid Master first.
+                  </p>
+                )}
+              </div>
+
+              {selectedSubBid && (
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Generic name</Label>
+                  <Label>Sub-bid details</Label>
                   <Input
                     readOnly
                     className="bg-muted text-muted-foreground"
-                    value={templateGenericName}
+                    value={`${selectedSubBid.code} · ${selectedSubBid.name} · ${selectedSubBid.unit}${selectedSubBid.color ? ` · ${selectedSubBid.color}` : ""}`}
                   />
                 </div>
               )}
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Task name *</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
-                  placeholder="Edge Line Right White 4&quot;"
-                  required
-                />
-              </div>
 
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Field person *</Label>
@@ -829,104 +758,26 @@ export function ProjectDetailPage() {
                 </p>
               </div>
 
-              {isPavementTask && (
-                <>
               <div className="space-y-1.5">
-                <Label>Color</Label>
-                <select
-                  className={selectClass}
-                  value={form.color}
-                  onChange={(e) =>
-                    onColorChange(e.target.value as LineColorCode)
-                  }
-                >
-                  {(Object.keys(LINE_COLORS) as LineColorCode[]).map((c) => (
-                    <option key={c} value={c}>
-                      {c} — {LINE_COLORS[c]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Width (in)</Label>
-                <select
-                  className={selectClass}
-                  value={form.widthInches}
-                  onChange={(e) =>
-                    onWidthChange(Number(e.target.value) as LineWidth)
-                  }
-                >
-                  {LINE_WIDTHS.map((w) => (
-                    <option key={w} value={w}>
-                      {w}&quot;
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Line code</Label>
-                <Input
-                  value={lineCode || "—"}
-                  readOnly
-                  className="bg-card font-mono"
-                />
-              </div>
-                </>
-              )}
-
-              <div className="space-y-1.5">
-                <Label>Conversion factor (CF) *</Label>
+                <Label>Conversion factor (CF)</Label>
                 <Input
                   type="number"
                   min={0}
                   step="0.01"
                   value={form.conversionFactor}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      conversionFactor: e.target.value,
-                    }))
-                  }
-                  required
+                  readOnly
+                  className="bg-muted"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Unit</Label>
-                <select
-                  className={selectClass}
-                  value={form.unit}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, unit: e.target.value }))
-                  }
-                  required
-                >
-                  {units.length === 0 ? (
-                    <option value={form.unit}>{form.unit}</option>
-                  ) : (
-                    units.map((u) => (
-                      <option key={u.id} value={u.code}>
-                        {u.code} — {u.name}
-                      </option>
-                    ))
-                  )}
-                </select>
+                <Input readOnly className="bg-muted" value={form.unit} />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Form type</Label>
-                <select
-                  className={selectClass}
-                  value={form.formType}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, formType: e.target.value }))
-                  }
-                >
-                  <option value="STA_RANGE">STA Range</option>
-                  <option value="SINGLE_LOCATION">Single Location</option>
-                </select>
+                <Input readOnly className="bg-muted" value={formLabels[form.formType] ?? form.formType} />
               </div>
 
               <div className="space-y-1.5">

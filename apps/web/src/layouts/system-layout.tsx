@@ -9,6 +9,7 @@ import {
   Tags,
   ListChecks,
   FileSpreadsheet,
+  ClipboardList,
   Ruler,
   Building2,
   LogOut,
@@ -23,7 +24,7 @@ import { useWorkspaceActivity } from "@/hooks/use-workspace-activity";
 
 type WorkspaceKind = "system" | "office";
 
-type NavBadge = "projects" | "billing" | null;
+type NavBadge = "projects" | "billing" | "reports" | null;
 
 const navByKind: Record<
   WorkspaceKind,
@@ -39,6 +40,7 @@ const navByKind: Record<
   system: [
     { to: "/system", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/system/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
+    { to: "/system/reports", label: "Reports", icon: ClipboardList, permission: "reports.view_project_history", badge: "reports" },
     { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/system/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/system/units", label: "Units", icon: Ruler, permission: "projects.manage" },
@@ -50,6 +52,7 @@ const navByKind: Record<
   office: [
     { to: "/office", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/office/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
+    { to: "/office/reports", label: "Reports", icon: ClipboardList, permission: "reports.view_project_history", badge: "reports" },
     { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/office/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/office/units", label: "Units", icon: Ruler, permission: "projects.manage" },
@@ -66,7 +69,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
   const { billingPending, recentProjects } = useWorkspaceActivity();
 
   function showNavBadge(badge: NavBadge | undefined) {
-    if (badge === "billing") return billingPending > 0;
+    if (badge === "billing" || badge === "reports") return billingPending > 0;
     if (badge === "projects") return recentProjects > 0;
     return false;
   }

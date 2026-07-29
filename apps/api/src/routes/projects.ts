@@ -15,9 +15,7 @@ import {
   projectDivisions,
   normalizeSta,
   physicalLfFromSta,
-  validateProjectBillingParties,
   type ProjectCreateTaskInput,
-  type BillingRelationship,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -142,7 +140,6 @@ function mapProject(p: ProjectLoaded) {
     divisionManagers: p.divisionManagers.map((dm) => mapUserBrief(dm.user)),
     clientName: p.clientName,
     generalContractor: p.generalContractor,
-    billingRelationship: p.billingRelationship,
     location: p.location,
     contractAmount: p.contractAmount ? Number(p.contractAmount) : null,
     startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : null,
@@ -383,31 +380,6 @@ async function deleteProjectCascade(
   await tx.projectTask.deleteMany({ where: { projectId } });
   await tx.bidItem.deleteMany({ where: { projectId } });
   await tx.project.delete({ where: { id: projectId } });
-}
-
-function normalizeBillingFields(input: {
-  billingRelationship: BillingRelationship;
-  clientName?: string | null;
-  generalContractor?: string | null;
-}) {
-  const relationship = input.billingRelationship;
-  const clientName = input.clientName?.trim() || null;
-  let generalContractor = input.generalContractor?.trim() || null;
-
-  if (relationship === "DIRECT_CLIENT") {
-    generalContractor = null;
-  }
-
-  const message = validateProjectBillingParties({
-    billingRelationship: relationship,
-    clientName,
-    generalContractor,
-  });
-  if (message) {
-    throw new AppError("VALIDATION_ERROR", message, 400);
-  }
-
-  return { relationship, clientName, generalContractor };
 }
 
 async function syncProjectTasks(projectId: string, taskIds: string[]) {
@@ -759,12 +731,6 @@ projectsRouter.post(
 
     await ensureClientMasters([body.clientName, body.generalContractor]);
 
-    const billing = normalizeBillingFields({
-      billingRelationship: body.billingRelationship ?? "DIRECT_CLIENT",
-      clientName: body.clientName,
-      generalContractor: body.generalContractor,
-    });
-
     const project = await prisma.project.create({
       data: {
         jobNumber,
@@ -777,9 +743,8 @@ projectsRouter.post(
         projectTypeId: body.projectTypeId ?? null,
         projectAdminId: body.projectAdminId ?? null,
         projectManagerId: body.divisionManagerIds[0] ?? null,
-        clientName: billing.clientName,
-        generalContractor: billing.generalContractor,
-        billingRelationship: billing.relationship,
+        clientName: body.clientName ?? null,
+        generalContractor: body.generalContractor ?? null,
         location: body.location ?? null,
         contractAmount: body.contractAmount ?? null,
         startDate: parseOptionalDate(body.startDate) ?? null,
@@ -823,30 +788,53 @@ async function addProjectTaskInternal(
 
   await assertFieldLead(body.assignedToId, taskDivision);
 
-  const code = (body.code ?? body.name).trim().toUpperCase().replace(/\s+/g, "-");
-  if (!code) {
-    throw new AppError("VALIDATION_ERROR", "Task code is required", 400);
+  let master: Awaited<ReturnType<typeof prisma.taskMaster.findUnique>>;
+
+  if (body.taskMasterId) {
+    master = await prisma.taskMaster.findUnique({
+      where: { id: body.taskMasterId },
+    });
+    if (!master || !master.isActive) {
+      throw new AppError("NOT_FOUND", "Sub-bid not found in bid master", 404);
+    }
+  } else {
+    const code = (body.code ?? body.name ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "-");
+    if (!code) {
+      throw new AppError("VALIDATION_ERROR", "Task code is required", 400);
+    }
+
+    master = await prisma.taskMaster.findUnique({ where: { code } });
+    if (!master) {
+      master = await prisma.taskMaster.create({
+        data: {
+          code,
+          name: body.name!,
+          unit: body.unit ?? "LF",
+          formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
+          division: taskDivision,
+          color: body.color ?? null,
+          widthInches: body.widthInches ?? null,
+          conversionFactor: body.conversionFactor ?? 1,
+          description: body.description ?? null,
+          projectTypeId: project.projectTypeId,
+          isActive: true,
+          sortOrder: 0,
+        },
+      });
+    }
   }
 
-  let master = await prisma.taskMaster.findUnique({ where: { code } });
   if (!master) {
-    master = await prisma.taskMaster.create({
-      data: {
-        code,
-        name: body.name,
-        unit: body.unit ?? "LF",
-        formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
-        division: taskDivision,
-        color: body.color ?? null,
-        widthInches: body.widthInches ?? null,
-        conversionFactor: body.conversionFactor,
-        description: body.description ?? null,
-        projectTypeId: project.projectTypeId,
-        isActive: true,
-        sortOrder: 0,
-      },
-    });
+    throw new AppError("NOT_FOUND", "Task master not found", 404);
   }
+
+  const formType =
+    (body.formType as BidItemFormType) ??
+    (master.formType as BidItemFormType) ??
+    "STA_RANGE";
 
   const existing = await prisma.projectTask.findUnique({
     where: {
@@ -868,7 +856,7 @@ async function addProjectTaskInternal(
 
   let beginSta: string | null = null;
   let endSta: string | null = null;
-  if (body.formType === "STA_RANGE" || body.beginSta || body.endSta) {
+  if (formType === "STA_RANGE" || body.beginSta || body.endSta) {
     try {
       if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
       if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
@@ -974,7 +962,36 @@ projectsRouter.post(
       }
 
       try {
+        let taskMasterId: string | undefined;
+        const subCode = (row.subBidCode ?? row.code)?.trim().toUpperCase();
+        if (subCode) {
+          const sub = await prisma.taskMaster.findUnique({
+            where: { code: subCode },
+            include: { parent: { select: { code: true } } },
+          });
+          if (!sub) {
+            errors.push({
+              row: i + 1,
+              message: `Unknown sub-bid code: ${subCode}`,
+            });
+            continue;
+          }
+          if (row.masterBidCode?.trim()) {
+            const masterCode = row.masterBidCode.trim().toUpperCase();
+            const parentCode = sub.parent?.code?.toUpperCase();
+            if (parentCode && parentCode !== masterCode) {
+              errors.push({
+                row: i + 1,
+                message: `Sub-bid ${subCode} belongs to master ${parentCode}, not ${masterCode}`,
+              });
+              continue;
+            }
+          }
+          taskMasterId = sub.id;
+        }
+
         await addProjectTaskInternal(projectId, {
+          taskMasterId,
           code: row.code,
           name: row.name,
           unit: row.unit,
@@ -1100,31 +1117,10 @@ projectsRouter.patch(
 
     if (
       body.clientName !== undefined ||
-      body.generalContractor !== undefined ||
-      body.billingRelationship !== undefined
+      body.generalContractor !== undefined
     ) {
       await ensureClientMasters([body.clientName, body.generalContractor]);
     }
-
-    const nextBillingRelationship = (body.billingRelationship ??
-      existing.billingRelationship) as BillingRelationship;
-    const nextClientName =
-      body.clientName !== undefined ? body.clientName : existing.clientName;
-    const nextGeneralContractor =
-      body.generalContractor !== undefined
-        ? body.generalContractor
-        : existing.generalContractor;
-
-    const billing =
-      body.clientName !== undefined ||
-      body.generalContractor !== undefined ||
-      body.billingRelationship !== undefined
-        ? normalizeBillingFields({
-            billingRelationship: nextBillingRelationship,
-            clientName: nextClientName,
-            generalContractor: nextGeneralContractor,
-          })
-        : null;
 
     await prisma.project.update({
       where: { id },
@@ -1148,23 +1144,10 @@ projectsRouter.patch(
           : body.projectManagerId !== undefined
             ? { projectManagerId: body.projectManagerId }
             : {}),
-        ...(billing
-          ? {
-              clientName: billing.clientName,
-              generalContractor: billing.generalContractor,
-              billingRelationship: billing.relationship,
-            }
-          : {
-              ...(body.clientName !== undefined
-                ? { clientName: body.clientName }
-                : {}),
-              ...(body.generalContractor !== undefined
-                ? { generalContractor: body.generalContractor }
-                : {}),
-              ...(body.billingRelationship !== undefined
-                ? { billingRelationship: body.billingRelationship }
-                : {}),
-            }),
+        ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
+        ...(body.generalContractor !== undefined
+          ? { generalContractor: body.generalContractor }
+          : {}),
         ...(body.location !== undefined ? { location: body.location } : {}),
         ...(body.contractAmount !== undefined
           ? { contractAmount: body.contractAmount }

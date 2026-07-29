@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { projectSchema, splitProjectDivisions, billingRelationshipLabels, billingRelationshipDescriptions, type BillingRelationship } from "@frs/shared";
+import { projectSchema, splitProjectDivisions } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,6 @@ type Project = {
   divisionManagers?: { id: string; name: string; email: string }[];
   clientName: string | null;
   generalContractor: string | null;
-  billingRelationship: BillingRelationship;
   location: string | null;
   contractAmount: number | null;
   startDate: string | null;
@@ -77,7 +76,6 @@ const emptyForm = {
   divisionManagerIds: [] as string[],
   clientName: "",
   generalContractor: "",
-  billingRelationship: "DIRECT_CLIENT" as BillingRelationship,
   location: "",
   contractAmount: "",
   startDate: "",
@@ -175,6 +173,16 @@ function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
 }
 
+function suggestDivisionManagerIds(
+  selectedDivisions: string[],
+  managers: ManagerOpt[],
+) {
+  const divs = new Set(selectedDivisions);
+  return managers
+    .filter((m) => !m.division || divs.has(m.division))
+    .map((m) => m.id);
+}
+
 function createEmptyForm(projectAdminId = "") {
   return { ...emptyForm, projectAdminId };
 }
@@ -224,6 +232,32 @@ export function ProjectsPage() {
     [projects, page],
   );
 
+  const suggestedDivisionManagerIds = useMemo(
+    () => suggestDivisionManagerIds(form.selectedDivisions, divisionManagers),
+    [form.selectedDivisions, divisionManagers],
+  );
+
+  const divisionManagerOptions = useMemo(() => {
+    const suggested = new Set(suggestedDivisionManagerIds);
+    return [...divisionManagers]
+      .sort((a, b) => {
+        const aSuggested = suggested.has(a.id) ? 0 : 1;
+        const bSuggested = suggested.has(b.id) ? 0 : 1;
+        if (aSuggested !== bSuggested) return aSuggested - bSuggested;
+        return a.name.localeCompare(b.name);
+      })
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        hint: [
+          suggested.has(m.id) ? "Suggested" : null,
+          m.division ? divisionLabels[m.division] ?? m.division : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      }));
+  }, [divisionManagers, suggestedDivisionManagerIds]);
+
   async function load(background = false) {
     if (!background) setLoading(true);
     try {
@@ -271,6 +305,13 @@ export function ProjectsPage() {
     const nextForm = createEmptyForm(
       lockProjectAdmin && user?.id ? user.id : "",
     );
+    const suggested = suggestDivisionManagerIds(
+      nextForm.selectedDivisions,
+      divisionManagers,
+    );
+    if (suggested.length) {
+      nextForm.divisionManagerIds = [suggested[0]];
+    }
     setForm(nextForm);
     setFormBaseline(snapshotForm(nextForm));
     setUnsavedPrompt(false);
@@ -298,7 +339,6 @@ export function ProjectsPage() {
         (p.projectManagerId ? [p.projectManagerId] : []),
       clientName: p.clientName ?? "",
       generalContractor: p.generalContractor ?? "",
-      billingRelationship: p.billingRelationship ?? "DIRECT_CLIENT",
       location: p.location ?? "",
       contractAmount: p.contractAmount != null ? String(p.contractAmount) : "",
       startDate: p.startDate ?? "",
@@ -366,7 +406,6 @@ export function ProjectsPage() {
         divisionManagerIds: form.divisionManagerIds,
         clientName: form.clientName.trim() || null,
         generalContractor: form.generalContractor.trim() || null,
-        billingRelationship: form.billingRelationship,
         location: form.location.trim() || null,
         contractAmount: form.contractAmount ? Number(form.contractAmount) : null,
         startDate: form.startDate || null,
@@ -698,7 +737,28 @@ export function ProjectsPage() {
                   <DivisionMultiSelect
                     value={form.selectedDivisions}
                     onChange={(selectedDivisions) =>
-                      setForm((f) => ({ ...f, selectedDivisions }))
+                      setForm((f) => {
+                        const suggested = suggestDivisionManagerIds(
+                          selectedDivisions,
+                          divisionManagers,
+                        );
+                        const keepExisting =
+                          f.divisionManagerIds.length > 0 &&
+                          f.divisionManagerIds.some((id) =>
+                            suggested.includes(id),
+                          );
+                        return {
+                          ...f,
+                          selectedDivisions,
+                          divisionManagerIds: keepExisting
+                            ? f.divisionManagerIds.filter((id) =>
+                                suggested.includes(id),
+                              )
+                            : suggested.length
+                              ? [suggested[0]]
+                              : [],
+                        };
+                      })
                     }
                     options={divisionOptions}
                     disabled={saving}
@@ -745,20 +805,14 @@ export function ProjectsPage() {
                 <FormField>
                   <Label>Division managers *</Label>
                   <p className="text-xs text-muted-foreground">
-                    One or more for approvals
+                    Suggested by division — change if needed
                   </p>
                   <UserMultiSelect
                     value={form.divisionManagerIds}
                     onChange={(divisionManagerIds) =>
                       setForm((f) => ({ ...f, divisionManagerIds }))
                     }
-                    options={divisionManagers.map((m) => ({
-                      id: m.id,
-                      name: m.name,
-                      hint: m.division
-                        ? divisionLabels[m.division] ?? m.division
-                        : undefined,
-                    }))}
+                    options={divisionManagerOptions}
                     placeholder="Select division managers"
                     minSelected={1}
                     disabled={saving}
@@ -790,90 +844,40 @@ export function ProjectsPage() {
 
               <FormSection
                 title="Project details"
-                description="Billing relationship, client, schedule, and contract"
+                description="Client, schedule, and contract information"
               >
-                <FormField className="sm:col-span-2">
-                  <Label>Billing / work type</Label>
-                  <select
-                    className={selectClass}
-                    value={form.billingRelationship}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        billingRelationship: e.target
-                          .value as BillingRelationship,
-                      }))
-                    }
-                    disabled={saving}
-                  >
-                    {(Object.entries(billingRelationshipLabels) as [
-                      BillingRelationship,
-                      string,
-                    ][]).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                <FormField>
+                  <Label>Client / owner</Label>
                   <p className="text-xs text-muted-foreground">
-                    {billingRelationshipDescriptions[form.billingRelationship]}
+                    Start typing for suggestions from the client master
                   </p>
+                  <ClientSuggestInput
+                    className={inputClass}
+                    value={form.clientName}
+                    onChange={(clientName) =>
+                      setForm((f) => ({ ...f, clientName }))
+                    }
+                    options={clients}
+                    placeholder="Client or owner name"
+                    disabled={saving}
+                  />
                 </FormField>
-                {(form.billingRelationship === "DIRECT_CLIENT" ||
-                  form.billingRelationship === "CLIENT_AND_GC") && (
-                  <FormField>
-                    <Label>
-                      Client / owner
-                      {form.billingRelationship !== "GC_DIRECT" ? " *" : ""}
-                    </Label>
-                    <ClientSuggestInput
-                      className={inputClass}
-                      value={form.clientName}
-                      onChange={(clientName) =>
-                        setForm((f) => ({ ...f, clientName }))
-                      }
-                      options={clients}
-                      placeholder="Client or owner name"
-                      disabled={saving}
-                    />
-                  </FormField>
-                )}
-                {form.billingRelationship === "GC_DIRECT" && (
-                  <FormField>
-                    <Label>End client (optional)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Owner or agency if known — not required for direct GC work
-                    </p>
-                    <ClientSuggestInput
-                      className={inputClass}
-                      value={form.clientName}
-                      onChange={(clientName) =>
-                        setForm((f) => ({ ...f, clientName }))
-                      }
-                      options={clients}
-                      placeholder="Optional end client"
-                      disabled={saving}
-                    />
-                  </FormField>
-                )}
-                {form.billingRelationship !== "DIRECT_CLIENT" && (
-                  <FormField>
-                    <Label>
-                      General contractor
-                      {form.billingRelationship !== "DIRECT_CLIENT" ? " *" : ""}
-                    </Label>
-                    <ClientSuggestInput
-                      className={inputClass}
-                      value={form.generalContractor}
-                      onChange={(generalContractor) =>
-                        setForm((f) => ({ ...f, generalContractor }))
-                      }
-                      options={clients}
-                      placeholder="General contractor name"
-                      disabled={saving}
-                    />
-                  </FormField>
-                )}
+                <FormField>
+                  <Label>General contractor</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Optional — leave blank for direct client jobs
+                  </p>
+                  <ClientSuggestInput
+                    className={inputClass}
+                    value={form.generalContractor}
+                    onChange={(generalContractor) =>
+                      setForm((f) => ({ ...f, generalContractor }))
+                    }
+                    options={clients}
+                    placeholder="General contractor name"
+                    disabled={saving}
+                  />
+                </FormField>
                 <FormField>
                   <Label>Location</Label>
                   <Input

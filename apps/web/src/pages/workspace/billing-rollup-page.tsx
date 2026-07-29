@@ -18,11 +18,6 @@ type RollupProject = {
   location: string | null;
   division: string;
   clientName: string | null;
-  generalContractor?: string | null;
-  billingRelationship?: string;
-  billTo?: string | null;
-  billToLabel?: string;
-  billingPartyLine?: string;
   approvedCount: number;
   pendingCount: number;
   returnedCount: number;
@@ -130,7 +125,7 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-2 py-1 font-medium">Job</th>
-                  <th className="px-2 py-1 font-medium">Bill to</th>
+                  <th className="px-2 py-1 font-medium">Client / location</th>
                   <th className="px-2 py-1 font-medium text-right">Approved</th>
                   <th className="px-2 py-1 font-medium text-right">Pending</th>
                   <th className="px-2 py-1 font-medium">Last report</th>
@@ -158,10 +153,8 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                       <p className="text-xs text-muted-foreground">{p.name}</p>
                     </td>
                     <td className="px-2 py-1 text-xs text-muted-foreground">
-                      {(p.billingPartyLine ??
-                        [p.billTo ?? p.clientName, p.location]
-                          .filter(Boolean)
-                          .join(" · ")) || "—"}
+                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
+                        "—"}
                     </td>
                     <td className="px-2 py-1 text-right tabular-nums">
                       {p.approvedCount}
@@ -240,10 +233,8 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                       </span>
                     </Link>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {(p.billingPartyLine ??
-                        [p.billTo ?? p.clientName, p.location]
-                          .filter(Boolean)
-                          .join(" · ")) || "—"}
+                      {[p.clientName, p.location].filter(Boolean).join(" · ") ||
+                        "—"}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs">
                       <span>

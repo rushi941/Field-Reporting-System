@@ -94,6 +94,7 @@ async function managerScopeWhere(
   const or: Prisma.ReportWhereInput[] = [
     { submittedBy: { managerId: userId } },
     { project: { projectManagerId: userId } },
+    { divisionManagerId: userId },
     {
       submittedBy: {
         projectTasksAssigned: {

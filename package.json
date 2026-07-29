@@ -16,6 +16,7 @@
     "db:migrate:deploy": "npm run db:migrate:deploy -w @frs/db",
     "db:migrate:deploy:neon": "node scripts/migrate-deploy.mjs",
     "db:seed": "npm run db:seed -w @frs/db",
+    "db:seed:neon": "node scripts/seed-deploy.mjs",
     "db:seed:admin": "npm run db:seed:admin -w @frs/db",
     "stop": "node scripts/stop-dev.mjs",
     "smoke": "node scripts/smoke-browser.mjs",

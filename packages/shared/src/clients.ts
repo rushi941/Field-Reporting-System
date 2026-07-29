@@ -25,10 +25,14 @@ export const clientImportRowSchema = z.object({
 
 export type ClientImportRow = z.infer<typeof clientImportRowSchema>;
 
+function normalizeSpreadsheetKey(key: string): string {
+  return key.replace(/^\uFEFF/, "").trim().toLowerCase();
+}
+
 function pickField(row: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     const hit = Object.entries(row).find(
-      ([k]) => k.trim().toLowerCase() === key.toLowerCase(),
+      ([k]) => normalizeSpreadsheetKey(k) === key.toLowerCase(),
     );
     if (hit && String(hit[1] ?? "").trim() !== "") return hit[1];
   }

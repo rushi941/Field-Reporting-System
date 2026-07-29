@@ -12,6 +12,7 @@ import {
   resolveStaSegment,
   singleLocationSegmentSchema,
   staRangeSegmentSchema,
+  submitReportSchema,
   updateDraftReportSchema,
   upsertDraftReportSchema,
   validateAttachmentFile,
@@ -46,6 +47,14 @@ const reportInclude = {
     },
   },
   approvedBy: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+  divisionManager: {
     select: {
       id: true,
       firstName: true,
@@ -114,6 +123,39 @@ function mapPerson(
 }
 
 function mapLine(item: ReportLoaded["lineItems"][number]) {
+  const master = item.projectTask?.taskMaster;
+  if (!master) {
+    return {
+      id: item.id,
+      projectTaskId: item.projectTaskId,
+      entryType: item.entryType,
+      quantitySource: item.quantitySource,
+      beginSta: item.beginSta,
+      endSta: item.endSta,
+      conversionFactor:
+        item.conversionFactor != null ? Number(item.conversionFactor) : null,
+      calculatedLf:
+        item.calculatedLf != null ? Number(item.calculatedLf) : null,
+      manualLf: item.manualLf != null ? Number(item.manualLf) : null,
+      finalQuantity: Number(item.finalQuantity),
+      locationDescription: item.locationDescription,
+      symbolItemType: item.symbolItemType,
+      sortOrder: item.sortOrder,
+      projectTask: {
+        id: item.projectTask.id,
+        taskMaster: {
+          id: "unknown",
+          code: "—",
+          name: "Removed task",
+          unit: "LF",
+          formType: "STA_RANGE",
+          color: null,
+          widthInches: null,
+          conversionFactor: null,
+        },
+      },
+    };
+  }
   return {
     id: item.id,
     projectTaskId: item.projectTaskId,
@@ -163,6 +205,9 @@ function mapReport(report: ReportLoaded) {
     updatedAt: report.updatedAt,
     /** Manager who approved (set when manager clicks Approve) */
     approvedBy: mapPerson(report.approvedBy),
+    /** Division manager selected for approval routing */
+    divisionManagerId: report.divisionManagerId,
+    divisionManager: mapPerson(report.divisionManager),
     /** Manager who returned (from RETURNED audit) */
     returnedBy:
       report.status === "RETURNED" ? mapPerson(returnAudit?.user) : null,
@@ -202,6 +247,70 @@ async function nextReportNumber() {
     ? Number(latest.reportNumber.slice(prefix.length)) + 1
     : 1;
   return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+async function createDraftReport(
+  data: Prisma.ReportUncheckedCreateInput,
+): Promise<ReportLoaded> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await prisma.report.create({
+        data: {
+          ...data,
+          reportNumber: data.reportNumber ?? (await nextReportNumber()),
+        },
+        include: reportInclude,
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002" &&
+        attempt < 2
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new AppError("INTERNAL", "Could not create draft report", 500);
+}
+
+function projectManagerIds(project: {
+  projectManagerId: string | null;
+  divisionManagers: { userId: string }[];
+}) {
+  const ids = project.divisionManagers.map((dm) => dm.userId);
+  if (project.projectManagerId && !ids.includes(project.projectManagerId)) {
+    return [project.projectManagerId, ...ids];
+  }
+  return ids.length ? ids : project.projectManagerId ? [project.projectManagerId] : [];
+}
+
+function resolveDefaultDivisionManagerId(project: {
+  projectManagerId: string | null;
+  divisionManagers: { userId: string }[];
+}) {
+  const ids = projectManagerIds(project);
+  return project.projectManagerId ?? ids[0] ?? null;
+}
+
+function assertDivisionManagerOnProject(
+  managerId: string | null | undefined,
+  project: {
+    projectManagerId: string | null;
+    divisionManagers: { userId: string }[];
+  },
+) {
+  if (!managerId) return null;
+  const allowed = new Set(projectManagerIds(project));
+  if (!allowed.has(managerId)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Selected division manager is not assigned to this project",
+      400,
+    );
+  }
+  return managerId;
 }
 
 function parseReportDate(value: string): Date {
@@ -278,6 +387,9 @@ fieldReportsRouter.post(
         status: "ACTIVE",
         tasks: { some: { isActive: true, assignedToId: userId } },
       },
+      include: {
+        divisionManagers: { select: { userId: true } },
+      },
     });
     if (!project) {
       throw new AppError(
@@ -286,6 +398,12 @@ fieldReportsRouter.post(
         404,
       );
     }
+
+    const defaultManagerId = resolveDefaultDivisionManagerId(project);
+    const divisionManagerId =
+      body.divisionManagerId !== undefined
+        ? assertDivisionManagerOnProject(body.divisionManagerId, project)
+        : defaultManagerId;
 
     const existing = await prisma.report.findFirst({
       where: {
@@ -298,15 +416,28 @@ fieldReportsRouter.post(
     });
 
     if (existing) {
-      if (
+      const needsUpdate =
         body.crewSize !== undefined ||
-        body.notes !== undefined
-      ) {
+        body.notes !== undefined ||
+        body.divisionManagerId !== undefined ||
+        (!existing.divisionManagerId && divisionManagerId);
+
+      if (needsUpdate) {
         const updated = await prisma.report.update({
           where: { id: existing.id },
           data: {
             ...(body.crewSize !== undefined ? { crewSize: body.crewSize } : {}),
             ...(body.notes !== undefined ? { notes: body.notes } : {}),
+            ...(body.divisionManagerId !== undefined
+              ? {
+                  divisionManagerId: assertDivisionManagerOnProject(
+                    body.divisionManagerId,
+                    project,
+                  ),
+                }
+              : !existing.divisionManagerId && divisionManagerId
+                ? { divisionManagerId }
+                : {}),
           },
           include: reportInclude,
         });
@@ -315,18 +446,15 @@ fieldReportsRouter.post(
       return res.json({ report: mapReport(existing) });
     }
 
-    const report = await prisma.report.create({
-      data: {
-        reportNumber: await nextReportNumber(),
-        projectId: project.id,
-        reportDate,
-        submittedById: userId,
-        division: project.division,
-        crewSize: body.crewSize ?? null,
-        notes: body.notes ?? null,
-        status: "DRAFT",
-      },
-      include: reportInclude,
+    const report = await createDraftReport({
+      projectId: project.id,
+      reportDate,
+      submittedById: userId,
+      division: project.division,
+      divisionManagerId,
+      crewSize: body.crewSize ?? null,
+      notes: body.notes ?? null,
+      status: "DRAFT",
     });
 
     await prisma.auditLog.create({
@@ -364,11 +492,26 @@ fieldReportsRouter.patch(
   asyncHandler(async (req, res) => {
     const id = routeParam(req.params.id);
     const body = updateDraftReportSchema.parse(req.body);
-    const existing = await prisma.report.findUnique({ where: { id } });
+    const existing = await prisma.report.findUnique({
+      where: { id },
+      include: {
+        project: {
+          include: { divisionManagers: { select: { userId: true } } },
+        },
+      },
+    });
     if (!existing || existing.submittedById !== req.user!.id) {
       throw new AppError("NOT_FOUND", "Report not found", 404);
     }
     assertEditable(existing.status);
+
+    const divisionManagerId =
+      body.divisionManagerId !== undefined
+        ? assertDivisionManagerOnProject(
+            body.divisionManagerId,
+            existing.project,
+          )
+        : undefined;
 
     const report = await prisma.report.update({
       where: { id },
@@ -378,6 +521,9 @@ fieldReportsRouter.patch(
           : {}),
         ...(body.crewSize !== undefined ? { crewSize: body.crewSize } : {}),
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
+        ...(divisionManagerId !== undefined
+          ? { divisionManagerId }
+          : {}),
       },
       include: reportInclude,
     });
@@ -521,6 +667,7 @@ fieldReportsRouter.post(
   asyncHandler(async (req, res) => {
     const id = routeParam(req.params.id);
     const userId = req.user!.id;
+    const body = submitReportSchema.parse(req.body ?? {});
     const report = await prisma.report.findUnique({
       where: { id },
       include: { lineItems: true },
@@ -553,9 +700,32 @@ fieldReportsRouter.post(
 
     const project = await prisma.project.findUnique({
       where: { id: report.projectId },
-      select: { projectManagerId: true, division: true },
+      select: {
+        projectManagerId: true,
+        division: true,
+        divisionManagers: { select: { userId: true } },
+      },
     });
-    if (project?.projectManagerId) {
+    if (!project) {
+      throw new AppError("NOT_FOUND", "Project not found", 404);
+    }
+
+    const routedManagerId =
+      (body.divisionManagerId !== undefined
+        ? assertDivisionManagerOnProject(body.divisionManagerId, project)
+        : null) ??
+      report.divisionManagerId ??
+      resolveDefaultDivisionManagerId(project);
+
+    if (!routedManagerId) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Select a division manager for this project",
+        400,
+      );
+    }
+
+    if (routedManagerId) {
       const submitter = await prisma.user.findUnique({
         where: { id: userId },
         select: { managerId: true, division: true },
@@ -564,8 +734,8 @@ fieldReportsRouter.post(
         await prisma.user.update({
           where: { id: userId },
           data: {
-            managerId: project.projectManagerId,
-            division: submitter.division ?? project.division,
+            managerId: routedManagerId,
+            division: submitter.division ?? project?.division,
           },
         });
       }
@@ -577,6 +747,7 @@ fieldReportsRouter.post(
         status: "SUBMITTED",
         submittedAt: new Date(),
         returnComment: null,
+        divisionManagerId: routedManagerId,
       },
       include: reportInclude,
     });

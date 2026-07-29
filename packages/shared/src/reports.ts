@@ -131,12 +131,19 @@ export const upsertDraftReportSchema = z.object({
   reportDate: z.string().min(1),
   crewSize: z.number().int().positive().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  /** Division manager for approval routing; must be assigned to the project */
+  divisionManagerId: z.string().min(1).optional().nullable(),
 });
 
 export const updateDraftReportSchema = z.object({
   reportDate: z.string().min(1).optional(),
   crewSize: z.number().int().positive().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  divisionManagerId: z.string().min(1).optional().nullable(),
+});
+
+export const submitReportSchema = z.object({
+  divisionManagerId: z.string().min(1).optional().nullable(),
 });
 
 export type StaRangeSegmentInput = z.infer<typeof staRangeSegmentSchema>;

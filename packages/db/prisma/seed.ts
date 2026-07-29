@@ -16,12 +16,16 @@ import {
   defaultPermissionMatrix,
   permissionCatalog,
   roles as appRoles,
+  PAINTED_PAVEMENT_MASTER_BIDS,
+  PAVEMENT_LINE_SUB_CATALOG,
+  subBidCodeForMaster,
   seedProjectTypes,
   seedUnitMasters,
   type AppRole,
   type PermissionAccessValue,
   type PermissionKey,
 } from "@frs/shared";
+import { seedBigDemoProject, seedDemoUsers } from "./seed-demo.js";
 
 const prisma = new PrismaClient();
 
@@ -110,8 +114,9 @@ async function seedMasters() {
 
   // Bid master from Bid Item List.xlsx
   await seedBidMasters(typeIds);
+  const subCount = await seedPavementSubBids(typeIds);
 
-  return { typeIds, taskIds: {} as Record<string, string> };
+  return { typeIds, taskIds: {} as Record<string, string>, subCount };
 }
 
 async function seedBidMasters(typeIds: Record<string, string>) {
@@ -161,6 +166,55 @@ async function seedBidMasters(typeIds: Record<string, string>) {
   return count;
 }
 
+async function seedPavementSubBids(typeIds: Record<string, string>) {
+  let count = 0;
+  for (const master of PAINTED_PAVEMENT_MASTER_BIDS) {
+    const parent = await prisma.taskMaster.findUnique({
+      where: { code: master.masterCode },
+    });
+    if (!parent) {
+      console.warn(`Master ${master.masterCode} not found — skip sub-bids`);
+      continue;
+    }
+
+    for (const line of PAVEMENT_LINE_SUB_CATALOG) {
+      const code = subBidCodeForMaster(master.prefix, line.lineCode);
+      await prisma.taskMaster.upsert({
+        where: { code },
+        update: {
+          name: line.name,
+          description: `${line.name} · ${line.color} · ${line.widthInches}" · CF ${line.conversionFactor} (${line.staBasis}" STA basis)`,
+          unit: line.unit,
+          formType: line.formType,
+          division: "PAVEMENT_MARKING",
+          parentId: parent.id,
+          color: line.color,
+          widthInches: line.widthInches,
+          conversionFactor: line.conversionFactor,
+          projectTypeId: typeIds.PM ?? null,
+          isActive: true,
+        },
+        create: {
+          code,
+          name: line.name,
+          description: `${line.name} · ${line.color} · ${line.widthInches}" · CF ${line.conversionFactor} (${line.staBasis}" STA basis)`,
+          unit: line.unit,
+          formType: line.formType,
+          division: "PAVEMENT_MARKING",
+          parentId: parent.id,
+          color: line.color,
+          widthInches: line.widthInches,
+          conversionFactor: line.conversionFactor,
+          projectTypeId: typeIds.PM ?? null,
+          sortOrder: count + 1,
+        },
+      });
+      count += 1;
+    }
+  }
+  return count;
+}
+
 async function seedClients() {
   const seedPath = path.join(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -200,7 +254,7 @@ async function seedClients() {
 
 async function main() {
   await seedPermissions();
-  const { typeIds } = await seedMasters();
+  const { typeIds, subCount } = await seedMasters();
   const clientCount = await seedClients();
   const bidCount = await prisma.taskMaster.count();
 
@@ -208,7 +262,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@frs.local" },
-    update: {},
+    update: { isActive: true },
     create: {
       email: "admin@frs.local",
       passwordHash,
@@ -218,88 +272,9 @@ async function main() {
     },
   });
 
-  const manager = await prisma.user.upsert({
-    where: { email: "manager@frs.local" },
-    update: {
-      firstName: "Division",
-      lastName: "Manager",
-    },
-    create: {
-      email: "manager@frs.local",
-      passwordHash,
-      firstName: "Division",
-      lastName: "Manager",
-      division: Division.PAVEMENT_MARKING,
-      roles: { create: [{ role: Role.DIVISION_MANAGER }] },
-    },
-  });
-
-  const crew = await prisma.crew.upsert({
-    where: { id: "seed-crew-marking-1" },
-    update: {
-      name: "Marking Crew A",
-      division: Division.PAVEMENT_MARKING,
-      managerId: manager.id,
-    },
-    create: {
-      id: "seed-crew-marking-1",
-      name: "Marking Crew A",
-      division: Division.PAVEMENT_MARKING,
-      managerId: manager.id,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "lead@frs.local" },
-    update: {
-      managerId: manager.id,
-      crewId: crew.id,
-      division: Division.PAVEMENT_MARKING,
-      isActive: true,
-    },
-    create: {
-      email: "lead@frs.local",
-      passwordHash,
-      firstName: "Alex",
-      lastName: "Lead",
-      division: Division.PAVEMENT_MARKING,
-      managerId: manager.id,
-      crewId: crew.id,
-      roles: { create: [{ role: Role.FIELD_LEAD }] },
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "tclead@frs.local" },
-    update: { division: Division.TRAFFIC_CONTROL, isActive: true },
-    create: {
-      email: "tclead@frs.local",
-      passwordHash,
-      firstName: "Taylor",
-      lastName: "TCP",
-      division: Division.TRAFFIC_CONTROL,
-      managerId: manager.id,
-      roles: { create: [{ role: Role.FIELD_LEAD }] },
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "signlead@frs.local" },
-    update: { division: Division.PERMANENT_SIGNS, isActive: true },
-    create: {
-      email: "signlead@frs.local",
-      passwordHash,
-      firstName: "Sam",
-      lastName: "Signs",
-      division: Division.PERMANENT_SIGNS,
-      managerId: manager.id,
-      roles: { create: [{ role: Role.FIELD_LEAD }] },
-    },
-  });
-
   await prisma.user.upsert({
     where: { email: "padmin@frs.local" },
-    update: {},
+    update: { isActive: true },
     create: {
       email: "padmin@frs.local",
       passwordHash,
@@ -313,13 +288,26 @@ async function main() {
     where: { email: "padmin@frs.local" },
   });
 
+  const { userIds, dmCount, leadCount } = await seedDemoUsers(
+    prisma,
+    passwordHash,
+  );
+
+  const demo = await seedBigDemoProject(
+    prisma,
+    typeIds,
+    userIds,
+    padmin.id,
+  );
+
+  // Small legacy sample project (no tasks — use JOB-2026-DEMO for full demo)
   const project = await prisma.project.upsert({
     where: { jobNumber: "JOB-1001" },
     update: {
       lastSyncedAt: new Date(),
       projectTypeId: typeIds.PM,
       projectAdminId: padmin.id,
-      projectManagerId: manager.id,
+      projectManagerId: userIds.get("manager@frs.local") ?? userIds.get("pm@frs.local")!,
       clientName: "Iowa DOT",
       generalContractor: "Sample GC Constructors",
       location: "US-30, Story County, IA",
@@ -334,7 +322,7 @@ async function main() {
       division: Division.PAVEMENT_MARKING,
       projectTypeId: typeIds.PM,
       projectAdminId: padmin.id,
-      projectManagerId: manager.id,
+      projectManagerId: userIds.get("manager@frs.local") ?? userIds.get("pm@frs.local")!,
       clientName: "Iowa DOT",
       generalContractor: "Sample GC Constructors",
       location: "US-30, Story County, IA",
@@ -410,10 +398,26 @@ async function main() {
   console.log("Seed OK:", {
     admin: admin.email,
     projectTypes: seedProjectTypes.length,
-    tasks: bidCount,
+    bidMasters: bidCount,
+    pavementSubBids: subCount,
     clients: clientCount,
-    project: project.jobNumber,
-    password: "ChangeMe123!",
+    demoProject: demo.project.jobNumber,
+    demoTasks: demo.taskCount,
+    demoDivisionManagers: demo.divisionManagerCount,
+    demoFieldLeads: demo.fieldLeadCount,
+    totalDivisionManagers: dmCount,
+    totalFieldLeads: leadCount,
+    sampleProject: project.jobNumber,
+    loginPassword: "ChangeMe123!",
+    demoLogins: {
+      projectAdmin: "padmin@frs.local",
+      projectManager: "pm@frs.local",
+      divisionManager: "dm-pm1@frs.local",
+      fieldLead: "lead01@frs.local",
+    },
+    ...(demo.missingCodes.length
+      ? { missingTaskCodes: demo.missingCodes }
+      : {}),
   });
 }
 

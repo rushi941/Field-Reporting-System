@@ -18,6 +18,7 @@ import { unitsRouter } from "./routes/units.js";
 import { clientsRouter } from "./routes/clients.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { projectsRouter } from "./routes/projects.js";
+import { workspaceReportsRouter } from "./routes/workspace-reports.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { getUploadRoot } from "./lib/storage.js";
 import { mountSwagger } from "./swagger/setup.js";
@@ -97,6 +98,7 @@ app.use("/api/v1/units", unitsRouter);
 app.use("/api/v1/clients", clientsRouter);
 app.use("/api/v1/tasks", tasksRouter);
 app.use("/api/v1/projects", projectsRouter);
+app.use("/api/v1/workspace-reports", workspaceReportsRouter);
 
 const webDist = resolveWebDist();
 if (webDist) {

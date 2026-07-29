@@ -17,11 +17,6 @@ type Drilldown = {
     name: string;
     location: string | null;
     clientName: string | null;
-    generalContractor?: string | null;
-    billingRelationship?: string;
-    billTo?: string | null;
-    billToLabel?: string;
-    billingPartyLine?: string;
     pendingCount: number;
     billingReady: boolean;
   };
@@ -159,10 +154,8 @@ export function BillingDrilldownPage({
             {project.jobNumber} — {project.name}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {(project.billingPartyLine ??
-              [project.billTo ?? project.clientName, project.location]
-                .filter(Boolean)
-                .join(" · ")) || "—"}
+            {[project.clientName, project.location].filter(Boolean).join(" · ") ||
+              "—"}
           </p>
           <p className="mt-2 text-xs">
             Pending approvals:{" "}

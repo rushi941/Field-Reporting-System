@@ -32,12 +32,6 @@ enum ProjectStatus {
   COMPLETED
 }
 
-enum BillingRelationship {
-  DIRECT_CLIENT
-  CLIENT_AND_GC
-  GC_DIRECT
-}
-
 enum BidItemStatus {
   ACTIVE
   INACTIVE
@@ -130,6 +124,7 @@ model User {
 
   reportsSubmitted Report[]      @relation("ReportSubmitter")
   reportsApproved  Report[]      @relation("ReportApprover")
+  reportsRouted    Report[]      @relation("ReportDivisionManager")
   attachments      Attachment[]
   auditLogs        AuditLog[]
   importRuns       FoundationImportRun[]
@@ -300,8 +295,6 @@ model Project {
   /// Owner / agency (e.g. TxDOT, City of Dallas)
   clientName        String?
   generalContractor String?
-  /// Billing setup — direct client, client+GC, or direct GC
-  billingRelationship BillingRelationship @default(DIRECT_CLIENT)
   /// Work location — route, city, county, state
   location          String?
   contractAmount    Decimal?      @db.Decimal(14, 2)
@@ -444,12 +437,15 @@ model Report {
   approvedAt       DateTime?
   approvedById     String?
   returnedAt       DateTime?
+  /// Division manager selected for approval routing (defaults from project)
+  divisionManagerId String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   project     Project          @relation(fields: [projectId], references: [id])
   submittedBy User             @relation("ReportSubmitter", fields: [submittedById], references: [id])
   approvedBy  User?            @relation("ReportApprover", fields: [approvedById], references: [id])
+  divisionManager User?        @relation("ReportDivisionManager", fields: [divisionManagerId], references: [id])
   lineItems   ReportLineItem[]
   attachments Attachment[]
   auditLogs   AuditLog[]
@@ -460,6 +456,7 @@ model Report {
   @@index([division, status])
   @@index([reportDate])
   @@index([approvedById])
+  @@index([divisionManagerId])
 }
 
 model ReportLineItem {
