@@ -1,4 +1,4 @@
-# Apply Prisma migrations to Neon after every push to main.
+# Apply Prisma migrations + full demo seed to Neon after every push to main.
 # Add repo secret: DATABASE_URL = Neon connection string (?sslmode=require).
 # Pooler URLs (-pooler) are OK — migrate script uses direct host automatically.
 
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,3 +36,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node scripts/migrate-deploy.mjs
+
+      - name: Seed masters, users, and demo project
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:seed -w @frs/db
