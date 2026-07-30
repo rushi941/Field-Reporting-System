@@ -142,6 +142,8 @@ async function seedBidMasters(typeIds: Record<string, string>) {
 
   await prisma.reportLineItem.deleteMany({});
   await prisma.projectTask.deleteMany({});
+  // Clear self-references before bulk delete (Neon re-seed)
+  await prisma.taskMaster.updateMany({ data: { parentId: null } });
   await prisma.taskMaster.deleteMany({});
 
   let count = 0;
