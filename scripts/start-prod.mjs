@@ -22,8 +22,7 @@ function run(cmd, args, env = process.env) {
   return result.status ?? 1;
 }
 
-function runMigrateWithRetry(maxAttempts = 3) {
-  const env = migrateEnv();
+function runMigrateWithRetry(env, maxAttempts = 3) {
   const host = env.DATABASE_URL?.match(/@([^/]+)/)?.[1] ?? "unknown";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -50,7 +49,8 @@ if (!process.env.DATABASE_URL) {
   console.error("══════════════════════════════════════════════════════════");
   console.error("");
 } else {
-  const preview = normalizeDatabaseUrl(process.env.DATABASE_URL);
+  const env = migrateEnv();
+  const preview = normalizeDatabaseUrl(env.DATABASE_URL);
   const host = preview?.match(/@([^/]+)/)?.[1] ?? "";
   if (process.env.DATABASE_URL.includes("-pooler")) {
     console.warn(
@@ -59,7 +59,7 @@ if (!process.env.DATABASE_URL) {
   }
   console.log(`[db] Runtime database host: ${host}`);
 
-  const migrate = runMigrateWithRetry();
+  const migrate = runMigrateWithRetry(env);
   if (migrate !== 0) {
     console.error("");
     console.error("══════════════════════════════════════════════════════════");
