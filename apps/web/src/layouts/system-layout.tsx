@@ -15,7 +15,6 @@ import {
   Building2,
   LogOut,
   Menu,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
@@ -113,7 +112,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
           Menu
         </p>
@@ -156,7 +155,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
         })}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
+      <div className="shrink-0 border-t border-white/10 p-4">
         <div className="mb-3 rounded-md bg-sidebar-muted px-3 py-2.5">
           <p className="truncate text-sm font-medium text-white">
             {user?.firstName} {user?.lastName}
@@ -194,23 +193,38 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="relative shrink-0 lg:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu className="size-5" />
+              {mobileHasActivity && (
+                <ActivityDot className="right-1 top-1" />
+              )}
+            </Button>
+            <p className="truncate text-sm font-semibold text-foreground">
+              Field Reporting System
+            </p>
+          </div>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="relative lg:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground lg:hidden"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
           >
-            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-            {!mobileOpen && mobileHasActivity && (
-              <ActivityDot className="right-1 top-1" />
-            )}
+            <LogOut className="size-4" />
+            <span className="sr-only sm:not-sr-only">
+              {loggingOut ? "…" : "Log out"}
+            </span>
           </Button>
-          <p className="truncate text-sm font-semibold text-foreground">
-            Field Reporting System
-          </p>
         </header>
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
