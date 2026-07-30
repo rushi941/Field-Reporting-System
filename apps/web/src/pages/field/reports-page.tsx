@@ -51,6 +51,7 @@ export function FieldReportsPage() {
   } = useCachedApi<{ reports: FieldReport[] }>(
     OFFLINE_CACHE_KEYS.fieldReports,
     "/api/v1/field/reports",
+    user?.id,
   );
 
   const reports = data?.reports ?? [];

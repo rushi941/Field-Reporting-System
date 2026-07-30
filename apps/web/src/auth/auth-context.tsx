@@ -16,6 +16,13 @@ import {
   setToken,
   type AuthUser,
 } from "@/lib/api";
+import { cacheClearAll } from "@/lib/offline-cache";
+import { clearAllTaskEntryDrafts } from "@/lib/task-entry-draft";
+
+function clearSessionCaches() {
+  cacheClearAll();
+  clearAllTaskEntryDrafts();
+}
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -48,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    clearSessionCaches();
     const data = await loginRequest(email, password);
     setToken(data.token);
     setUser(data.user);
@@ -61,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Still clear local session if API is unreachable
     } finally {
       clearToken();
+      clearSessionCaches();
       setUser(null);
     }
   }, []);

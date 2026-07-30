@@ -182,7 +182,7 @@ export function FieldLayout() {
           )}
         >
           <div className="mx-auto w-full max-w-lg">
-            <Outlet />
+            <Outlet key={user?.id} />
           </div>
         </main>
 

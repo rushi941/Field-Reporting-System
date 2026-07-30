@@ -45,6 +45,24 @@ export function cacheRemove(key: string) {
   }
 }
 
+/** Scope offline API cache to the signed-in user (avoids cross-user flicker). */
+export function scopedCacheKey(userId: string | undefined, key: string) {
+  return userId ? `${userId}:${key}` : key;
+}
+
+export function cacheClearAll() {
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(CACHE_PREFIX)) toRemove.push(k);
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function formatCacheAge(savedAt: number) {
   const mins = Math.round((Date.now() - savedAt) / 60_000);
   if (mins < 1) return "just now";

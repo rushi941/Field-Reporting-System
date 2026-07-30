@@ -183,7 +183,7 @@ export function ApprovalsLayout() {
               : "pb-4",
           )}
         >
-          <Outlet />
+          <Outlet key={user?.id} />
         </main>
 
         {showBottomNav && (

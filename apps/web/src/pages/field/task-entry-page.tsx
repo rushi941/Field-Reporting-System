@@ -15,7 +15,7 @@ import {
 import { ConnectionBanner } from "@/components/connection-banner";
 import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { apiFetch, apiUpload } from "@/lib/api";
-import { cacheGet, OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
+import { cacheGet, OFFLINE_CACHE_KEYS, scopedCacheKey } from "@/lib/offline-cache";
 import {
   clearTaskEntryDraft,
   loadTaskEntryDraft,
@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useAuth } from "@/auth/auth-context";
 import { notifyPendingQueueRefresh } from "@/lib/activity-seen";
 
 type TaskMaster = {
@@ -189,6 +190,7 @@ export function FieldTaskEntryPage() {
   const navigate = useNavigate();
   const reportIdHint = search.get("reportId");
   const online = useOnlineStatus();
+  const { user } = useAuth();
   const [cacheRestored, setCacheRestored] = useState(false);
 
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -288,8 +290,9 @@ export function FieldTaskEntryPage() {
         setCacheRestored(false);
 
         const cachedProjects =
-          cacheGet<{ projects: ProjectInfo[] }>(OFFLINE_CACHE_KEYS.fieldProjects)
-            ?.data ?? null;
+          cacheGet<{ projects: ProjectInfo[] }>(
+            scopedCacheKey(user?.id, OFFLINE_CACHE_KEYS.fieldProjects),
+          )?.data ?? null;
 
         let projectsData: { projects: ProjectInfo[] } | null = null;
         if (online) {
@@ -417,7 +420,7 @@ export function FieldTaskEntryPage() {
         setLoading(false);
       }
     })();
-  }, [projectId, taskId, reportIdHint, online]);
+  }, [projectId, taskId, reportIdHint, online, user?.id]);
 
   function clearSegField(index: number, field: string) {
     setSegErrors((prev) => {
@@ -1105,17 +1108,13 @@ export function FieldTaskEntryPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {editable && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
-          <div className="mx-auto flex max-w-lg flex-col gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs" htmlFor="division-manager">
+          {editable && (
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <Label className="text-sm" htmlFor="division-manager">
                 Division manager
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Project managers only — change if needed before submit
               </p>
               <select
@@ -1139,6 +1138,13 @@ export function FieldTaskEntryPage() {
                 )}
               </select>
             </div>
+          )}
+        </div>
+      </div>
+
+      {editable && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
+          <div className="mx-auto flex max-w-lg flex-col gap-2">
             <Button
               type="button"
               variant="outline"

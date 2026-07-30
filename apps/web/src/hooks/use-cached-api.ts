@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { cacheGet, cacheSet } from "@/lib/offline-cache";
+import { cacheGet, cacheSet, scopedCacheKey } from "@/lib/offline-cache";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
 type CachedApiState<T> = {
@@ -17,28 +17,47 @@ type CachedApiState<T> = {
 export function useCachedApi<T>(
   cacheKey: string,
   path: string,
+  userId?: string,
 ): CachedApiState<T> {
   const online = useOnlineStatus();
-  const [data, setData] = useState<T | null>(() => cacheGet<T>(cacheKey)?.data ?? null);
-  const [loading, setLoading] = useState(() => cacheGet<T>(cacheKey) === null);
+  const scopedKey = scopedCacheKey(userId, cacheKey);
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [fromCache, setFromCache] = useState(() => cacheGet<T>(cacheKey) !== null);
-  const [cacheSavedAt, setCacheSavedAt] = useState<number | null>(
-    () => cacheGet<T>(cacheKey)?.savedAt ?? null,
-  );
+  const [fromCache, setFromCache] = useState(false);
+  const [cacheSavedAt, setCacheSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setData(null);
+    setLoading(true);
+    setRefreshing(false);
+    setFromCache(false);
+    setCacheSavedAt(null);
+    setError(null);
+  }, [scopedKey]);
+
   const refresh = useCallback(async () => {
-    const cached = cacheGet<T>(cacheKey);
+    if (!userId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
+    const cached = cacheGet<T>(scopedKey);
     if (cached) {
+      setData(cached.data);
+      setFromCache(true);
+      setCacheSavedAt(cached.savedAt);
       setRefreshing(true);
     } else {
       setLoading(true);
     }
+
     try {
       const fresh = await apiFetch<T>(path);
       setData(fresh);
-      cacheSet(cacheKey, fresh);
+      cacheSet(scopedKey, fresh);
       setFromCache(false);
       setCacheSavedAt(Date.now());
       setError(null);
@@ -49,12 +68,14 @@ export function useCachedApi<T>(
         setData(cached.data);
         setFromCache(true);
         setCacheSavedAt(cached.savedAt);
+      } else {
+        setData(null);
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [cacheKey, path]);
+  }, [scopedKey, path, userId]);
 
   useEffect(() => {
     void refresh();

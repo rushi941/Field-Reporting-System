@@ -47,6 +47,7 @@ export function ApprovalsQueuePage() {
   } = useCachedApi<PendingResponse>(
     OFFLINE_CACHE_KEYS.approvalsPending,
     "/api/v1/approvals/pending",
+    user?.id,
   );
 
   usePendingQueueRefresh(refresh);

@@ -48,6 +48,7 @@ export function FieldProjectsPage() {
   } = useCachedApi<{ projects: FieldProject[] }>(
     OFFLINE_CACHE_KEYS.fieldProjects,
     "/api/v1/field/projects",
+    user?.id,
   );
 
   const projects = data?.projects ?? [];

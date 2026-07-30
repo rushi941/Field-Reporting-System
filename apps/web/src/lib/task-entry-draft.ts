@@ -57,3 +57,16 @@ export function clearTaskEntryDraft(projectId: string, taskId: string) {
     /* ignore */
   }
 }
+
+export function clearAllTaskEntryDrafts() {
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(DRAFT_PREFIX)) toRemove.push(k);
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
