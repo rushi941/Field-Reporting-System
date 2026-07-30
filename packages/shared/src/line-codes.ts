@@ -95,9 +95,11 @@ export function conversionFactorFor(
   return roundCf((widthInches / basis) * def.patternFactor);
 }
 
-/** Physical LF from STA range */
+/** Physical LF from decimal station values (End − Begin) × 100 */
 export function physicalLf(beginSta: number, endSta: number): number {
-  return (endSta - beginSta) * 100;
+  const span = Math.abs(endSta - beginSta);
+  if (span <= 0) return 0;
+  return span * 100;
 }
 
 /** Reported LF = (End STA − Begin STA) × 100 × CF */

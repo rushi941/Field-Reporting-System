@@ -8,7 +8,7 @@ import { useAuth } from "@/auth/auth-context";
 import { markFieldTasksKnown } from "@/lib/activity-seen";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
+import { TaskProgressBar } from "@/components/task-progress-bar";
 import { cn } from "@/lib/utils";
 
 type FieldTask = {
@@ -18,6 +18,13 @@ type FieldTask = {
   assignedTo: { id: string; name: string; email: string } | null;
   isMine: boolean;
   completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
+  usesSymbolEntry?: boolean;
+  progress: {
+    estimated: number;
+    approved: number;
+    pending: number;
+    approvedPct: number;
+  };
   taskMaster: {
     id: string;
     code: string;
@@ -62,6 +69,11 @@ const formLabels: Record<string, string> = {
   STA_RANGE: "STA Range",
   SINGLE_LOCATION: "Single Loc.",
 };
+
+function taskFormLabel(task: FieldTask): string {
+  if (task.usesSymbolEntry) return "Symbols";
+  return formLabels[task.taskMaster.formType] ?? task.taskMaster.formType;
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -161,10 +173,6 @@ export function FieldProjectDetailPage() {
     () => project?.tasks.filter((t) => t.isMine) ?? [],
     [project],
   );
-
-  const pendingByTask = useMemo(() => {
-    return report?.totalsByTask ?? {};
-  }, [report]);
 
   const busy = saving;
 
@@ -285,14 +293,6 @@ export function FieldProjectDetailPage() {
               .join(" · ")}
           </p>
         )}
-        {project.route?.beginSta && project.route?.endSta && (
-          <div className="mt-3">
-            <ProjectStaScopeCard
-              beginSta={project.route.beginSta}
-              endSta={project.route.endSta}
-            />
-          </div>
-        )}
       </div>
 
       {report?.status === "RETURNED" && report.returnComment && (
@@ -369,11 +369,15 @@ export function FieldProjectDetailPage() {
       </p>
 
       <ul className="space-y-2">
-        {myTasks.map((t, idx) => {
-          const pending = pendingByTask[t.id] ?? 0;
-          const formLabel =
-            formLabels[t.taskMaster.formType] ?? t.taskMaster.formType;
+        {myTasks.map((t) => {
+          const formLabel = taskFormLabel(t);
           const canOpen = editable && !busy;
+          const progress = t.progress ?? {
+            estimated: 0,
+            approved: 0,
+            pending: 0,
+            approvedPct: 0,
+          };
           return (
             <li key={t.id}>
               <button
@@ -388,62 +392,22 @@ export function FieldProjectDetailPage() {
                   )
                 }
                 className={cn(
-                  "min-h-[4.5rem] w-full rounded-xl border border-border bg-card px-4 py-4 text-left shadow-sm transition",
+                  "w-full rounded-xl border border-border bg-card px-4 py-4 text-left shadow-sm transition",
                   canOpen
                     ? "active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                     : "opacity-70",
                   busy && canOpen && "opacity-60",
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    #{String(idx + 1).padStart(4, "0")}
-                  </span>
-                  <div className="flex flex-wrap items-center justify-end gap-1">
-                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800">
-                      Your task
-                    </span>
-                    <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {formLabel}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-1.5 text-sm font-semibold leading-snug">
-                  {t.taskMaster.name}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                  {t.taskMaster.code}
-                  {t.taskMaster.widthInches != null
-                    ? ` · ${t.taskMaster.widthInches}"`
-                    : ""}
-                  {t.taskMaster.conversionFactor != null
-                    ? ` · CF ${Number(t.taskMaster.conversionFactor).toFixed(2)}`
-                    : ""}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                  <span>
-                    Unit:{" "}
-                    <strong className="text-foreground">
-                      {t.taskMaster.unit}
-                    </strong>
-                  </span>
-                  <span>
-                    Today:{" "}
-                    <strong className="text-amber-700">
-                      {pending.toLocaleString()}
-                    </strong>
-                  </span>
-                </div>
-                {pending > 0 && (
-                  <div className="mt-2">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full w-1/2 rounded-full bg-sky-600" />
-                    </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      On today&apos;s draft report
-                    </p>
-                  </div>
-                )}
+                <TaskProgressBar
+                  code={t.taskMaster.code}
+                  name={t.taskMaster.name}
+                  formLabel={formLabel}
+                  unit={t.taskMaster.unit}
+                  estimated={progress.estimated}
+                  approved={progress.approved}
+                  pending={progress.pending}
+                />
               </button>
             </li>
           );

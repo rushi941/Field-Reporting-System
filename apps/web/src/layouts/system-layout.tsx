@@ -21,6 +21,8 @@ import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { ActivityDot } from "@/components/activity-dot";
 import { useWorkspaceActivity } from "@/hooks/use-workspace-activity";
+import { PageSuspense, PageTransition } from "@/components/page-shell";
+import { prefetchRoute } from "@/lib/route-prefetch";
 
 type WorkspaceKind = "system" | "office";
 
@@ -54,6 +56,7 @@ const navByKind: Record<
     { to: "/office", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/office/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
     { to: "/office/reports", label: "Reports", icon: ClipboardList, permission: "reports.view_project_history", badge: "reports" },
+    { to: "/office/reports/history", label: "Approval history", icon: ClipboardCheck, permission: "reports.view_project_history" },
     { to: "/office/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/office/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/office/units", label: "Units", icon: Ruler, permission: "projects.manage" },
@@ -125,6 +128,8 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
               to={item.to}
               end={item.end}
               onClick={() => setMobileOpen(false)}
+              onMouseEnter={() => prefetchRoute(item.to)}
+              onFocus={() => prefetchRoute(item.to)}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
@@ -229,7 +234,11 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto w-full max-w-6xl">
-            <Outlet key={user?.id} />
+            <PageSuspense>
+              <PageTransition>
+                <Outlet key={user?.id} />
+              </PageTransition>
+            </PageSuspense>
           </div>
         </main>
       </div>

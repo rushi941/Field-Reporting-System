@@ -3,6 +3,13 @@ import { prisma } from "@frs/db";
 import { projectDivisions } from "@frs/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
+import { fetchTaskProgressMap } from "../lib/task-progress.js";
+import {
+  fetchLineTypesByMasterIds,
+  fetchSymbolTypesByMasterIds,
+  groupFieldTasksByMaster,
+  resolveMasterId,
+} from "../lib/master-tasks.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
 
@@ -102,6 +109,17 @@ fieldProjectsRouter.get(
                 color: true,
                 widthInches: true,
                 conversionFactor: true,
+                parentId: true,
+                parent: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    unit: true,
+                    formType: true,
+                    division: true,
+                  },
+                },
               },
             },
           },
@@ -120,8 +138,87 @@ fieldProjectsRouter.get(
     );
     const completedMap = await fetchCompletedStaRanges(taskIds);
 
+    const projectIdForTask = new Map<string, string>();
+    const routesByProjectId = new Map<
+      string,
+      { beginSta: string | null; endSta: string | null }
+    >();
+    const tasksForProgress: {
+      id: string;
+      beginSta: string | null;
+      endSta: string | null;
+      taskMaster: { formType: string; conversionFactor: number | null };
+    }[] = [];
+
+    for (const p of projects) {
+      routesByProjectId.set(p.id, {
+        beginSta: p.route?.beginSta ?? null,
+        endSta: p.route?.endSta ?? null,
+      });
+      const visibleTasks = isFieldLead
+        ? p.tasks.filter((t) => t.assignedToId === userId)
+        : p.tasks;
+      for (const t of visibleTasks) {
+        projectIdForTask.set(t.id, p.id);
+        tasksForProgress.push({
+          id: t.id,
+          beginSta: t.beginSta,
+          endSta: t.endSta,
+          taskMaster: {
+            formType: t.taskMaster.formType,
+            conversionFactor:
+              t.taskMaster.conversionFactor != null
+                ? Number(t.taskMaster.conversionFactor)
+                : null,
+          },
+        });
+      }
+    }
+
+    const progressMap = await fetchTaskProgressMap(
+      taskIds,
+      tasksForProgress,
+      routesByProjectId,
+      projectIdForTask,
+    );
+
+    const masterIds = new Set<string>();
+    const masterMeta = new Map<
+      string,
+      { code: string; name: string; division: string; unit: string; formType: string }
+    >();
+    for (const p of projects) {
+      const visible = isFieldLead
+        ? p.tasks.filter((t) => t.assignedToId === userId)
+        : p.tasks;
+      for (const t of visible) {
+        const mid = resolveMasterId(t.taskMaster);
+        masterIds.add(mid);
+        const masterRow = t.taskMaster.parent ?? t.taskMaster;
+        if (!masterMeta.has(mid)) {
+          masterMeta.set(mid, {
+            code: masterRow.code,
+            name: masterRow.name,
+            division: masterRow.division,
+            unit: masterRow.unit,
+            formType: masterRow.formType,
+          });
+        }
+      }
+    }
+    const lineTypesByMaster = await fetchLineTypesByMasterIds([...masterIds]);
+    const symbolTypesByMaster = await fetchSymbolTypesByMasterIds(
+      [...masterIds],
+      masterMeta,
+    );
+
     res.json({
-      projects: projects.map((p) => ({
+      projects: projects.map((p) => {
+        const visibleTasks = isFieldLead
+          ? p.tasks.filter((t) => t.assignedToId === userId)
+          : p.tasks;
+
+        return {
         id: p.id,
         jobNumber: p.jobNumber,
         name: p.name,
@@ -137,32 +234,14 @@ fieldProjectsRouter.get(
           name: `${dm.user.firstName} ${dm.user.lastName}`.trim(),
           email: dm.user.email,
         })),
-        tasks: (isFieldLead
-          ? p.tasks.filter((t) => t.assignedToId === userId)
-          : p.tasks
-        ).map((t) => ({
-          id: t.id,
-          division: t.division,
-          assignedToId: t.assignedToId,
-          assignedTo: t.assignedTo
-            ? {
-                id: t.assignedTo.id,
-                name: `${t.assignedTo.firstName} ${t.assignedTo.lastName}`.trim(),
-                email: t.assignedTo.email,
-              }
-            : null,
-          isMine: t.assignedToId === userId,
-          beginSta: t.beginSta,
-          endSta: t.endSta,
-          completedStaRanges: completedMap.get(t.id) ?? [],
-          taskMaster: {
-            ...t.taskMaster,
-            conversionFactor:
-              t.taskMaster.conversionFactor != null
-                ? Number(t.taskMaster.conversionFactor)
-                : null,
-          },
-        })),
+        tasks: groupFieldTasksByMaster(
+          visibleTasks,
+          userId,
+          completedMap,
+          progressMap,
+          lineTypesByMaster,
+          symbolTypesByMaster,
+        ),
         route: p.route
           ? {
               label: p.route.label,
@@ -178,7 +257,8 @@ fieldProjectsRouter.get(
               distanceMeters: p.route.distanceMeters,
             }
           : null,
-      })),
+        };
+      }),
     });
   }),
 );

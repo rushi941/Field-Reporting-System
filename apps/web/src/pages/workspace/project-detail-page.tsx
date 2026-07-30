@@ -10,13 +10,18 @@ import {
   Upload,
 } from "lucide-react";
 import {
-  physicalLf,
-  reportedLf,
   projectCreateTaskSchema,
   PROJECT_TASK_IMPORT_HEADERS,
+  physicalLfFromSta,
+  stationSpanDecimal,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
+import { useAuth } from "@/auth/auth-context";
+import {
+  ReportHistoryCard,
+  type ReportHistoryCardData,
+} from "@/components/report-history-card";
 import {
   downloadProjectTaskSampleCsv,
   downloadProjectTaskSampleExcel,
@@ -25,10 +30,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
+import { ModalOverlay } from "@/components/modal-overlay";
 import type { TaskNode } from "@/types/task-tree";
 
 type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
@@ -78,16 +85,11 @@ type TableRow = {
   id: string;
   wbs: string;
   taskMasterId: string;
-  masterBidCode: string | null;
-  masterBidName: string | null;
-  subBidCode: string;
+  code: string;
   name: string;
   division: string;
   unit: string;
   formType: string;
-  color: string | null;
-  widthInches: number | null;
-  conversionFactor: number | null;
   fieldPerson: string;
   beginSta: string | null;
   endSta: string | null;
@@ -111,54 +113,76 @@ const selectClass =
 const emptyTaskForm = {
   division: "",
   masterBidId: "",
-  subBidId: "",
-  name: "",
-  unit: "LF",
+  assignedToId: "",
   formType: "STA_RANGE",
-  conversionFactor: "1.00",
   beginSta: "",
   endSta: "",
   description: "",
-  assignedToId: "",
 };
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-muted/15 p-5">
+      <div className="mb-4 border-b border-border pb-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">
+          {title}
+        </h3>
+        {description ? (
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+function FormField({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={cn("space-y-1.5", className)}>{children}</div>;
+}
 
 function workspaceBase(pathname: string) {
   return pathname.startsWith("/office") ? "/office" : "/system";
 }
 
 function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
-  return tasks.map((t, i) => ({
-    id: t.id,
-    wbs: String(i + 1),
-    taskMasterId: t.taskMasterId,
-    masterBidCode: t.taskMaster.parent?.code ?? null,
-    masterBidName: t.taskMaster.parent?.name ?? null,
-    subBidCode: t.taskMaster.code,
-    name: t.taskMaster.name,
-    division: t.division,
-    unit: t.taskMaster.unit,
-    formType: t.taskMaster.formType,
-    color: t.taskMaster.color,
-    widthInches: t.taskMaster.widthInches,
-    conversionFactor: t.taskMaster.conversionFactor,
-    fieldPerson: t.assignedTo?.name ?? "—",
-    beginSta: t.beginSta,
-    endSta: t.endSta,
-  }));
-}
+  const seen = new Set<string>();
+  const rows: TableRow[] = [];
 
-function parseStaInput(value: string): number | null {
-  const raw = value.trim();
-  if (!raw) return null;
-  if (raw.includes("+")) {
-    const [miles, feet] = raw.split("+");
-    const m = Number(miles);
-    const f = Number(feet);
-    if (Number.isNaN(m) || Number.isNaN(f)) return null;
-    return m + f / 100;
+  for (const t of tasks) {
+    const master = t.taskMaster.parent ?? t.taskMaster;
+    if (seen.has(master.id)) continue;
+    seen.add(master.id);
+
+    rows.push({
+      id: t.id,
+      wbs: String(rows.length + 1),
+      taskMasterId: master.id,
+      code: master.code,
+      name: master.name,
+      division: t.division,
+      unit: master.unit,
+      formType: master.formType,
+      fieldPerson: t.assignedTo?.name ?? "—",
+      beginSta: t.beginSta,
+      endSta: t.endSta,
+    });
   }
-  const n = Number(raw);
-  return Number.isNaN(n) ? null : n;
+
+  return rows;
 }
 
 export function ProjectDetailPage() {
@@ -166,8 +190,19 @@ export function ProjectDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const base = workspaceBase(location.pathname);
+  const isProjectAdminWorkspace = base === "/office";
+  const { can } = useAuth();
+  const canViewReports = can("reports.view_project_history");
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [fieldReports, setFieldReports] = useState<ReportHistoryCardData[]>([]);
+  const [reportCounts, setReportCounts] = useState({
+    approved: 0,
+    pending: 0,
+    returned: 0,
+    total: 0,
+  });
+  const [reportsLoading, setReportsLoading] = useState(false);
   const [fieldLeads, setFieldLeads] = useState<FieldLeadOpt[]>([]);
   const [units, setUnits] = useState<UnitOpt[]>([]);
   const [taskTree, setTaskTree] = useState<TaskNode[]>([]);
@@ -216,14 +251,40 @@ export function ProjectDetailPage() {
     void load();
   }, [projectId]);
 
+  useEffect(() => {
+    if (!projectId || !canViewReports) {
+      setFieldReports([]);
+      return;
+    }
+    void (async () => {
+      setReportsLoading(true);
+      try {
+        const data = await apiFetch<{
+          reports: ReportHistoryCardData[];
+          statusCounts: {
+            approved: number;
+            pending: number;
+            returned: number;
+            total: number;
+          };
+        }>(`/api/v1/workspace-reports/projects/${projectId}`);
+        setFieldReports(
+          data.reports
+            .filter((r) => r.status !== "DRAFT")
+            .slice(0, 5) as ReportHistoryCardData[],
+        );
+        setReportCounts(data.statusCounts);
+      } catch {
+        setFieldReports([]);
+      } finally {
+        setReportsLoading(false);
+      }
+    })();
+  }, [projectId, canViewReports]);
+
   const taskRows = useMemo(
     () => (project ? buildTaskRows(project.tasks) : []),
     [project],
-  );
-
-  const showMasterBidColumn = useMemo(
-    () => taskRows.some((row) => row.masterBidCode),
-    [taskRows],
   );
 
   const projectDivisions = useMemo(
@@ -256,28 +317,28 @@ export function ProjectDetailPage() {
     return taskTree.filter((t) => t.division === form.division);
   }, [taskTree, form.division]);
 
-  const subBidOptions = useMemo(() => {
-    if (!form.masterBidId) return [];
-    const master = taskTree.find((m) => m.id === form.masterBidId);
-    return master?.children ?? [];
-  }, [taskTree, form.masterBidId]);
-
-  const selectedSubBid = useMemo(
-    () => subBidOptions.find((s) => s.id === form.subBidId) ?? null,
-    [subBidOptions, form.subBidId],
+  const selectedMaster = useMemo(
+    () => taskTree.find((m) => m.id === form.masterBidId) ?? null,
+    [taskTree, form.masterBidId],
   );
 
-  const calc = useMemo(() => {
-    const begin = parseStaInput(form.beginSta);
-    const end = parseStaInput(form.endSta);
-    const cf = Number(form.conversionFactor);
-    if (begin == null || end == null || Number.isNaN(cf) || end <= begin) {
+  const lineTypesAtFieldEntry = Boolean(
+    selectedMaster?.children.length &&
+      form.division === "PAVEMENT_MARKING" &&
+      form.formType === "STA_RANGE",
+  );
+
+  const staPreview = useMemo(() => {
+    if (!form.beginSta.trim() || !form.endSta.trim()) return null;
+    try {
+      const span = stationSpanDecimal(form.beginSta, form.endSta);
+      if (span <= 0) return null;
+      const physical = physicalLfFromSta(form.beginSta, form.endSta);
+      return { span, physical };
+    } catch {
       return null;
     }
-    const physical = physicalLf(begin, end);
-    const reported = reportedLf(begin, end, cf);
-    return { physical, reported, cf };
-  }, [form.beginSta, form.endSta, form.conversionFactor]);
+  }, [form.beginSta, form.endSta]);
 
   function openCreate() {
     const defaultDivision = projectDivisions[0] ?? "PAVEMENT_MARKING";
@@ -309,39 +370,21 @@ export function ProjectDetailPage() {
       ...f,
       division,
       masterBidId: "",
-      subBidId: "",
-      name: "",
       assignedToId: "",
-      conversionFactor: "1.00",
+      formType: "STA_RANGE",
+      beginSta: "",
+      endSta: "",
     }));
   }
 
   function onMasterBidChange(id: string) {
+    const master = taskTree.find((m) => m.id === id);
     setForm((f) => ({
       ...f,
       masterBidId: id,
-      subBidId: "",
-      name: "",
-      conversionFactor: "1.00",
-    }));
-  }
-
-  function onSubBidChange(id: string) {
-    const sub = subBidOptions.find((s) => s.id === id);
-    if (!sub) {
-      setForm((f) => ({ ...f, subBidId: id }));
-      return;
-    }
-    setForm((f) => ({
-      ...f,
-      subBidId: id,
-      name: sub.name,
-      unit: sub.unit,
-      formType: sub.formType,
-      conversionFactor:
-        sub.conversionFactor != null
-          ? Number(sub.conversionFactor).toFixed(2)
-          : "1.00",
+      formType: master?.formType ?? "STA_RANGE",
+      beginSta: "",
+      endSta: "",
     }));
   }
 
@@ -367,26 +410,32 @@ export function ProjectDetailPage() {
     }
   }
 
-  async function removeTask(taskMasterId: string) {
+  async function removeTask(masterTaskMasterId: string) {
     if (!project) return;
-    await saveTaskIds(project.taskIds.filter((id) => id !== taskMasterId));
+    const drop = new Set<string>([masterTaskMasterId]);
+    for (const t of project.tasks) {
+      const mid = t.taskMaster.parent?.id ?? t.taskMaster.id;
+      if (mid === masterTaskMasterId) drop.add(t.taskMasterId);
+    }
+    await saveTaskIds(project.taskIds.filter((id) => !drop.has(id)));
   }
 
   async function onCreateTask(e: React.FormEvent) {
     e.preventDefault();
     if (!projectId) return;
-    if (!form.subBidId) {
-      toast.error("Select a master bid and sub-bid", { id: "project-tasks" });
+    if (!form.masterBidId) {
+      toast.error("Select a master bid", { id: "project-tasks" });
       return;
     }
 
     setSaving(true);
     try {
+      const master = taskTree.find((m) => m.id === form.masterBidId);
       const raw = {
-        taskMasterId: form.subBidId,
+        taskMasterId: form.masterBidId,
         assignedToId: form.assignedToId,
         division: form.division,
-        formType: form.formType,
+        formType: master?.formType ?? form.formType,
         beginSta: form.beginSta.trim() || null,
         endSta: form.endSta.trim() || null,
         description: form.description.trim() || null,
@@ -505,6 +554,18 @@ export function ProjectDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canViewReports && isProjectAdminWorkspace && (
+            <Button asChild variant="outline">
+              <Link to={`${base}/reports/history?projectId=${project.id}`}>
+                Approval history
+              </Link>
+            </Button>
+          )}
+          {canViewReports && (
+            <Button asChild variant="outline">
+              <Link to={`${base}/reports/${project.id}`}>Field reports</Link>
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="size-4" /> Import tasks
           </Button>
@@ -517,12 +578,67 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
+      {canViewReports && (
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">Field report status</h2>
+              <p className="text-xs text-muted-foreground">
+                View-only — approved and returned reports from division managers
+              </p>
+            </div>
+            <Link
+              to={`${base}/reports/${project.id}`}
+              className="text-xs font-medium text-sky-800 hover:underline"
+            >
+              View all
+            </Link>
+            {isProjectAdminWorkspace ? (
+              <Link
+                to={`${base}/reports/history?projectId=${project.id}`}
+                className="text-xs font-medium text-sky-800 hover:underline"
+              >
+                Approval history
+              </Link>
+            ) : null}
+          </div>
+          <div className="space-y-3 px-4 py-3">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <StatPill label="Approved" value={reportCounts.approved} tone="ok" />
+              <StatPill label="Under review" value={reportCounts.pending} />
+              <StatPill label="Returned" value={reportCounts.returned} tone="warn" />
+            </div>
+            {reportsLoading ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Loading reports…
+              </p>
+            ) : fieldReports.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No submitted field reports yet.
+              </p>
+            ) : (
+              <ul className="min-w-0 space-y-2">
+                {fieldReports.map((r) => (
+                  <li key={r.id}>
+                    <ReportHistoryCard
+                      report={r}
+                      linkTo={`${base}/reports/${project.id}/${r.id}`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b bg-muted/40 px-2 py-1">
           <div>
             <h2 className="text-sm font-semibold">Project tasks</h2>
             <p className="text-xs text-muted-foreground">
-              Work scope with line code, width, and conversion factor
+              Master tasks assigned to field persons — quantities and STA are
+              entered in the field app.
             </p>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -534,17 +650,11 @@ export function ProjectDetailPage() {
             <thead className="border-b bg-muted/50 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
                 <th className="w-20 px-2 py-1">WBS</th>
-                {showMasterBidColumn && (
-                  <th className="px-2 py-1">Master bid</th>
-                )}
-                <th className="w-28 px-2 py-1">Sub-bid code</th>
-                <th className="px-2 py-1">Sub-bid name</th>
+                <th className="w-28 px-2 py-1">Master code</th>
+                <th className="px-2 py-1">Master name</th>
                 <th className="w-36 px-2 py-1">Division</th>
                 <th className="w-20 px-2 py-1">Unit</th>
                 <th className="w-28 px-2 py-1">Form</th>
-                <th className="w-20 px-2 py-1">Color</th>
-                <th className="w-20 px-2 py-1">Width</th>
-                <th className="w-16 px-2 py-1">CF</th>
                 <th className="w-36 px-2 py-1">Work STA</th>
                 <th className="w-36 px-2 py-1">Field person</th>
                 <th className="w-16 px-2 py-1" />
@@ -554,7 +664,7 @@ export function ProjectDetailPage() {
               {taskRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={showMasterBidColumn ? 13 : 12}
+                    colSpan={9}
                     className="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
                     No tasks yet. Click <strong>Add task</strong> or{" "}
@@ -570,17 +680,7 @@ export function ProjectDetailPage() {
                   <td className="px-2 py-1 tabular-nums text-muted-foreground">
                     {row.wbs}
                   </td>
-                  {showMasterBidColumn && (
-                    <td className="px-2 py-1 text-xs">
-                      <span className="font-mono">{row.masterBidCode ?? "—"}</span>
-                      {row.masterBidName && (
-                        <p className="mt-0.5 text-muted-foreground">
-                          {row.masterBidName}
-                        </p>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-2 py-1 font-mono text-xs">{row.subBidCode}</td>
+                  <td className="px-2 py-1 font-mono text-xs">{row.code}</td>
                   <td className="px-2 py-1">{row.name}</td>
                   <td className="px-2 py-1 text-xs">
                     {divisionLabels[row.division] ?? row.division}
@@ -589,20 +689,11 @@ export function ProjectDetailPage() {
                   <td className="px-2 py-1 text-xs">
                     {formLabels[row.formType] ?? row.formType}
                   </td>
-                  <td className="px-2 py-1 text-xs">{row.color ?? "—"}</td>
-                  <td className="px-2 py-1 text-xs">
-                    {row.widthInches != null ? `${row.widthInches}"` : "—"}
-                  </td>
-                  <td className="px-2 py-1 text-xs tabular-nums">
-                    {row.conversionFactor != null
-                      ? Number(row.conversionFactor).toFixed(2)
-                      : "—"}
-                  </td>
                   <td className="px-2 py-1 font-mono text-[11px]">
                     {row.formType === "STA_RANGE" && row.beginSta && row.endSta
                       ? `${row.beginSta} → ${row.endSta}`
                       : row.formType === "STA_RANGE"
-                        ? "— set limits"
+                        ? "—"
                         : "—"}
                   </td>
                   <td className="px-2 py-1 text-xs">{row.fieldPerson}</td>
@@ -639,30 +730,41 @@ export function ProjectDetailPage() {
         }}
       />
 
-      {addOpen && (
-        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/50 p-4">
-          <form
-            id="project-task-form-modal"
-            onSubmit={onCreateTask}
-            className="relative z-[2001] max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border bg-card p-6 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">Create task</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Select master bid and sub-bid from Bid Master, then assign field
-                  person and STA limits.
-                </p>
-              </div>
-              <ModalCloseButton
-                onClick={requestCloseTaskForm}
-                disabled={saving}
-              />
+      <ModalOverlay open={addOpen} onBackdropClick={requestCloseTaskForm}>
+        <form
+          id="project-task-form-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-task-form-title"
+          onSubmit={onCreateTask}
+          onClick={(e) => e.stopPropagation()}
+          className="relative z-[2001] flex max-h-[min(94dvh,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:max-h-[90vh]"
+        >
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <div className="min-w-0">
+              <h2 id="project-task-form-title" className="text-xl font-semibold">
+                Add task
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Select a master bid, assign a field person, and set work limits.
+                {lineTypesAtFieldEntry
+                  ? " Line types are chosen by the field lead when entering quantities."
+                  : null}
+              </p>
             </div>
+            <ModalCloseButton
+              onClick={requestCloseTaskForm}
+              disabled={saving}
+            />
+          </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <FormSection
+              title="Assignment"
+              description="Master bid and field person for this work"
+            >
               {projectDivisions.length > 1 && (
-                <div className="space-y-1.5 sm:col-span-2">
+                <FormField className="sm:col-span-2">
                   <Label>Division *</Label>
                   <select
                     className={selectClass}
@@ -676,10 +778,10 @@ export function ProjectDetailPage() {
                       </option>
                     ))}
                   </select>
-                </div>
+                </FormField>
               )}
 
-              <div className="space-y-1.5 sm:col-span-2">
+              <FormField className="sm:col-span-2">
                 <Label>Master bid *</Label>
                 <select
                   className={selectClass}
@@ -691,53 +793,18 @@ export function ProjectDetailPage() {
                   {divisionMasters.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.code} — {m.name}
-                      {m.children.length
-                        ? ` (${m.children.length} sub-bids)`
-                        : ""}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Sub-bid *</Label>
-                <select
-                  className={selectClass}
-                  value={form.subBidId}
-                  onChange={(e) => onSubBidChange(e.target.value)}
-                  required
-                  disabled={!form.masterBidId}
-                >
-                  <option value="">— Select sub-bid —</option>
-                  {subBidOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code} — {s.name}
-                      {s.widthInches != null ? ` · ${s.widthInches}"` : ""}
-                      {s.conversionFactor != null
-                        ? ` · CF ${Number(s.conversionFactor).toFixed(2)}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-                {form.masterBidId && subBidOptions.length === 0 && (
-                  <p className="text-xs text-amber-700">
-                    No sub-bids under this master — add them in Bid Master first.
+                {selectedMaster ? (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedMaster.unit} ·{" "}
+                    {formLabels[selectedMaster.formType] ?? selectedMaster.formType}
                   </p>
-                )}
-              </div>
+                ) : null}
+              </FormField>
 
-              {selectedSubBid && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Sub-bid details</Label>
-                  <Input
-                    readOnly
-                    className="bg-muted text-muted-foreground"
-                    value={`${selectedSubBid.code} · ${selectedSubBid.name} · ${selectedSubBid.unit}${selectedSubBid.color ? ` · ${selectedSubBid.color}` : ""}`}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5 sm:col-span-2">
+              <FormField className="sm:col-span-2">
                 <Label>Field person *</Label>
                 <select
                   className={selectClass}
@@ -766,124 +833,101 @@ export function ProjectDetailPage() {
                 <p className="text-xs text-muted-foreground">
                   Only field persons assigned to this project are listed.
                 </p>
-              </div>
+              </FormField>
+            </FormSection>
 
-              <div className="space-y-1.5">
-                <Label>Conversion factor (CF)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.conversionFactor}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
+            {form.formType === "STA_RANGE" && (
+              <FormSection
+                title="Work limits"
+                description="Station range for this task on the project"
+              >
+                <FormField>
+                  <Label>Begin STA *</Label>
+                  <Input
+                    value={form.beginSta}
+                    required
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, beginSta: e.target.value }))
+                    }
+                    placeholder="11+00"
+                  />
+                </FormField>
+                <FormField>
+                  <Label>End STA *</Label>
+                  <Input
+                    value={form.endSta}
+                    required
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endSta: e.target.value }))
+                    }
+                    placeholder="23+00"
+                  />
+                </FormField>
+                {lineTypesAtFieldEntry ? (
+                  <p className="sm:col-span-2 text-xs text-muted-foreground">
+                    Work limits only — line type and conversion factor are
+                    selected in the field app.
+                  </p>
+                ) : null}
+                {staPreview ? (
+                  <div className="sm:col-span-2 rounded-md border border-border bg-card px-3 py-2 text-sm">
+                    <p className="font-medium">Calculation</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      STA span = End − Begin · Physical LF = span × 100
+                    </p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <p>
+                        STA span:{" "}
+                        <strong className="tabular-nums">
+                          {staPreview.span.toFixed(2)}
+                        </strong>
+                      </p>
+                      <p>
+                        Physical LF:{" "}
+                        <strong className="tabular-nums">
+                          {staPreview.physical.toLocaleString()} LF
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </FormSection>
+            )}
 
-              <div className="space-y-1.5">
-                <Label>Unit</Label>
-                <Input readOnly className="bg-muted" value={form.unit} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Form type</Label>
-                <Input readOnly className="bg-muted" value={formLabels[form.formType] ?? form.formType} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>
-                  Begin STA {form.formType === "STA_RANGE" ? "*" : "(calc)"}
-                </Label>
-                <Input
-                  value={form.beginSta}
-                  required={form.formType === "STA_RANGE"}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, beginSta: e.target.value }))
-                  }
-                  placeholder="11+00"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>
-                  End STA {form.formType === "STA_RANGE" ? "*" : "(calc)"}
-                </Label>
-                <Input
-                  value={form.endSta}
-                  required={form.formType === "STA_RANGE"}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, endSta: e.target.value }))
-                  }
-                  placeholder="23+00"
-                />
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
+            <FormSection title="Notes" description="Optional instructions">
+              <FormField className="sm:col-span-2">
                 <Label>Notes</Label>
                 <textarea
-                  className="min-h-16 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value={form.description}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, description: e.target.value }))
                   }
+                  placeholder="Optional instructions for the field lead"
                 />
-              </div>
-            </div>
+              </FormField>
+            </FormSection>
+          </div>
 
-            <div className="mt-4 rounded-md border border-border bg-card px-2 py-1 text-sm">
-              <p className="font-medium">Calculation</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Physical LF = (End STA − Begin STA) × 100 · Reported LF =
-                Physical LF × CF
-              </p>
-              {calc ? (
-                <div className="mt-2 grid gap-1 sm:grid-cols-3">
-                  <p>
-                    Physical LF:{" "}
-                    <strong className="tabular-nums">
-                      {calc.physical.toLocaleString()}
-                    </strong>
-                  </p>
-                  <p>
-                    CF:{" "}
-                    <strong className="tabular-nums">
-                      {calc.cf.toFixed(2)}
-                    </strong>
-                  </p>
-                  <p>
-                    Reported LF:{" "}
-                    <strong className="tabular-nums">
-                      {calc.reported.toLocaleString()}
-                    </strong>
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Enter Begin STA and End STA to preview Reported LF.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={requestCloseTaskForm}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-asphalt-mid text-white hover:bg-asphalt"
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Create task"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4 sm:px-6">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={requestCloseTaskForm}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="bg-asphalt-mid text-white hover:bg-asphalt"
+              disabled={saving}
+            >
+              {saving ? "Saving…" : "Add task"}
+            </Button>
+          </div>
+        </form>
+      </ModalOverlay>
 
       {importOpen && (
         <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
@@ -965,5 +1009,29 @@ export function ProjectDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function StatPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "ok" | "warn";
+}) {
+  return (
+    <span
+      className={
+        tone === "ok" && value > 0
+          ? "rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-900"
+          : tone === "warn" && value > 0
+            ? "rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-900"
+            : "rounded-full bg-muted px-2.5 py-1 font-medium text-muted-foreground"
+      }
+    >
+      {label}: {value}
+    </span>
   );
 }

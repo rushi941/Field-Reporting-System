@@ -84,6 +84,99 @@ function mapReportRow(r: ReportListRow, now = new Date()) {
   };
 }
 
+const reportHistoryInclude = {
+  ...reportListInclude,
+  project: {
+    select: { id: true, jobNumber: true, name: true },
+  },
+} as const;
+
+type ReportHistoryRow = Prisma.ReportGetPayload<{
+  include: typeof reportHistoryInclude;
+}>;
+
+function mapHistoryReport(r: ReportHistoryRow, now = new Date()) {
+  return {
+    ...mapReportRow(r, now),
+    project: {
+      id: r.project.id,
+      jobNumber: r.project.jobNumber,
+      name: r.project.name,
+    },
+  };
+}
+
+function historyStatusWhere(
+  raw: string,
+): Prisma.EnumReportStatusFilter | undefined {
+  const key = raw.trim().toLowerCase();
+  if (!key || key === "all") return { not: "DRAFT" };
+  if (key === "pending") return { in: ["SUBMITTED"] };
+  if (key === "approved") return { in: ["APPROVED", "APPROVED_WITH_NOTES"] };
+  if (key === "returned") return { in: ["RETURNED"] };
+  return { not: "DRAFT" };
+}
+
+/** Approval history for project / system admins (view-only) */
+workspaceReportsRouter.get(
+  "/history",
+  requirePermission("reports.view_project_history"),
+  asyncHandler(async (req, res) => {
+    const projectId =
+      typeof req.query.projectId === "string"
+        ? req.query.projectId.trim()
+        : "";
+    const statusKey =
+      typeof req.query.status === "string" ? req.query.status : "all";
+    const scope = workspaceProjectScopeWhere(req.user!.id, req.user!.roles);
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, ...scope },
+        select: { id: true },
+      });
+      if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+    }
+
+    const baseWhere: Prisma.ReportWhereInput = {
+      status: historyStatusWhere(statusKey),
+      ...(projectId ? { projectId } : { project: scope }),
+    };
+
+    const reports = await prisma.report.findMany({
+      where: baseWhere,
+      include: reportHistoryInclude,
+      orderBy: [{ reportDate: "desc" }, { submittedAt: "desc" }],
+      take: 200,
+    });
+
+    const counts = await prisma.report.groupBy({
+      by: ["status"],
+      where: projectId ? { projectId } : { project: scope, status: { not: "DRAFT" } },
+      _count: { _all: true },
+    });
+
+    let pending = 0;
+    let approved = 0;
+    let returned = 0;
+    let all = 0;
+    for (const row of counts) {
+      const n = row._count._all;
+      all += n;
+      if (row.status === "SUBMITTED") pending += n;
+      else if (row.status === "RETURNED") returned += n;
+      else if (row.status === "APPROVED" || row.status === "APPROVED_WITH_NOTES") {
+        approved += n;
+      }
+    }
+
+    res.json({
+      counts: { all, pending, approved, returned },
+      reports: reports.map((r) => mapHistoryReport(r)),
+    });
+  }),
+);
+
 /** Project-wise report rollup for workspace admins */
 workspaceReportsRouter.get(
   "/rollup",
@@ -329,6 +422,125 @@ workspaceReportsRouter.get(
       statusCounts,
       reports: reports.map((r) => mapReportRow(r)),
     });
+  }),
+);
+
+const reportDetailInclude = {
+  project: {
+    select: {
+      id: true,
+      jobNumber: true,
+      name: true,
+      location: true,
+      projectAdminId: true,
+    },
+  },
+  submittedBy: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+  approvedBy: {
+    select: { id: true, firstName: true, lastName: true, email: true },
+  },
+  lineItems: {
+    include: {
+      projectTask: {
+        include: {
+          taskMaster: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              unit: true,
+              formType: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { sortOrder: "asc" as const },
+  },
+  attachments: {
+    orderBy: { uploadedAt: "desc" as const },
+  },
+} as const;
+
+type ReportDetailRow = Prisma.ReportGetPayload<{
+  include: typeof reportDetailInclude;
+}>;
+
+function mapReportDetail(r: ReportDetailRow) {
+  return {
+    id: r.id,
+    reportNumber: r.reportNumber,
+    reportDate: r.reportDate.toISOString().slice(0, 10),
+    status: r.status,
+    crewSize: r.crewSize,
+    notes: r.notes,
+    returnComment: r.returnComment,
+    approvalNotes: r.approvalNotes,
+    submittedAt: r.submittedAt,
+    approvedAt: r.approvedAt,
+    returnedAt: r.returnedAt,
+    project: {
+      id: r.project.id,
+      jobNumber: r.project.jobNumber,
+      name: r.project.name,
+      location: r.project.location,
+    },
+    submittedBy: {
+      id: r.submittedBy.id,
+      name: `${r.submittedBy.firstName} ${r.submittedBy.lastName}`.trim(),
+      email: r.submittedBy.email,
+    },
+    approvedBy: r.approvedBy
+      ? {
+          id: r.approvedBy.id,
+          name: `${r.approvedBy.firstName} ${r.approvedBy.lastName}`.trim(),
+          email: r.approvedBy.email,
+        }
+      : null,
+    lineItems: r.lineItems.map((li) => ({
+      id: li.id,
+      entryType: li.entryType,
+      beginSta: li.beginSta,
+      endSta: li.endSta,
+      conversionFactor:
+        li.conversionFactor != null ? Number(li.conversionFactor) : null,
+      finalQuantity: Number(li.finalQuantity),
+      locationDescription: li.locationDescription,
+      symbolItemType: li.symbolItemType,
+      taskMaster: li.projectTask.taskMaster,
+    })),
+    attachments: r.attachments.map((a) => ({
+      id: a.id,
+      fileName: a.fileName,
+      fileType: a.fileType,
+      category: a.category,
+      storageUrl: a.storageUrl,
+    })),
+  };
+}
+
+/** Read-only field report detail for project / system admins */
+workspaceReportsRouter.get(
+  "/reports/:reportId",
+  requirePermission("reports.view_project_history"),
+  asyncHandler(async (req, res) => {
+    const reportId = routeParam(req.params.reportId);
+    const scope = workspaceProjectScopeWhere(req.user!.id, req.user!.roles);
+
+    const report = await prisma.report.findFirst({
+      where: { id: reportId, project: scope },
+      include: reportDetailInclude,
+    });
+    if (!report) throw new AppError("NOT_FOUND", "Report not found", 404);
+
+    res.json({ report: mapReportDetail(report) });
   }),
 );
 

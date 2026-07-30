@@ -12,9 +12,7 @@ export function RequirePermission({
   const { can, loading, user } = useAuth();
 
   if (loading) {
-    return (
-      <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
-    );
+    return null;
   }
 
   if (!can(permission)) {

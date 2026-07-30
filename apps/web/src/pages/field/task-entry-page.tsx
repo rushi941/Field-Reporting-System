@@ -9,25 +9,32 @@ import {
   updateDraftReportSchema,
   validateAttachmentFile,
   validateReportTaskSegments,
-  resolveStaWorkLimits,
   type SegmentFieldErrors,
+  matchSymbolTypeCode,
+  symbolTypeLabelForCode,
 } from "@frs/shared";
-import { ConnectionBanner } from "@/components/connection-banner";
-import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { apiFetch, apiUpload } from "@/lib/api";
-import { cacheGet, OFFLINE_CACHE_KEYS, scopedCacheKey } from "@/lib/offline-cache";
-import {
-  clearTaskEntryDraft,
-  loadTaskEntryDraft,
-  saveTaskEntryDraft,
-} from "@/lib/task-entry-draft";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useOnlineStatus } from "@/hooks/use-online-status";
-import { useAuth } from "@/auth/auth-context";
 import { notifyPendingQueueRefresh } from "@/lib/activity-seen";
+
+type LineTypeOption = {
+  id: string;
+  code: string;
+  name: string;
+  label: string;
+  conversionFactor: number;
+  widthInches: number | null;
+  color: string | null;
+};
+
+type SymbolTypeOption = {
+  code: string;
+  name: string;
+  label: string;
+};
 
 type TaskMaster = {
   id: string;
@@ -56,6 +63,11 @@ type ProjectInfo = {
     beginSta: string | null;
     endSta: string | null;
     completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
+    lineTypes: LineTypeOption[];
+    usesLineTypePicker: boolean;
+    symbolTypes: SymbolTypeOption[];
+    usesSymbolEntry: boolean;
+    relatedProjectTaskIds: string[];
     taskMaster: TaskMaster;
   }[];
 };
@@ -78,6 +90,10 @@ type FieldReport = {
     finalQuantity: number;
     locationDescription: string | null;
     symbolItemType: string | null;
+    projectTask?: {
+      id: string;
+      taskMaster: TaskMaster;
+    };
   }[];
   attachments: {
     id: string;
@@ -89,6 +105,7 @@ type FieldReport = {
 };
 
 type StaSeg = {
+  lineTypeId: string;
   beginSta: string;
   endSta: string;
   conversionFactor: string;
@@ -98,13 +115,9 @@ type StaSeg = {
 
 type LocSeg = {
   locationDescription: string;
+  symbolTypeCode: string;
   symbolItemType: string;
   quantity: string;
-};
-
-const formLabels: Record<string, string> = {
-  STA_RANGE: "STA Range",
-  SINGLE_LOCATION: "Single Location",
 };
 
 const selectClass =
@@ -116,8 +129,9 @@ function defaultManagerIdForProject(project: ProjectInfo) {
   return project.projectManagerId ?? project.divisionManagers[0]?.id ?? "";
 }
 
-function emptySta(cf: number): StaSeg {
+function emptySta(cf: number, lineTypeId = ""): StaSeg {
   return {
+    lineTypeId,
     beginSta: "",
     endSta: "",
     conversionFactor: Number.isFinite(cf) ? cf.toFixed(2) : "1.00",
@@ -126,9 +140,34 @@ function emptySta(cf: number): StaSeg {
   };
 }
 
-function emptyLoc(defaultSymbol = ""): LocSeg {
+function emptyStaFromLineTypes(lineTypes: LineTypeOption[], fallbackCf = 1): StaSeg {
+  const first = lineTypes[0];
+  if (first) return emptySta(first.conversionFactor, first.id);
+  return emptySta(fallbackCf);
+}
+
+function pickLineTypeId(
+  lineTypes: LineTypeOption[],
+  li: {
+    conversionFactor: number | null;
+    projectTask?: { taskMaster: { id: string } };
+  },
+): string {
+  const subId = li.projectTask?.taskMaster?.id;
+  if (subId && lineTypes.some((lt) => lt.id === subId)) return subId;
+  const cf = li.conversionFactor;
+  if (cf != null) {
+    const matches = lineTypes.filter((lt) => lt.conversionFactor === cf);
+    if (matches.length === 1) return matches[0]!.id;
+  }
+  return lineTypes[0]?.id ?? "";
+}
+
+function emptyLoc(defaultSymbol = "", symbolTypes: SymbolTypeOption[] = []): LocSeg {
+  const firstCode = symbolTypes[0]?.code ?? "";
   return {
     locationDescription: "",
+    symbolTypeCode: firstCode,
     symbolItemType: defaultSymbol,
     quantity: "",
   };
@@ -150,17 +189,6 @@ function calcPreview(seg: StaSeg): string {
   } catch {
     return "—";
   }
-}
-
-function TaskMetaBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-0.5 text-sm font-semibold leading-snug">{value}</p>
-    </div>
-  );
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -189,9 +217,6 @@ export function FieldTaskEntryPage() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const reportIdHint = search.get("reportId");
-  const online = useOnlineStatus();
-  const { user } = useAuth();
-  const [cacheRestored, setCacheRestored] = useState(false);
 
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [report, setReport] = useState<FieldReport | null>(null);
@@ -217,12 +242,12 @@ export function FieldTaskEntryPage() {
     [project, taskId],
   );
 
-  const workLimits = useMemo(
-    () => resolveStaWorkLimits(task, project?.route ?? null),
-    [task, project?.route],
-  );
-
   const isSta = task?.taskMaster.formType === "STA_RANGE";
+  const lineTypes = task?.lineTypes ?? [];
+  const symbolTypes = task?.symbolTypes ?? [];
+  const usesLineTypePicker = Boolean(task?.usesLineTypePicker && lineTypes.length);
+  const isSymbolEntry = Boolean(task?.usesSymbolEntry);
+  const hasSymbolCatalog = symbolTypes.length > 0;
   const editable =
     report?.status === "DRAFT" || report?.status === "RETURNED";
   const busy = saving || uploading || submitting;
@@ -251,64 +276,14 @@ export function FieldTaskEntryPage() {
     }, 0);
   }, [isSta, staSegs, locSegs]);
 
-  // Auto-save an offline draft to the phone so slow/offline connections never lose input.
-  useEffect(() => {
-    if (!projectId || !taskId) return;
-    if (!editable) return;
-    if (loading) return;
-    if (busy) return;
-    const timer = window.setTimeout(() => {
-      saveTaskEntryDraft(projectId, taskId, {
-        notes,
-        staSegs,
-        locSegs,
-        defaultCf,
-        defaultSymbol,
-        defaultUnit,
-      });
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [
-    projectId,
-    taskId,
-    editable,
-    loading,
-    busy,
-    notes,
-    staSegs,
-    locSegs,
-    defaultCf,
-    defaultSymbol,
-    defaultUnit,
-  ]);
-
   useEffect(() => {
     if (!projectId || !taskId) return;
     void (async () => {
       setLoading(true);
       try {
-        setCacheRestored(false);
-
-        const cachedProjects =
-          cacheGet<{ projects: ProjectInfo[] }>(
-            scopedCacheKey(user?.id, OFFLINE_CACHE_KEYS.fieldProjects),
-          )?.data ?? null;
-
-        let projectsData: { projects: ProjectInfo[] } | null = null;
-        if (online) {
-          try {
-            projectsData = await apiFetch<{ projects: ProjectInfo[] }>(
-              "/api/v1/field/projects",
-            );
-          } catch {
-            // fall back to cache
-          }
-        }
-        if (!projectsData && cachedProjects) {
-          projectsData = cachedProjects;
-          setCacheRestored(true);
-        }
-        if (!projectsData) throw new Error("Failed to load project data");
+        const projectsData = await apiFetch<{ projects: ProjectInfo[] }>(
+          "/api/v1/field/projects",
+        );
 
         const found =
           projectsData.projects.find((p) => p.id === projectId) ?? null;
@@ -319,43 +294,24 @@ export function FieldTaskEntryPage() {
           return;
         }
 
-        let reportData: FieldReport | null = null;
-        if (online) {
-          try {
-            if (reportIdHint) {
-              const r = await apiFetch<{ report: FieldReport }>(
-                `/api/v1/field/reports/${reportIdHint}`,
-              );
-              reportData = r.report;
-            } else {
-              const r = await apiFetch<{ report: FieldReport }>(
-                "/api/v1/field/reports/draft",
-                {
-                  method: "POST",
-                  body: JSON.stringify({
-                    projectId,
-                    reportDate: new Date().toISOString().slice(0, 10),
-                  }),
-                },
-              );
-              reportData = r.report;
-            }
-          } catch {
-            // fall back to local stub report
-          }
-        }
-
-        if (!reportData) {
-          reportData = {
-            id: reportIdHint ?? `local-${projectId}-${taskId}`,
-            reportNumber: "LOCAL",
-            notes: null,
-            status: "DRAFT",
-            divisionManagerId: null,
-            lineItems: [],
-            attachments: [],
-          };
-          setCacheRestored(true);
+        let reportData: FieldReport;
+        if (reportIdHint) {
+          const r = await apiFetch<{ report: FieldReport }>(
+            `/api/v1/field/reports/${reportIdHint}`,
+          );
+          reportData = r.report;
+        } else {
+          const r = await apiFetch<{ report: FieldReport }>(
+            "/api/v1/field/reports/draft",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                projectId,
+                reportDate: new Date().toISOString().slice(0, 10),
+              }),
+            },
+          );
+          reportData = r.report;
         }
 
         setReport(reportData);
@@ -364,10 +320,20 @@ export function FieldTaskEntryPage() {
           reportData.divisionManagerId ?? defaultManagerIdForProject(found),
         );
 
-        const existing = reportData.lineItems.filter(
-          (li) => li.projectTaskId === taskId,
+        const relatedIds = new Set(
+          foundTask.relatedProjectTaskIds?.length
+            ? foundTask.relatedProjectTaskIds
+            : [taskId],
+        );
+        const existing = reportData.lineItems.filter((li) =>
+          relatedIds.has(li.projectTaskId),
         );
         const cf = Number(foundTask.taskMaster.conversionFactor ?? 1);
+        const taskLineTypes = foundTask.lineTypes ?? [];
+        const taskSymbolTypes = foundTask.symbolTypes ?? [];
+        const taskUsesPicker =
+          foundTask.usesLineTypePicker && taskLineTypes.length > 0;
+        const taskUsesSymbolEntry = foundTask.usesSymbolEntry;
         const symbolDefault = foundTask.taskMaster.name;
         setDefaultCf(Number.isFinite(cf) ? cf.toFixed(2) : "1.00");
         setDefaultSymbol(symbolDefault);
@@ -379,6 +345,9 @@ export function FieldTaskEntryPage() {
           if (existing.length) {
             setStaSegs(
               existing.map((li) => ({
+                lineTypeId: taskUsesPicker
+                  ? pickLineTypeId(taskLineTypes, li)
+                  : "",
                 beginSta: li.beginSta ?? "",
                 endSta: li.endSta ?? "",
                 conversionFactor: String(li.conversionFactor ?? cf),
@@ -386,33 +355,27 @@ export function FieldTaskEntryPage() {
                 manualLf: li.manualLf != null ? String(li.manualLf) : "",
               })),
             );
+          } else if (taskUsesPicker) {
+            setStaSegs([emptyStaFromLineTypes(taskLineTypes, cf)]);
           } else {
             setStaSegs([emptySta(cf)]);
           }
         } else if (existing.length) {
           setLocSegs(
-            existing.map((li) => ({
-              locationDescription: li.locationDescription ?? "",
-              symbolItemType: li.symbolItemType || symbolDefault,
-              quantity: String(li.finalQuantity),
-            })),
+            existing.map((li) => {
+              const code = taskUsesSymbolEntry
+                ? matchSymbolTypeCode(li.symbolItemType, taskSymbolTypes)
+                : "";
+              return {
+                locationDescription: li.locationDescription ?? "",
+                symbolTypeCode: code,
+                symbolItemType: li.symbolItemType || symbolDefault,
+                quantity: String(li.finalQuantity),
+              };
+            }),
           );
         } else {
-          setLocSegs([emptyLoc(symbolDefault)]);
-        }
-
-        // Restore unsent task draft from this device
-        const draft = loadTaskEntryDraft(projectId, taskId);
-        if (draft) {
-          setCacheRestored(true);
-          setNotes(draft.notes ?? "");
-          setDefaultCf(draft.defaultCf ?? cf.toFixed(2));
-          setDefaultSymbol(draft.defaultSymbol ?? symbolDefault);
-          setDefaultUnit(draft.defaultUnit ?? foundTask.taskMaster.unit ?? "LF");
-          if (isStaLocal && draft.staSegs?.length) setStaSegs(draft.staSegs as StaSeg[]);
-          if (!isStaLocal && draft.locSegs?.length)
-            setLocSegs(draft.locSegs as LocSeg[]);
-          toast.message("Draft restored from this device", { id: "task-draft" });
+          setLocSegs([emptyLoc(symbolDefault, taskSymbolTypes)]);
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to load");
@@ -420,7 +383,7 @@ export function FieldTaskEntryPage() {
         setLoading(false);
       }
     })();
-  }, [projectId, taskId, reportIdHint, online, user?.id]);
+  }, [projectId, taskId, reportIdHint]);
 
   function clearSegField(index: number, field: string) {
     setSegErrors((prev) => {
@@ -480,7 +443,11 @@ export function FieldTaskEntryPage() {
         )
       : locSegs.map((s) => ({
           locationDescription: s.locationDescription.trim(),
-          symbolItemType: s.symbolItemType.trim(),
+          symbolItemType: isSymbolEntry
+            ? hasSymbolCatalog
+              ? symbolTypeLabelForCode(s.symbolTypeCode, symbolTypes)
+              : s.symbolItemType.trim()
+            : s.symbolItemType.trim(),
           quantity:
             s.quantity.trim() === "" ? Number.NaN : Number(s.quantity),
         }));
@@ -523,19 +490,11 @@ export function FieldTaskEntryPage() {
       const saved = await persistTask();
       if (!saved) return;
       toast.success("Saved to report", { id: "field-entry" });
-      clearTaskEntryDraft(projectId, taskId);
       navigate(`/field/projects/${projectId}`);
     } catch (err) {
-      if (!online) {
-        toast.message(
-          "Saved locally on this device. Connect and try again to sync.",
-          { id: "field-entry" },
-        );
-      } else {
-        toast.error(err instanceof Error ? err.message : "Save failed", {
-          id: "field-entry",
-        });
-      }
+      toast.error(err instanceof Error ? err.message : "Save failed", {
+        id: "field-entry",
+      });
     } finally {
       setSaving(false);
     }
@@ -569,19 +528,11 @@ export function FieldTaskEntryPage() {
       toast.success(`Submitted ${data.report.reportNumber}`, {
         id: "field-entry",
       });
-      clearTaskEntryDraft(projectId, taskId);
       navigate("/field/reports");
     } catch (err) {
-      if (!online) {
-        toast.message(
-          "Saved locally on this device. Connect and try again to sync.",
-          { id: "field-entry" },
-        );
-      } else {
-        toast.error(err instanceof Error ? err.message : "Submit failed", {
-          id: "field-entry",
-        });
-      }
+      toast.error(err instanceof Error ? err.message : "Submit failed", {
+        id: "field-entry",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -636,92 +587,39 @@ export function FieldTaskEntryPage() {
   }
 
   return (
-    <div className={cn("space-y-5", editable && "pb-40 lg:pb-10")}>
-      <ConnectionBanner online={online} fromCache={cacheRestored} />
-      <Link
-        to={`/field/projects/${projectId}`}
-        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-sm font-medium text-sky-800 hover:text-sky-900"
-      >
-        <ArrowLeft className="size-5" /> Back to tasks
-      </Link>
-
-      <div className="space-y-2">
-        <p className="font-mono text-sm font-bold text-sky-900">
-          {task.taskMaster.code}
-        </p>
-        <h1 className="text-base font-semibold leading-snug text-foreground sm:text-lg">
-          {task.taskMaster.name}
-        </h1>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {project.jobNumber} · {project.name}
-          {project.location ? ` · ${project.location}` : ""}
-        </p>
-        {isSta && workLimits && (
-          <ProjectStaScopeCard
-            beginSta={workLimits.beginSta}
-            endSta={workLimits.endSta}
-            title="Task work limits"
-          />
-        )}
-        {isSta && !workLimits && (
-          <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Task work limits are not set. You can still enter any station range.
+    <div className={cn("space-y-4", editable && "pb-40 lg:pb-10")}>
+      <div className="-mx-3 space-y-3 border-b border-sky-100 bg-sky-50 px-3 py-4 lg:mx-0 lg:rounded-xl lg:border">
+        <Link
+          to={`/field/projects/${projectId}`}
+          className="inline-flex min-h-9 items-center text-sky-800 hover:text-sky-950"
+          aria-label="Back to tasks"
+        >
+          <ArrowLeft className="size-5" />
+        </Link>
+        <div>
+          <h1 className="text-base font-bold leading-snug text-sky-950 sm:text-lg">
+            #{task.taskMaster.code} — {task.taskMaster.name}
+          </h1>
+          <p className="mt-1 text-sm text-sky-900/75">
+            {project.jobNumber} · {project.name}
+            {project.location ? ` · ${project.location}` : ""}
           </p>
-        )}
-        <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
-          {isSta
-            ? "Add one row per line segment. All rows save together under this task."
-            : "Add each location and quantity for this task."}
-        </p>
-        {!editable && (
-          <p className="rounded-lg border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
-            Report is {report.status.replaceAll("_", " ").toLowerCase()} and
-            locked.
-          </p>
-        )}
+        </div>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-        <h2 className="text-sm font-semibold text-foreground">Task details</h2>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <TaskMetaBadge label="Line code" value={task.taskMaster.code} />
-          <TaskMetaBadge
-            label="Form"
-            value={
-              formLabels[task.taskMaster.formType] ?? task.taskMaster.formType
-            }
-          />
-          <TaskMetaBadge label="Unit" value={defaultUnit || task.taskMaster.unit} />
-          <TaskMetaBadge label="Color" value={task.taskMaster.color ?? "—"} />
-          <TaskMetaBadge
-            label="Width"
-            value={
-              task.taskMaster.widthInches != null
-                ? `${task.taskMaster.widthInches}"`
-                : "—"
-            }
-          />
-          <TaskMetaBadge
-            label="Conv. factor"
-            value={defaultCf || "1.00"}
-          />
-        </div>
+      <p className="text-sm text-muted-foreground">
+        {isSta
+          ? "Add a row for each line segment. All rows submit as one entry under this bid item."
+          : isSymbolEntry
+            ? "Add a row for each symbol. All rows submit as one entry under this bid item."
+            : "Add each location and quantity for this task."}
+      </p>
 
-        {!isSta && (
-          <div className="space-y-2 border-t border-border pt-3">
-            <Label className="text-sm" htmlFor="default-symbol">
-              Default symbol / item
-            </Label>
-            <Input
-              id="default-symbol"
-              disabled={!editable || busy}
-              className={inputClass}
-              value={defaultSymbol}
-              onChange={(e) => setDefaultSymbol(e.target.value)}
-            />
-          </div>
-        )}
-      </section>
+      {!editable && (
+        <p className="rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          Report is {report.status.replaceAll("_", " ").toLowerCase()} and locked.
+        </p>
+      )}
 
       {isSta ? (
         <div className="space-y-3">
@@ -733,7 +631,7 @@ export function FieldTaskEntryPage() {
                 className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-sky-900">
                     Segment {i + 1}
                   </p>
                   {staSegs.length > 1 && editable && (
@@ -753,6 +651,39 @@ export function FieldTaskEntryPage() {
                     </button>
                   )}
                 </div>
+
+                {usesLineTypePicker && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor={`line-type-${i}`}>
+                      Line type
+                    </Label>
+                    <select
+                      id={`line-type-${i}`}
+                      className={selectClass}
+                      disabled={!editable || busy}
+                      value={seg.lineTypeId || lineTypes[0]?.id || ""}
+                      onChange={(e) => {
+                        const lt = lineTypes.find((l) => l.id === e.target.value);
+                        updateSta(
+                          i,
+                          {
+                            lineTypeId: e.target.value,
+                            conversionFactor: lt
+                              ? lt.conversionFactor.toFixed(2)
+                              : seg.conversionFactor,
+                          },
+                          "lineTypeId",
+                        );
+                      }}
+                    >
+                      {lineTypes.map((lt) => (
+                        <option key={lt.id} value={lt.id}>
+                          {lt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -791,23 +722,6 @@ export function FieldTaskEntryPage() {
                   </div>
                 </div>
 
-                <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 text-sm">
-                  <input
-                    type="checkbox"
-                    className="size-5 shrink-0"
-                    disabled={!editable || busy}
-                    checked={seg.useManualLf}
-                    onChange={(e) =>
-                      updateSta(
-                        i,
-                        { useManualLf: e.target.checked },
-                        "manualLf",
-                      )
-                    }
-                  />
-                  Enter footage directly (manual LF)
-                </label>
-
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`cf-${i}`}>
@@ -815,45 +729,40 @@ export function FieldTaskEntryPage() {
                     </Label>
                     <Input
                       id={`cf-${i}`}
-                      readOnly
-                      className={cn(inputClass, "bg-muted font-semibold")}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      disabled={!editable || busy || seg.useManualLf}
+                      aria-invalid={Boolean(err.conversionFactor)}
+                      className={cn(
+                        inputClass,
+                        err.conversionFactor && "border-destructive",
+                      )}
                       value={seg.conversionFactor}
+                      onChange={(e) =>
+                        updateSta(
+                          i,
+                          { conversionFactor: e.target.value },
+                          "conversionFactor",
+                        )
+                      }
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      1.0 = single · 2.0 = double line
+                    </p>
+                    <FieldError message={err.conversionFactor} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`lf-${i}`}>
-                      {seg.useManualLf ? "Manual LF" : "Calculated LF"}
+                      Calculated LF
                     </Label>
-                    {seg.useManualLf ? (
-                      <>
-                        <Input
-                          id={`lf-${i}`}
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          inputMode="decimal"
-                          disabled={!editable || busy}
-                          aria-invalid={Boolean(err.manualLf)}
-                          className={cn(inputClass, err.manualLf && "border-destructive")}
-                          value={seg.manualLf}
-                          onChange={(e) =>
-                            updateSta(
-                              i,
-                              { manualLf: e.target.value },
-                              "manualLf",
-                            )
-                          }
-                        />
-                        <FieldError message={err.manualLf} />
-                      </>
-                    ) : (
-                      <Input
-                        id={`lf-${i}`}
-                        readOnly
-                        className={cn(inputClass, "bg-muted font-semibold")}
-                        value={calcPreview(seg)}
-                      />
-                    )}
+                    <Input
+                      id={`lf-${i}`}
+                      readOnly
+                      className={cn(inputClass, "bg-muted font-semibold")}
+                      value={calcPreview(seg)}
+                    />
                   </div>
                 </div>
               </div>
@@ -869,11 +778,161 @@ export function FieldTaskEntryPage() {
               onClick={() =>
                 setStaSegs((rows) => [
                   ...rows,
-                  emptySta(Number(defaultCf) || 1),
+                  usesLineTypePicker
+                    ? emptyStaFromLineTypes(lineTypes, Number(defaultCf) || 1)
+                    : emptySta(Number(defaultCf) || 1),
                 ])
               }
             >
               <Plus className="size-5" /> Add line segment
+            </Button>
+          )}
+        </div>
+      ) : isSymbolEntry ? (
+        <div className="space-y-3">
+          {locSegs.map((seg, i) => {
+            const err = segErrors[i] ?? {};
+            return (
+              <div
+                key={i}
+                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-sky-900">
+                    Symbol {i + 1}
+                  </p>
+                  {locSegs.length > 1 && editable && (
+                    <button
+                      type="button"
+                      className="text-destructive disabled:opacity-50"
+                      disabled={busy}
+                      aria-label={`Remove symbol ${i + 1}`}
+                      onClick={() => {
+                        setLocSegs((rows) =>
+                          rows.filter((_, idx) => idx !== i),
+                        );
+                        setSegErrors({});
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`station-${i}`}>
+                    Station
+                  </Label>
+                  <Input
+                    id={`station-${i}`}
+                    placeholder="e.g. 124+50"
+                    disabled={!editable || busy}
+                    aria-invalid={Boolean(err.locationDescription)}
+                    className={cn(
+                      inputClass,
+                      err.locationDescription && "border-destructive",
+                    )}
+                    value={seg.locationDescription}
+                    onChange={(e) =>
+                      updateLoc(
+                        i,
+                        { locationDescription: e.target.value },
+                        "locationDescription",
+                      )
+                    }
+                  />
+                  <FieldError message={err.locationDescription} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`sym-type-${i}`}>
+                    Symbol type
+                  </Label>
+                  {hasSymbolCatalog ? (
+                    <select
+                      id={`sym-type-${i}`}
+                      className={selectClass}
+                      disabled={!editable || busy}
+                      value={seg.symbolTypeCode || symbolTypes[0]?.code || ""}
+                      onChange={(e) =>
+                        updateLoc(
+                          i,
+                          { symbolTypeCode: e.target.value },
+                          "symbolItemType",
+                        )
+                      }
+                    >
+                      {symbolTypes.map((st) => (
+                        <option key={st.code} value={st.code}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id={`sym-type-${i}`}
+                      placeholder="e.g. W12-1 guide sign"
+                      disabled={!editable || busy}
+                      aria-invalid={Boolean(err.symbolItemType)}
+                      className={cn(
+                        inputClass,
+                        err.symbolItemType && "border-destructive",
+                      )}
+                      value={seg.symbolItemType}
+                      onChange={(e) =>
+                        updateLoc(
+                          i,
+                          { symbolItemType: e.target.value },
+                          "symbolItemType",
+                        )
+                      }
+                    />
+                  )}
+                  <FieldError message={err.symbolItemType} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm" htmlFor={`sym-qty-${i}`}>
+                    Qty
+                  </Label>
+                  <Input
+                    id={`sym-qty-${i}`}
+                    type="number"
+                    min={0}
+                    step="1"
+                    inputMode="numeric"
+                    disabled={!editable || busy}
+                    aria-invalid={Boolean(err.quantity)}
+                    className={cn(
+                      inputClass,
+                      "max-w-[8rem]",
+                      err.quantity && "border-destructive",
+                    )}
+                    value={seg.quantity}
+                    onChange={(e) =>
+                      updateLoc(i, { quantity: e.target.value }, "quantity")
+                    }
+                  />
+                  <FieldError message={err.quantity} />
+                </div>
+              </div>
+            );
+          })}
+
+          {editable && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              className="h-12 w-full border-2 border-dashed border-sky-300 bg-sky-50 text-sm font-semibold text-sky-900 hover:bg-sky-100 hover:text-sky-950"
+              onClick={() =>
+                setLocSegs((rows) => [
+                  ...rows,
+                  emptyLoc(defaultSymbol, symbolTypes),
+                ])
+              }
+            >
+              <Plus className="size-5" /> Add symbol
             </Button>
           )}
         </div>

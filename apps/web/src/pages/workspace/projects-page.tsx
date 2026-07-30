@@ -26,6 +26,7 @@ import {
 import { DivisionMultiSelect } from "@/components/division-multi-select";
 import { UserMultiSelect } from "@/components/user-multi-select";
 import { ClientSuggestInput } from "@/components/client-suggest-input";
+import { ModalOverlay } from "@/components/modal-overlay";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type ClientOpt = {
@@ -157,7 +158,7 @@ function FormSection({
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-4">{children}</div>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -698,26 +699,29 @@ export function ProjectsPage() {
         }}
       />
 
-      {open && (
-        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
-          <form
-            id="project-form-modal"
-            onSubmit={onSave}
-            className="relative z-[2001] max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-xl border bg-card p-6 shadow-xl sm:p-8"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  {editingId ? "Edit project" : "New project"}
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Enter job details and assign the team.
-                </p>
-              </div>
-              <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
+      <ModalOverlay open={open} onBackdropClick={requestCloseForm}>
+        <form
+          id="project-form-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-form-title"
+          onSubmit={onSave}
+          onClick={(e) => e.stopPropagation()}
+          className="relative z-[2001] flex max-h-[min(94dvh,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:max-h-[90vh]"
+        >
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <div className="min-w-0">
+              <h2 id="project-form-title" className="text-xl font-semibold">
+                {editingId ? "Edit project" : "New project"}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Enter job details and assign the team.
+              </p>
             </div>
+            <ModalCloseButton onClick={requestCloseForm} disabled={saving} />
+          </div>
 
-            <div className="mt-6 space-y-5">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
               <FormSection
                 title="Basic information"
                 description="Core job identity and status"
@@ -970,7 +974,7 @@ export function ProjectsPage() {
                     }
                   />
                 </FormField>
-                <FormField className="col-span-2">
+                <FormField className="sm:col-span-2">
                   <Label>Notes</Label>
                   <textarea
                     className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -981,32 +985,31 @@ export function ProjectsPage() {
                   />
                 </FormField>
               </FormSection>
-            </div>
+          </div>
 
-            <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={requestCloseForm}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-asphalt-mid text-white hover:bg-asphalt"
-                disabled={saving}
-              >
-                {saving
-                  ? "Saving…"
-                  : editingId
-                    ? "Save changes"
-                    : "Create project"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4 sm:px-6">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={requestCloseForm}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="bg-asphalt-mid text-white hover:bg-asphalt"
+              disabled={saving}
+            >
+              {saving
+                ? "Saving…"
+                : editingId
+                  ? "Save changes"
+                  : "Create project"}
+            </Button>
+          </div>
+        </form>
+      </ModalOverlay>
     </div>
   );
 }

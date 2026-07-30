@@ -295,8 +295,8 @@ approvalsRouter.get(
 );
 
 /**
- * Project-specific report history for managers.
- * Query: ?projectId= required
+ * Project report history for managers.
+ * Query: ?projectId= optional — omit for all projects in scope.
  */
 approvalsRouter.get(
   "/history",
@@ -304,37 +304,50 @@ approvalsRouter.get(
   asyncHandler(async (req, res) => {
     const projectId =
       typeof req.query.projectId === "string" ? req.query.projectId.trim() : "";
-    if (!projectId) {
-      throw new AppError("VALIDATION_ERROR", "projectId is required", 400);
-    }
     const scope = await managerScopeWhere(req.user!.id, req.user!.roles);
     const projectScope = await managerProjectScopeWhere(
       req.user!.id,
       req.user!.roles,
     );
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, ...projectScope },
-      select: {
-        id: true,
-        jobNumber: true,
-        name: true,
-        location: true,
-        division: true,
-        clientName: true,
-        tasks: {
-          where: { isActive: true },
-          include: historyTaskInclude,
-          orderBy: { sortOrder: "asc" },
+
+    let project: {
+      id: string;
+      jobNumber: string;
+      name: string;
+      location: string | null;
+      division: string;
+      clientName: string | null;
+      tasks: HistoryTaskRow[];
+    } | null = null;
+
+    if (projectId) {
+      const found = await prisma.project.findFirst({
+        where: { id: projectId, ...projectScope },
+        select: {
+          id: true,
+          jobNumber: true,
+          name: true,
+          location: true,
+          division: true,
+          clientName: true,
+          tasks: {
+            where: { isActive: true },
+            include: historyTaskInclude,
+            orderBy: { sortOrder: "asc" },
+          },
         },
-      },
-    });
-    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+      });
+      if (!found) throw new AppError("NOT_FOUND", "Project not found", 404);
+      project = found;
+    }
 
     const reports = await prisma.report.findMany({
       where: {
-        projectId,
         status: { not: "DRAFT" },
         ...scope,
+        ...(projectId
+          ? { projectId }
+          : { project: projectScope }),
       },
       include: {
         ...queueInclude,
@@ -343,19 +356,21 @@ approvalsRouter.get(
         },
       },
       orderBy: [{ reportDate: "desc" }, { submittedAt: "desc" }],
-      take: 100,
+      take: projectId ? 100 : 200,
     });
 
     res.json({
-      project: {
-        id: project.id,
-        jobNumber: project.jobNumber,
-        name: project.name,
-        location: project.location,
-        division: project.division,
-        clientName: project.clientName,
-      },
-      tasks: project.tasks.map(mapHistoryTask),
+      project: project
+        ? {
+            id: project.id,
+            jobNumber: project.jobNumber,
+            name: project.name,
+            location: project.location,
+            division: project.division,
+            clientName: project.clientName,
+          }
+        : null,
+      tasks: project ? project.tasks.map(mapHistoryTask) : [],
       reports: reports.map((r) => ({
         ...withAge(r),
         approvedAt: r.approvedAt,

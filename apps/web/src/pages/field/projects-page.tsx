@@ -1,14 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Search } from "lucide-react";
-import { ConnectionBanner } from "@/components/connection-banner";
+import { Search } from "lucide-react";
 import { ActivityDot } from "@/components/activity-dot";
-import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
-import { useCachedApi } from "@/hooks/use-cached-api";
+import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
 import { Input } from "@/components/ui/input";
-import { ProjectStaScopeCard } from "@/components/project-sta-scope-card";
 import { cn } from "@/lib/utils";
 
 type FieldProject = {
@@ -37,18 +35,8 @@ const divisionChips: { value: DivisionFilter; label: string }[] = [
 export function FieldProjectsPage() {
   const { user } = useAuth();
   const { isProjectNew } = useFieldProjectsActivity(user?.id);
-  const {
-    data,
-    loading,
-    refreshing,
-    fromCache,
-    cacheSavedAt,
-    error,
-    online,
-  } = useCachedApi<{ projects: FieldProject[] }>(
-    OFFLINE_CACHE_KEYS.fieldProjects,
-    "/api/v1/field/projects",
-    user?.id,
+  const { data, loading, refreshing } = useApi<{ projects: FieldProject[] }>(
+    user?.id ? "/api/v1/field/projects" : null,
   );
 
   const projects = data?.projects ?? [];
@@ -71,14 +59,7 @@ export function FieldProjectsPage() {
 
   return (
     <div className="space-y-5">
-      <ConnectionBanner
-        online={online}
-        fromCache={fromCache}
-        refreshing={refreshing}
-        cacheSavedAt={cacheSavedAt}
-        error={error}
-        className="bg-background/80"
-      />
+      <RefreshBar active={refreshing} />
       <p className="text-sm text-muted-foreground">
         Select a project to begin your daily report.
       </p>
@@ -125,10 +106,7 @@ export function FieldProjectsPage() {
 
       <div className="border-t border-border/60 pt-4">
       {loading && projects.length === 0 ? (
-        <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-6 animate-spin text-sky-800" />
-          Loading projects…
-        </div>
+        <ListPageSkeleton rows={5} />
       ) : filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
           No projects match your search.
@@ -157,14 +135,6 @@ export function FieldProjectsPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {subtitle}
                   </p>
-                  {p.route?.beginSta && p.route?.endSta && (
-                    <ProjectStaScopeCard
-                      beginSta={p.route.beginSta}
-                      endSta={p.route.endSta}
-                      compact
-                      className="mt-1.5"
-                    />
-                  )}
                 </Link>
               </li>
             );

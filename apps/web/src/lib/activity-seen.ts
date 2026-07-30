@@ -5,9 +5,6 @@ export const PENDING_QUEUE_REFRESH_EVENT = "frs:pending-queue-refresh";
 
 export const PENDING_QUEUE_REFRESH_KEY = "frs_pending_queue_refresh";
 
-/** Poll interval for manager pending queue / badge (seconds-scale updates). */
-export const PENDING_QUEUE_POLL_MS = 5_000;
-
 export function notifyPendingQueueRefresh() {
   localStorage.setItem(PENDING_QUEUE_REFRESH_KEY, String(Date.now()));
   window.dispatchEvent(new CustomEvent(PENDING_QUEUE_REFRESH_EVENT));

@@ -831,6 +831,15 @@ async function addProjectTaskInternal(
     throw new AppError("NOT_FOUND", "Task master not found", 404);
   }
 
+  if (master.parentId) {
+    const parent = await prisma.taskMaster.findUnique({
+      where: { id: master.parentId },
+    });
+    if (parent?.division === "PAVEMENT_MARKING") {
+      master = parent;
+    }
+  }
+
   const formType =
     (body.formType as BidItemFormType) ??
     (master.formType as BidItemFormType) ??

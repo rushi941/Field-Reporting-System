@@ -3,7 +3,13 @@
  * Production start for Render (and similar).
  */
 import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config as loadEnv } from "dotenv";
 import { migrateEnv, normalizeDatabaseUrl } from "./ensure-database-url.mjs";
+
+const rootDir = fileURLToPath(new URL("..", import.meta.url));
+loadEnv({ path: path.join(rootDir, "apps/api/.env") });
 
 function sleepMs(ms) {
   spawnSync(

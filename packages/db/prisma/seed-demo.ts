@@ -10,6 +10,7 @@ import {
 import bcrypt from "bcryptjs";
 import {
   PAVEMENT_LINE_SUB_CATALOG,
+  PAINTED_PAVEMENT_MASTER_BIDS,
   subBidCodeForMaster,
 } from "@frs/shared";
 
@@ -64,6 +65,11 @@ const FIELD_LEAD_SPECS: SeedUserSpec[] = [
 
 /** Demo: tasks assigned per field lead within each division */
 const TASKS_PER_LEAD = 4;
+
+function demoPmMasterCodes(count: number): string[] {
+  const masters = PAINTED_PAVEMENT_MASTER_BIDS.map((m) => m.masterCode);
+  return Array.from({ length: count }, (_, i) => masters[i % masters.length]!);
+}
 
 function demoPmSubCodes(count: number): string[] {
   return PAVEMENT_LINE_SUB_CATALOG.slice(0, count).map((line) =>
@@ -357,7 +363,7 @@ export async function seedBigDemoProject(
     (l) => l.division === "PERMANENT_SIGNS",
   ).map((l) => l.email);
 
-  const pmCodes = demoPmSubCodes(pmLeads.length * TASKS_PER_LEAD);
+  const pmCodes = demoPmMasterCodes(pmLeads.length * TASKS_PER_LEAD);
   const tcCodes = await masterCodesForDivision(
     prisma,
     "TRAFFIC_CONTROL",

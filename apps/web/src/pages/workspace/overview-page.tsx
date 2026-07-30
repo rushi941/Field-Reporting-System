@@ -12,6 +12,7 @@ import {
   Users,
   Building2,
   ClipboardList,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { apiFetch } from "@/lib/api";
@@ -87,6 +88,14 @@ export function WorkspaceOverviewPage({
       body: "Project-wise field report tracking — statuses, tasks, and progress.",
       icon: ClipboardList,
       permission: "reports.view_project_history",
+    },
+    {
+      to: `${base}/reports/history`,
+      title: "Approval history",
+      body: "View pending, approved, and returned reports (read-only).",
+      icon: ClipboardCheck,
+      permission: "reports.view_project_history",
+      officeOnly: true,
     },
     {
       to: `${base}/billing`,
@@ -202,7 +211,11 @@ export function WorkspaceOverviewPage({
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards
-          .filter((c) => !c.permission || can(c.permission))
+          .filter(
+            (c) =>
+              (!("officeOnly" in c) || !c.officeOnly || kind === "office") &&
+              (!c.permission || can(c.permission)),
+          )
           .map((c) => {
             const Icon = c.icon;
             return (

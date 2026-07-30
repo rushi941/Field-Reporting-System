@@ -1,84 +1,75 @@
-import { Link } from "react-router-dom";
-import { ClipboardCheck, Loader2 } from "lucide-react";
-import { ConnectionBanner } from "@/components/connection-banner";
-import { ActivityDot } from "@/components/activity-dot";
-import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
-import { useCachedApi } from "@/hooks/use-cached-api";
+import { useState } from "react";
+import { ClipboardCheck } from "lucide-react";
+import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import {
+  PendingApprovalCard,
+  type PendingReportSummary,
+} from "@/components/pending-approval-card";
+import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
 import { usePendingQueueRefresh } from "@/hooks/use-pending-queue-refresh";
-
-type PendingReport = {
-  id: string;
-  reportNumber: string;
-  reportDate: string;
-  status: string;
-  submittedAt: string | null;
-  lineCount: number;
-  attachmentCount: number;
-  ageLabel: string;
-  ageHours: number;
-  project: {
-    id: string;
-    jobNumber: string;
-    name: string;
-    location: string | null;
-  };
-  submittedBy: { id: string; name: string; email: string };
-};
+import { markPendingApprovalSeen } from "@/lib/activity-seen";
 
 type PendingResponse = {
-  reports: PendingReport[];
+  reports: PendingReportSummary[];
   pendingCount: number;
 };
 
 export function ApprovalsQueuePage() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { isUnread } = usePendingApprovalActivity(user?.id);
-  const {
-    data,
-    loading,
-    refreshing,
-    fromCache,
-    cacheSavedAt,
-    error,
-    online,
-    refresh,
-  } = useCachedApi<PendingResponse>(
-    OFFLINE_CACHE_KEYS.approvalsPending,
-    "/api/v1/approvals/pending",
-    user?.id,
+  const { data, loading, refreshing, refresh } = useApi<PendingResponse>(
+    user?.id ? "/api/v1/approvals/pending" : null,
   );
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   usePendingQueueRefresh(refresh);
 
   const reports = data?.reports ?? [];
 
+  function toggleReport(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
+
+  function handleSeen(report: PendingReportSummary) {
+    markPendingApprovalSeen(user?.id, {
+      id: report.id,
+      submittedAt: report.submittedAt,
+    });
+  }
+
+  function handleActionComplete() {
+    setExpandedId(null);
+    refresh();
+  }
+
   if (loading && reports.length === 0) {
     return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-6 animate-spin text-sky-800" />
-        Loading pending queue…
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Pending approval
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tap a report to review quantities and approve or return.
+          </p>
+        </div>
+        <ListPageSkeleton rows={4} />
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <ConnectionBanner
-        online={online}
-        fromCache={fromCache}
-        refreshing={refreshing}
-        cacheSavedAt={cacheSavedAt}
-        error={error}
-        className="bg-background/80"
-      />
+      <RefreshBar active={refreshing} />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">
           Pending approval
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review quantities, notes, and attachments.
+          Tap a report to expand — tap again to collapse. Approve or return
+          without leaving the queue.
         </p>
       </div>
 
@@ -91,55 +82,20 @@ export function ApprovalsQueuePage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {reports.map((r) => {
-            const unread = isUnread(r);
-            return (
+        <ul className="space-y-2.5">
+          {reports.map((r) => (
             <li key={r.id}>
-              <Link
-                to={`/approvals/${r.id}`}
-                className="block rounded-lg border border-border bg-card px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/40"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {unread && <ActivityDot inline label="New" />}
-                    <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                      {r.reportNumber}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase leading-none text-sky-900">
-                    Under review
-                  </span>
-                </div>
-                <p className="mt-2 break-words text-sm font-semibold leading-snug">
-                  {r.project.jobNumber} — {r.project.name}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>{r.submittedBy.name}</span>
-                  <span aria-hidden>·</span>
-                  <span>{r.reportDate}</span>
-                  <span aria-hidden>·</span>
-                  <span>
-                    {r.lineCount} line{r.lineCount === 1 ? "" : "s"}
-                  </span>
-                  {r.attachmentCount > 0 && (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span>
-                        {r.attachmentCount} file
-                        {r.attachmentCount === 1 ? "" : "s"}
-                      </span>
-                    </>
-                  )}
-                  <span aria-hidden>·</span>
-                  <span className="tabular-nums" title={`${r.ageHours} hours since submit`}>
-                    Age {r.ageLabel}
-                  </span>
-                </div>
-              </Link>
+              <PendingApprovalCard
+                report={r}
+                expanded={expandedId === r.id}
+                unread={isUnread(r)}
+                canApprove={can("reports.approve")}
+                onToggle={() => toggleReport(r.id)}
+                onSeen={() => handleSeen(r)}
+                onActionComplete={handleActionComplete}
+              />
             </li>
-            );
-          })}
+          ))}
         </ul>
       )}
     </div>

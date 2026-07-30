@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { ActivityDot } from "@/components/activity-dot";
+import { PageSuspense, PageTransition } from "@/components/page-shell";
+import { prefetchRoute } from "@/lib/route-prefetch";
 import { useFieldReportActivity } from "@/hooks/use-field-report-activity";
 import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
 
@@ -76,6 +78,8 @@ export function FieldLayout() {
             <NavLink
               key={item.to}
               to={item.to}
+              onMouseEnter={() => prefetchRoute(item.to)}
+              onFocus={() => prefetchRoute(item.to)}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
@@ -182,7 +186,11 @@ export function FieldLayout() {
           )}
         >
           <div className="mx-auto w-full max-w-lg">
-            <Outlet key={user?.id} />
+            <PageSuspense>
+              <PageTransition>
+                <Outlet key={user?.id} />
+              </PageTransition>
+            </PageSuspense>
           </div>
         </main>
 
@@ -200,6 +208,8 @@ export function FieldLayout() {
                     key={item.to}
                     to={item.to}
                     end={item.to === "/field/projects" || item.to === "/field/reports"}
+                    onMouseEnter={() => prefetchRoute(item.to)}
+                    onFocus={() => prefetchRoute(item.to)}
                     className={({ isActive }) =>
                       cn(
                         "flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold transition-colors",

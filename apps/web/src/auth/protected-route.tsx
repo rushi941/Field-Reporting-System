@@ -1,3 +1,4 @@
+import { AppBootScreen } from "@/components/page-shell";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/auth-context";
 
@@ -6,11 +7,7 @@ export function ProtectedRoute() {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
+    return <AppBootScreen />;
   }
 
   if (!user) {

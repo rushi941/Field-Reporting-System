@@ -30,11 +30,22 @@ export function parseStaToDecimal(sta: string): number {
   return miles + feet / 100;
 }
 
-/** Physical LF from Begin/End STA (reverse direction uses absolute span) */
+/** Decimal station span (e.g. 1+00 → 4+00 = 3.00) */
+export function stationSpanDecimal(beginSta: string, endSta: string): number {
+  return Math.abs(parseStaToDecimal(endSta) - parseStaToDecimal(beginSta));
+}
+
+/** Physical LF from Begin/End STA — always (End − Begin), never End alone */
 export function physicalLfFromSta(beginSta: string, endSta: string): number {
-  const begin = parseStaToDecimal(beginSta);
-  const end = parseStaToDecimal(endSta);
-  return Math.abs(end - begin) * 100;
+  const begin = normalizeSta(beginSta);
+  const end = normalizeSta(endSta);
+  const [bMile, bFeet] = begin.split("+").map(Number);
+  const [eMile, eFeet] = end.split("+").map(Number);
+  const spanFeet = Math.abs((eMile - bMile) * 100 + (eFeet - bFeet));
+  if (spanFeet <= 0) {
+    throw new Error("End STA must be after Begin STA");
+  }
+  return spanFeet;
 }
 
 /** True when two STA ranges share any station (touching endpoints are OK). */

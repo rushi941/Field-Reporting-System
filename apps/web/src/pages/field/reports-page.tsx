@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { cn } from "@/lib/utils";
-import { ConnectionBanner } from "@/components/connection-banner";
 import { ActivityDot } from "@/components/activity-dot";
-import { OFFLINE_CACHE_KEYS } from "@/lib/offline-cache";
-import { useCachedApi } from "@/hooks/use-cached-api";
+import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { useFieldReportActivity } from "@/hooks/use-field-report-activity";
 
@@ -40,41 +39,21 @@ const statusStyles: Record<string, string> = {
 export function FieldReportsPage() {
   const { user } = useAuth();
   const { isUnread } = useFieldReportActivity(user?.id);
-  const {
-    data,
-    loading,
-    refreshing,
-    fromCache,
-    cacheSavedAt,
-    error,
-    online,
-  } = useCachedApi<{ reports: FieldReport[] }>(
-    OFFLINE_CACHE_KEYS.fieldReports,
-    "/api/v1/field/reports",
-    user?.id,
+  const { data, loading, refreshing } = useApi<{ reports: FieldReport[] }>(
+    user?.id ? "/api/v1/field/reports" : null,
   );
 
   const reports = data?.reports ?? [];
 
   return (
     <div className="space-y-4">
-      <ConnectionBanner
-        online={online}
-        fromCache={fromCache}
-        refreshing={refreshing}
-        cacheSavedAt={cacheSavedAt}
-        error={error}
-        className="bg-background/80"
-      />
+      <RefreshBar active={refreshing} />
       <p className="text-sm text-muted-foreground">
         Open a report for full details. Correct returned reports and resubmit.
       </p>
 
       {loading && reports.length === 0 ? (
-        <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-6 animate-spin text-sky-800" />
-          Loading reports…
-        </div>
+        <ListPageSkeleton rows={4} />
       ) : reports.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-card px-4 py-12 text-center">
           <ClipboardList className="mx-auto size-8 text-muted-foreground/60" />

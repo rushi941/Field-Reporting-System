@@ -144,7 +144,7 @@ export const defaultPermissionMatrix: Record<
   "reports.view_returned": {
     FIELD_LEAD: "YES",
     DIVISION_MANAGER: "YES",
-    PROJECT_ADMIN: "NO",
+    PROJECT_ADMIN: "YES",
     SYSTEM_ADMIN: "YES",
   },
   "reports.view_project_history": {

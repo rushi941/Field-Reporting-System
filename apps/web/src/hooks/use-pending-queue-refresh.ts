@@ -1,17 +1,14 @@
 import { useEffect } from "react";
 import {
-  PENDING_QUEUE_POLL_MS,
   PENDING_QUEUE_REFRESH_EVENT,
   PENDING_QUEUE_REFRESH_KEY,
 } from "@/lib/activity-seen";
 
-/** Keep manager pending queue fresh (poll + immediate refresh on field submit). */
+/** Refresh pending queue when the tab is focused or a field submit completes. */
 export function usePendingQueueRefresh(refresh: () => void | Promise<void>) {
   useEffect(() => {
     const run = () => void refresh();
 
-    run();
-    const pollId = window.setInterval(run, PENDING_QUEUE_POLL_MS);
     window.addEventListener("focus", run);
     window.addEventListener(PENDING_QUEUE_REFRESH_EVENT, run);
     const onStorage = (e: StorageEvent) => {
@@ -20,7 +17,6 @@ export function usePendingQueueRefresh(refresh: () => void | Promise<void>) {
     window.addEventListener("storage", onStorage);
 
     return () => {
-      window.clearInterval(pollId);
       window.removeEventListener("focus", run);
       window.removeEventListener(PENDING_QUEUE_REFRESH_EVENT, run);
       window.removeEventListener("storage", onStorage);

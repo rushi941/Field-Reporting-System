@@ -349,7 +349,14 @@ export function WorkspaceReportsDetailPage({
                     ] ?? r.status.replaceAll("_", " ");
                   return (
                     <tr key={r.id} className="border-b last:border-0">
-                      <td className="px-2 py-1 font-mono text-xs">{r.reportNumber}</td>
+                      <td className="px-2 py-1 font-mono text-xs">
+                        <Link
+                          to={`/${base}/reports/${project.id}/${r.id}`}
+                          className="text-sky-800 hover:underline"
+                        >
+                          {r.reportNumber}
+                        </Link>
+                      </td>
                       <td className="px-2 py-1 tabular-nums">{r.reportDate}</td>
                       <td className="px-2 py-1 text-xs">{r.submittedBy.name}</td>
                       <td className="px-2 py-1">
