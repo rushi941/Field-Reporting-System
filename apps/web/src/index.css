@@ -125,6 +125,34 @@
   animation: lane-dash 1.1s linear infinite;
 }
 
+/* Dark sidebar — thin, subtle scrollbar */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.35) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  margin: 6px 0;
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgb(148 163 184 / 0.28);
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(201 162 39 / 0.55);
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:active {
+  background: rgb(201 162 39 / 0.75);
+}
+
 .auth-grid-noise {
   background-image:
     radial-gradient(ellipse 80% 60% at 20% 10%, rgba(201, 162, 39, 0.06), transparent),
