@@ -16,7 +16,10 @@ export function normalizeDatabaseUrl(raw, { forMigrate = false } = {}) {
     );
   }
 
-  if (!/[?&]sslmode=/.test(url)) {
+  if (
+    !/[?&]sslmode=/.test(url) &&
+    (url.includes("neon.tech") || url.includes(".neon."))
+  ) {
     url += `${url.includes("?") ? "&" : "?"}sslmode=require`;
   }
 

@@ -75,6 +75,11 @@ if (!process.env.DATABASE_URL) {
     console.error("");
     process.exit(migrate);
   }
+
+  const seed = run("node", ["scripts/seed-if-needed.mjs"], env);
+  if (seed !== 0) {
+    console.error("[db] Demo seed failed — app will start but masters may be empty.");
+  }
 }
 
 const start = run("npm", ["run", "start", "-w", "@frs/api"]);
