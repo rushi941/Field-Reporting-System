@@ -10,7 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 type FormState = {
   email: string;
@@ -61,12 +64,33 @@ export function SystemUsersPage() {
   const [managers, setManagers] = useState<
     { id: string; name: string; email: string; division: string | null }[]
   >([]);
-  const [page, setPage] = useState(1);
 
-  const paginatedUsers = useMemo(
-    () => paginateSlice(users, page, ADMIN_PAGE_SIZE),
-    [users, page],
+  const userSortAccessors = useMemo(
+    () => ({
+      name: (u: ManagedUser) => `${u.firstName} ${u.lastName}`,
+      email: (u: ManagedUser) => u.email,
+      roles: (u: ManagedUser) =>
+        u.roles.map((r) => roleLabels[r as AppRole] ?? r).join(", "),
+      status: (u: ManagedUser) => (u.isActive ? 1 : 0),
+    }),
+    [],
   );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedUsers,
+    setPage: setTablePage,
+  } = useAdminTable({
+    rows: users,
+    getSearchText: (u) =>
+      `${u.firstName} ${u.lastName} ${u.email} ${u.roles.join(" ")} ${u.phone ?? ""}`,
+    sortAccessors: userSortAccessors,
+    defaultSort: { key: "name", direction: "asc" },
+  });
 
   const needsDivision = form.roles.some(
     (r) => r === "FIELD_LEAD" || r === "DIVISION_MANAGER",
@@ -288,18 +312,34 @@ export function SystemUsersPage() {
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
       ) : (
+        <>
+          <AdminTableSearch
+            className="mb-4"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search users…"
+          />
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
               <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1">Name</th>
-                  <th className="px-2 py-1">Roles</th>
-                  <th className="px-2 py-1">Status</th>
+                  <SortableTh label="Name" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Roles" sortKey="roles" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
+                {paginatedUsers.items.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      {users.length === 0
+                        ? "No users yet."
+                        : "No users match your search."}
+                    </td>
+                  </tr>
+                )}
                 {paginatedUsers.items.map((u) => (
                   <tr
                     key={u.id}
@@ -369,10 +409,11 @@ export function SystemUsersPage() {
               page={paginatedUsers.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={paginatedUsers.total}
-              onPageChange={setPage}
+              onPageChange={setTablePage}
             />
           )}
         </div>
+        </>
       )}
 
       {statusConfirm && (

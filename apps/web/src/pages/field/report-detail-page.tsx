@@ -29,7 +29,9 @@ type ReportDetail = {
     jobNumber: string;
     name: string;
     location: string | null;
+    projectManager: { id: string; name: string; email: string } | null;
   };
+  divisionManager: { id: string; name: string; email: string } | null;
   lineItems: {
     id: string;
     projectTaskId: string;
@@ -177,6 +179,30 @@ export function FieldReportDetailPage() {
           {report.crewSize != null ? ` · Crew ${report.crewSize}` : ""}
           {report.project.location ? ` · ${report.project.location}` : ""}
         </p>
+        {(report.project.projectManager || report.divisionManager) && (
+          <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5 sm:grid-cols-2">
+            {report.project.projectManager && (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Project manager
+                </p>
+                <p className="mt-0.5 text-sm font-semibold">
+                  {report.project.projectManager.name}
+                </p>
+              </div>
+            )}
+            {report.divisionManager && (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Division manager
+                </p>
+                <p className="mt-0.5 text-sm font-semibold">
+                  {report.divisionManager.name}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {report.status === "RETURNED" && report.returnComment && (

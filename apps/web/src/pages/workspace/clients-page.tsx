@@ -11,7 +11,9 @@ import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { ADMIN_PAGE_SIZE, type SortDirection } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
 import { showFullPageLoader } from "@/lib/page-load";
 import {
   downloadClientSampleCsv,
@@ -41,6 +43,8 @@ export function ClientsPage() {
   const [deleting, setDeleting] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("foundationNumber");
+  const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [form, setForm] = useState({
     foundationNumber: "",
     name: "",
@@ -58,6 +62,8 @@ export function ClientsPage() {
           pageSize: String(ADMIN_PAGE_SIZE),
         });
         if (search.trim()) params.set("q", search.trim());
+        params.set("sortBy", sortBy);
+        params.set("sortDir", sortDir);
         const data = await apiFetch<{
           clients: ClientRow[];
           total: number;
@@ -76,8 +82,18 @@ export function ClientsPage() {
         setLoading(false);
       }
     },
-    [page, search],
+    [page, search, sortBy, sortDir],
   );
+
+  function toggleSort(key: string) {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  }
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -234,13 +250,12 @@ export function ClientsPage() {
         </div>
       </div>
 
-      <div className="mb-4 max-w-sm">
-        <Input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search clients…"
-        />
-      </div>
+      <AdminTableSearch
+        className="mb-4"
+        value={searchInput}
+        onChange={setSearchInput}
+        placeholder="Search clients…"
+      />
 
       {showFullPageLoader(loading, rows.length > 0) ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -251,9 +266,9 @@ export function ClientsPage() {
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-2 py-1">Foundation #</th>
-                <th className="px-2 py-1">Name</th>
-                <th className="px-2 py-1">Status</th>
+                <SortableTh label="Foundation #" sortKey="foundationNumber" activeSortKey={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Name" sortKey="name" activeSortKey={sortBy} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeSortKey={sortBy} sortDir={sortDir} onSort={toggleSort} />
                 <th className="px-2 py-1" />
               </tr>
             </thead>

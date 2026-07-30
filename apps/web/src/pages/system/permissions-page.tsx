@@ -14,7 +14,10 @@ import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 const yesNoOptions: { value: PermissionAccessValue; label: string }[] = [
   { value: "YES", label: "Yes" },
@@ -38,12 +41,28 @@ export function SystemPermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [page, setPage] = useState(1);
 
-  const paginatedMatrix = useMemo(
-    () => paginateSlice(matrix, page, ADMIN_PAGE_SIZE),
-    [matrix, page],
+  const permissionSortAccessors = useMemo(
+    () => ({
+      label: (row: PermissionMatrixRow) => row.label,
+    }),
+    [],
   );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedMatrix,
+    setPage: setTablePage,
+  } = useAdminTable({
+    rows: matrix,
+    getSearchText: (row) => `${row.label} ${row.key} ${row.description ?? ""}`,
+    sortAccessors: permissionSortAccessors,
+    defaultSort: { key: "label", direction: "asc" },
+  });
 
   async function load(background = false) {
     if (!background) setLoading(true);
@@ -148,13 +167,25 @@ export function SystemPermissionsPage() {
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
       ) : (
+        <>
+          <AdminTableSearch
+            className="mb-4"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search permissions…"
+          />
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="sticky left-0 z-10 bg-muted/60 px-2 py-1 font-semibold">
-                  Feature
-                </th>
+                <SortableTh
+                  label="Feature"
+                  sortKey="label"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="sticky left-0 z-10 bg-muted/60"
+                />
                 {roles.map((role) => (
                   <th key={role} className="px-2 py-1 font-medium">
                     {roleLabels[role]}
@@ -163,6 +194,16 @@ export function SystemPermissionsPage() {
               </tr>
             </thead>
             <tbody>
+              {paginatedMatrix.items.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={roles.length + 1}
+                    className="px-2 py-4 text-center text-sm text-muted-foreground"
+                  >
+                    No permissions match your search.
+                  </td>
+                </tr>
+              )}
               {paginatedMatrix.items.map((row) => (
                 <tr key={row.key} className="border-b last:border-0">
                   <td className="sticky left-0 z-10 bg-card px-2 py-1">
@@ -194,10 +235,11 @@ export function SystemPermissionsPage() {
               page={paginatedMatrix.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={paginatedMatrix.total}
-              onPageChange={setPage}
+              onPageChange={setTablePage}
             />
           )}
         </div>
+        </>
       )}
     </div>
   );

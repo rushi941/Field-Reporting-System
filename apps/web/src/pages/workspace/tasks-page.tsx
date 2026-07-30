@@ -19,7 +19,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
@@ -103,9 +106,7 @@ export function TasksPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [search, setSearch] = useState("");
   const [divisionFilter, setDivisionFilter] = useState("ALL");
-  const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"master" | "sub">("master");
@@ -166,34 +167,45 @@ export function TasksPage() {
     return opts;
   }, [units, form.unit]);
 
-  const filteredMasters = useMemo(() => {
-    const list = bids
-      .filter((b) => !b.parentId)
-      .sort((a, b) => a.code.localeCompare(b.code));
-    const q = search.trim().toLowerCase();
+  const divisionFiltered = useMemo(() => {
+    const list = bids.filter((b) => !b.parentId);
+    if (divisionFilter === "ALL") return list;
     return list.filter((master) => {
-      if (divisionFilter !== "ALL" && master.division !== divisionFilter) {
-        const kids = bids.filter((b) => b.parentId === master.id);
-        if (!kids.some((k) => k.division === divisionFilter)) return false;
-      }
-      if (!q) return true;
+      if (master.division === divisionFilter) return true;
       const kids = bids.filter((b) => b.parentId === master.id);
-      return (
-        master.code.toLowerCase().includes(q) ||
-        master.name.toLowerCase().includes(q) ||
-        kids.some(
-          (k) =>
-            k.code.toLowerCase().includes(q) ||
-            k.name.toLowerCase().includes(q),
-        )
-      );
+      return kids.some((k) => k.division === divisionFilter);
     });
-  }, [bids, search, divisionFilter]);
+  }, [bids, divisionFilter]);
 
-  const paginatedMasters = useMemo(
-    () => paginateSlice(filteredMasters, page, ADMIN_PAGE_SIZE),
-    [filteredMasters, page],
+  const bidSortAccessors = useMemo(
+    () => ({
+      code: (b: Bid) => b.code,
+      name: (b: Bid) => b.name,
+      unit: (b: Bid) => b.unit,
+      division: (b: Bid) => b.division ?? "",
+      status: (b: Bid) => (b.isActive ? 1 : 0),
+    }),
+    [],
   );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedMasters,
+    setPage: setTablePage,
+    total: filteredTotal,
+  } = useAdminTable({
+    rows: divisionFiltered,
+    getSearchText: (master) => {
+      const kids = bids.filter((b) => b.parentId === master.id);
+      return `${master.code} ${master.name} ${kids.map((k) => `${k.code} ${k.name}`).join(" ")}`;
+    },
+    sortAccessors: bidSortAccessors,
+    defaultSort: { key: "code", direction: "asc" },
+  });
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Bid[]>();
@@ -218,8 +230,8 @@ export function TasksPage() {
   }, []);
 
   useEffect(() => {
-    setPage(1);
-  }, [search, divisionFilter]);
+    setTablePage(1);
+  }, [divisionFilter, setTablePage]);
 
   const title = useMemo(() => {
     if (editingId) return mode === "sub" ? "Edit sub-bid" : "Edit master bid";
@@ -455,10 +467,9 @@ export function TasksPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+        <AdminTableSearch
+          value={searchInput}
+          onChange={setSearchInput}
           placeholder="Search bid items…"
         />
         <select
@@ -485,20 +496,20 @@ export function TasksPage() {
             <table className="w-full min-w-[960px] text-left text-sm">
               <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1">Ref #</th>
-                  <th className="px-2 py-1">Generic name</th>
+                  <SortableTh label="Ref #" sortKey="code" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Generic name" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1">Sub-bid</th>
-                  <th className="px-2 py-1">Unit</th>
+                  <SortableTh label="Unit" sortKey="unit" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1">Color</th>
                   <th className="px-2 py-1">Width</th>
                   <th className="px-2 py-1">CF</th>
-                  <th className="px-2 py-1">Division</th>
-                  <th className="px-2 py-1">Status</th>
+                  <SortableTh label="Division" sortKey="division" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
-                {filteredMasters.length === 0 && (
+                {filteredTotal === 0 && (
                   <tr>
                     <td
                       colSpan={10}
@@ -656,12 +667,12 @@ export function TasksPage() {
               </tbody>
             </table>
           </div>
-          {filteredMasters.length > 0 && (
+          {filteredTotal > 0 && (
             <TablePagination
               page={paginatedMasters.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={paginatedMasters.total}
-              onPageChange={setPage}
+              onPageChange={setTablePage}
             />
           )}
         </div>

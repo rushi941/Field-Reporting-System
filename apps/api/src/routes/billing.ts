@@ -1,15 +1,34 @@
 import { Router } from "express";
 import { prisma } from "@frs/db";
-import { APPROVED_REPORT_STATUSES } from "@frs/shared";
-import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import {
+  assertBillingExportReady,
+  loadApprovedBillingExport,
+} from "../lib/billing-export-data.js";
+import { buildBillingPackageCsv } from "../lib/billing-csv.js";
+import { isoDate, personName, sendCsv } from "../lib/csv-utils.js";
 
 export const billingRouter = Router();
 
 billingRouter.use(requireAuth);
+
+async function auditBillingExport(
+  userId: string,
+  project: { jobNumber: string; id: string },
+  reportCount: number,
+) {
+  await prisma.auditLog.create({
+    data: {
+      userId,
+      action: "EXPORTED",
+      comment: `Billing backup export for ${project.jobNumber} (${reportCount} approved reports)`,
+      metadata: { projectId: project.id, exportType: "package", reportCount },
+    },
+  });
+}
 
 /** Nav badge: total pending approvals across active projects */
 billingRouter.get(
@@ -35,11 +54,6 @@ billingRouter.get(
   }),
 );
 
-const approvedStatuses = [...APPROVED_REPORT_STATUSES] as (
-  | "APPROVED"
-  | "APPROVED_WITH_NOTES"
-)[];
-
 /** Project rollup for Project Admin billing dashboard (FRD §8.6) */
 billingRouter.get(
   "/rollup",
@@ -55,6 +69,7 @@ billingRouter.get(
         division: true,
         clientName: true,
         generalContractor: true,
+        contractAmount: true,
       },
       orderBy: { jobNumber: "asc" },
     });
@@ -126,6 +141,8 @@ billingRouter.get(
         stats.approvedCount > 0 && stats.pendingCount === 0;
       return {
         ...p,
+        contractAmount:
+          p.contractAmount != null ? Number(p.contractAmount) : null,
         ...stats,
         billingReady,
         billingReadinessFlag: billingReady ? "READY" : "WAITING",
@@ -146,64 +163,14 @@ billingRouter.get(
   }),
 );
 
-/**
- * Approved-only project drilldown — pending/returned details are not exposed
- * (Project Admin sees counts on rollup only).
- */
+/** Approved-only project drilldown */
 billingRouter.get(
   "/projects/:projectId",
   requirePermission("reports.view_approved"),
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.projectId);
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        jobNumber: true,
-        name: true,
-        location: true,
-        division: true,
-        clientName: true,
-        generalContractor: true,
-      },
-    });
-    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
-
-    const pendingCount = await prisma.report.count({
-      where: { projectId, status: "SUBMITTED" },
-    });
-
-    const reports = await prisma.report.findMany({
-      where: { projectId, status: { in: approvedStatuses } },
-      include: {
-        submittedBy: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        approvedBy: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-        lineItems: {
-          include: {
-            projectTask: {
-              include: {
-                taskMaster: {
-                  select: {
-                    code: true,
-                    name: true,
-                    unit: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { sortOrder: "asc" },
-        },
-        attachments: {
-          orderBy: { uploadedAt: "desc" },
-        },
-      },
-      orderBy: [{ reportDate: "desc" }, { reportNumber: "desc" }],
-    });
+    const { project, reports, pendingCount, billingReady } =
+      await loadApprovedBillingExport(projectId);
 
     const quantityByBid = new Map<
       string,
@@ -212,12 +179,11 @@ billingRouter.get(
     for (const r of reports) {
       for (const li of r.lineItems) {
         const tm = li.projectTask.taskMaster;
-        const key = tm.code;
-        const prev = quantityByBid.get(key);
+        const prev = quantityByBid.get(tm.code);
         const qty = Number(li.finalQuantity);
         if (prev) prev.quantity += qty;
         else {
-          quantityByBid.set(key, {
+          quantityByBid.set(tm.code, {
             code: tm.code,
             name: tm.name,
             unit: tm.unit,
@@ -230,8 +196,13 @@ billingRouter.get(
     res.json({
       project: {
         ...project,
+        contractAmount:
+          project.contractAmount != null ? Number(project.contractAmount) : null,
+        startDate: isoDate(project.startDate),
+        endDate: isoDate(project.endDate),
         pendingCount,
-        billingReady: reports.length > 0 && pendingCount === 0,
+        billingReady,
+        approvedReportCount: reports.length,
       },
       quantitiesByBidItem: [...quantityByBid.values()].sort((a, b) =>
         a.code.localeCompare(b.code),
@@ -239,18 +210,20 @@ billingRouter.get(
       reports: reports.map((r) => ({
         id: r.id,
         reportNumber: r.reportNumber,
-        reportDate: r.reportDate.toISOString().slice(0, 10),
+        reportDate: isoDate(r.reportDate),
         status: r.status,
+        crewSize: r.crewSize,
+        notes: r.notes,
         approvalNotes: r.approvalNotes,
         approvedAt: r.approvedAt,
         submittedBy: {
-          id: r.submittedBy.id,
-          name: `${r.submittedBy.firstName} ${r.submittedBy.lastName}`.trim(),
+          name: personName(r.submittedBy),
+          email: r.submittedBy.email,
         },
         approvedBy: r.approvedBy
           ? {
-              id: r.approvedBy.id,
-              name: `${r.approvedBy.firstName} ${r.approvedBy.lastName}`.trim(),
+              name: personName(r.approvedBy),
+              email: r.approvedBy.email,
             }
           : null,
         lineItems: r.lineItems.map((li) => ({
@@ -278,122 +251,18 @@ billingRouter.get(
   }),
 );
 
-/** CSV billing backup for approved lines (FRD §8.6) */
+/** Full pay-app backup CSV — job info, summary, reports, line detail, attachments */
 billingRouter.get(
   "/projects/:projectId/export.csv",
   requirePermission("billing.export"),
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.projectId);
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, jobNumber: true, name: true },
-    });
-    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+    const { project, reports, pendingCount, approvedCount } =
+      await loadApprovedBillingExport(projectId);
+    assertBillingExportReady(pendingCount, approvedCount);
 
-    const pendingCount = await prisma.report.count({
-      where: { projectId, status: "SUBMITTED" },
-    });
-    const approvedCount = await prisma.report.count({
-      where: { projectId, status: { in: approvedStatuses } },
-    });
-    if (approvedCount === 0 || pendingCount > 0) {
-      throw new AppError(
-        "BAD_REQUEST",
-        "Billing export blocked — wait for pending approvals and ensure approved reports exist",
-        400,
-      );
-    }
-
-    const reports = await prisma.report.findMany({
-      where: { projectId, status: { in: approvedStatuses } },
-      include: {
-        submittedBy: {
-          select: { firstName: true, lastName: true, email: true },
-        },
-        lineItems: {
-          include: {
-            projectTask: {
-              include: {
-                taskMaster: {
-                  select: { code: true, name: true, unit: true },
-                },
-              },
-            },
-          },
-          orderBy: { sortOrder: "asc" },
-        },
-      },
-      orderBy: [{ reportDate: "asc" }, { reportNumber: "asc" }],
-    });
-
-    const escape = (v: string | number | null | undefined) => {
-      const s = v == null ? "" : String(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-
-    const headers = [
-      "JobNumber",
-      "ProjectName",
-      "ReportNumber",
-      "ReportDate",
-      "Status",
-      "Lead",
-      "LeadEmail",
-      "LineCode",
-      "LineName",
-      "Unit",
-      "Quantity",
-      "EntryType",
-      "BeginSTA",
-      "EndSTA",
-      "Location",
-      "Symbol",
-    ];
-
-    const rows: string[] = [headers.join(",")];
-    for (const r of reports) {
-      const lead = `${r.submittedBy.firstName} ${r.submittedBy.lastName}`.trim();
-      for (const li of r.lineItems) {
-        const tm = li.projectTask.taskMaster;
-        rows.push(
-          [
-            escape(project.jobNumber),
-            escape(project.name),
-            escape(r.reportNumber),
-            escape(r.reportDate.toISOString().slice(0, 10)),
-            escape(r.status),
-            escape(lead),
-            escape(r.submittedBy.email),
-            escape(tm.code),
-            escape(tm.name),
-            escape(tm.unit),
-            escape(Number(li.finalQuantity)),
-            escape(li.entryType),
-            escape(li.beginSta),
-            escape(li.endSta),
-            escape(li.locationDescription),
-            escape(li.symbolItemType),
-          ].join(","),
-        );
-      }
-    }
-
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: "EXPORTED",
-        comment: `Billing CSV export for ${project.jobNumber} (${reports.length} approved reports)`,
-        metadata: { projectId, reportCount: reports.length },
-      },
-    });
-
-    const filename = `${project.jobNumber}-billing-backup.csv`;
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`,
-    );
-    res.send(rows.join("\n"));
+    const rows = buildBillingPackageCsv(project, reports);
+    await auditBillingExport(req.user!.id, project, reports.length);
+    sendCsv(res, `${project.jobNumber}-billing-backup.csv`, rows);
   }),
 );

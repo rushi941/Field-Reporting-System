@@ -9,7 +9,10 @@ import { useAuth } from "@/auth/auth-context";
 import { ActivityDot } from "@/components/activity-dot";
 import { useBillingActivity } from "@/hooks/use-billing-activity";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 type RollupProject = {
   id: string;
@@ -32,12 +35,36 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
   const [projects, setProjects] = useState<RollupProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [exportingId, setExportingId] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
 
-  const paginatedProjects = useMemo(
-    () => paginateSlice(projects, page, ADMIN_PAGE_SIZE),
-    [projects, page],
+  const billingSortAccessors = useMemo(
+    () => ({
+      jobNumber: (p: RollupProject) => p.jobNumber,
+      client: (p: RollupProject) =>
+        [p.clientName, p.location].filter(Boolean).join(" "),
+      approved: (p: RollupProject) => p.approvedCount,
+      pending: (p: RollupProject) => p.pendingCount,
+      lastReport: (p: RollupProject) => p.lastReportDate ?? "",
+      status: (p: RollupProject) => (p.billingReady ? 1 : 0),
+    }),
+    [],
   );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedProjects,
+    setPage: setTablePage,
+    total: filteredTotal,
+  } = useAdminTable({
+    rows: projects,
+    getSearchText: (p) =>
+      `${p.jobNumber} ${p.name} ${p.clientName ?? ""} ${p.location ?? ""}`,
+    sortAccessors: billingSortAccessors,
+    defaultSort: { key: "jobNumber", direction: "asc" },
+  });
 
   useEffect(() => {
     void (async () => {
@@ -107,29 +134,37 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
             approved report and zero pending approvals.
           </li>
           <li>
-            Open drilldown to review quantities and attachments, then export CSV
-            for your pay application backup.
+            Open drilldown to review quantities and attachments, then download
+            one billing CSV for your pay application backup.
           </li>
         </ol>
       </div>
 
-      {projects.length === 0 ? (
+      {filteredTotal === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-          No active projects.
+          {projects.length === 0
+            ? "No active projects."
+            : "No projects match your search."}
         </p>
       ) : (
         <>
+          <AdminTableSearch
+            className="max-w-sm"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search billing projects…"
+          />
           <div className="hidden overflow-hidden rounded-lg border md:block">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1 font-medium">Job</th>
-                  <th className="px-2 py-1 font-medium">Client / location</th>
-                  <th className="px-2 py-1 font-medium text-right">Approved</th>
-                  <th className="px-2 py-1 font-medium text-right">Pending</th>
-                  <th className="px-2 py-1 font-medium">Last report</th>
-                  <th className="px-2 py-1 font-medium">Status</th>
+                  <SortableTh label="Job" sortKey="jobNumber" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Client / location" sortKey="client" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Approved" sortKey="approved" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Pending" sortKey="pending" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Last report" sortKey="lastReport" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -304,7 +339,7 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
               page={paginatedProjects.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={paginatedProjects.total}
-              onPageChange={setPage}
+              onPageChange={setTablePage}
             />
           </div>
         </>

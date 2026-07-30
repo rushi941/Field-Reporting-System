@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
-import { apiFetch } from "@/lib/api";
+import { apiDownload, apiFetch } from "@/lib/api";
+import { workspaceReportsExportPath } from "@/lib/billing-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 type ProjectInfo = {
   id: string;
@@ -75,6 +79,45 @@ export function WorkspaceReportsDetailPage({
     total: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  const taskSortAccessors = useMemo(
+    () => ({
+      code: (t: TaskRow) => t.taskMaster.code,
+      name: (t: TaskRow) => t.taskMaster.name,
+      unit: (t: TaskRow) => t.taskMaster.unit,
+      lead: (t: TaskRow) => t.assignedTo?.name ?? "",
+    }),
+    [],
+  );
+
+  const reportSortAccessors = useMemo(
+    () => ({
+      reportNumber: (r: ReportRow) => r.reportNumber,
+      date: (r: ReportRow) => r.reportDate,
+      submittedBy: (r: ReportRow) => r.submittedBy.name,
+      status: (r: ReportRow) => r.status,
+      lines: (r: ReportRow) => r.lineCount,
+      photos: (r: ReportRow) => r.attachmentCount,
+    }),
+    [],
+  );
+
+  const tasksTable = useAdminTable({
+    rows: tasks,
+    getSearchText: (t) =>
+      `${t.taskMaster.code} ${t.taskMaster.name} ${t.assignedTo?.name ?? ""}`,
+    sortAccessors: taskSortAccessors,
+    defaultSort: { key: "code", direction: "asc" },
+  });
+
+  const reportsTable = useAdminTable({
+    rows: reports,
+    getSearchText: (r) =>
+      `${r.reportNumber} ${r.reportDate} ${r.submittedBy.name} ${r.status}`,
+    sortAccessors: reportSortAccessors,
+    defaultSort: { key: "date", direction: "desc" },
+  });
 
   useEffect(() => {
     if (!projectId) return;
@@ -98,6 +141,22 @@ export function WorkspaceReportsDetailPage({
       }
     })();
   }, [projectId]);
+
+  async function downloadReports() {
+    if (!project) return;
+    setExporting(true);
+    try {
+      await apiDownload(
+        workspaceReportsExportPath(project.id),
+        `${project.jobNumber}-project-reports.csv`,
+      );
+      toast.success("Project reports CSV downloaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -142,6 +201,21 @@ export function WorkspaceReportsDetailPage({
           <Button asChild variant="outline" size="sm">
             <Link to={`/${base}/projects/${project.id}`}>Project setup</Link>
           </Button>
+          {reports.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exporting}
+              onClick={() => void downloadReports()}
+            >
+              {exporting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Download className="size-4" />
+              )}
+              Download CSV
+            </Button>
+          )}
           {statusCounts.approved > 0 && (
             <Button asChild size="sm">
               <Link to={`/${base}/billing/${project.id}`}>Billing drilldown</Link>
@@ -192,18 +266,32 @@ export function WorkspaceReportsDetailPage({
             No tasks on this project yet.
           </p>
         ) : (
+          <>
+            <AdminTableSearch
+              className="max-w-sm"
+              value={tasksTable.searchInput}
+              onChange={tasksTable.setSearchInput}
+              placeholder="Search tasks…"
+            />
           <div className="hidden overflow-hidden rounded-lg border md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1 font-medium">Code</th>
-                  <th className="px-2 py-1 font-medium">Task</th>
-                  <th className="px-2 py-1 font-medium">Unit</th>
-                  <th className="px-2 py-1 font-medium">Field lead</th>
+                  <SortableTh label="Code" sortKey="code" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
+                  <SortableTh label="Task" sortKey="name" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
+                  <SortableTh label="Unit" sortKey="unit" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
+                  <SortableTh label="Field lead" sortKey="lead" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
                 </tr>
               </thead>
               <tbody>
-                {tasks.map((t) => (
+                {tasksTable.total === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No tasks match your search.
+                    </td>
+                  </tr>
+                )}
+                {tasksTable.paginated.items.map((t) => (
                   <tr key={t.id} className="border-b last:border-0">
                     <td className="px-2 py-1 font-mono text-xs">{t.taskMaster.code}</td>
                     <td className="px-2 py-1">{t.taskMaster.name}</td>
@@ -216,6 +304,7 @@ export function WorkspaceReportsDetailPage({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -226,20 +315,34 @@ export function WorkspaceReportsDetailPage({
             No field reports on this project yet.
           </p>
         ) : (
+          <>
+            <AdminTableSearch
+              className="max-w-sm"
+              value={reportsTable.searchInput}
+              onChange={reportsTable.setSearchInput}
+              placeholder="Search reports…"
+            />
           <div className="overflow-hidden rounded-lg border">
             <table className="w-full text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1 font-medium">Report #</th>
-                  <th className="px-2 py-1 font-medium">Date</th>
-                  <th className="px-2 py-1 font-medium">Submitted by</th>
-                  <th className="px-2 py-1 font-medium">Status</th>
-                  <th className="px-2 py-1 font-medium text-right">Lines</th>
-                  <th className="px-2 py-1 font-medium text-right">Photos</th>
+                  <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
+                  <SortableTh label="Photos" sortKey="photos" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
-                {reports.map((r) => {
+                {reportsTable.total === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No reports match your search.
+                    </td>
+                  </tr>
+                )}
+                {reportsTable.paginated.items.map((r) => {
                   const label =
                     frdStatusLabels[
                       r.status as keyof typeof frdStatusLabels
@@ -276,6 +379,7 @@ export function WorkspaceReportsDetailPage({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 

@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 type ProjectType = {
   id: string;
@@ -47,12 +50,33 @@ export function ProjectTypesPage() {
     division: "",
     isActive: true,
   });
-  const [page, setPage] = useState(1);
 
-  const paginatedRows = useMemo(
-    () => paginateSlice(rows, page, ADMIN_PAGE_SIZE),
-    [rows, page],
+  const typeSortAccessors = useMemo(
+    () => ({
+      code: (r: ProjectType) => r.code,
+      name: (r: ProjectType) => r.name,
+      division: (r: ProjectType) => r.division ?? "",
+      usage: (r: ProjectType) => r.projectCount,
+      status: (r: ProjectType) => (r.isActive ? 1 : 0),
+    }),
+    [],
   );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedRows,
+    setPage: setTablePage,
+  } = useAdminTable({
+    rows,
+    getSearchText: (r) =>
+      `${r.code} ${r.name} ${r.description ?? ""} ${r.division ?? ""}`,
+    sortAccessors: typeSortAccessors,
+    defaultSort: { key: "code", direction: "asc" },
+  });
 
   async function load(background = false) {
     if (!background) setLoading(true);
@@ -167,19 +191,35 @@ export function ProjectTypesPage() {
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
       ) : (
+        <>
+          <AdminTableSearch
+            className="mb-4"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search project types…"
+          />
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-2 py-1">Code</th>
-                <th className="px-2 py-1">Name</th>
-                <th className="px-2 py-1">Division</th>
-                <th className="px-2 py-1">Usage</th>
-                <th className="px-2 py-1">Status</th>
+                <SortableTh label="Code" sortKey="code" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Name" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Division" sortKey="division" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Usage" sortKey="usage" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <th className="px-2 py-1" />
               </tr>
             </thead>
             <tbody>
+              {paginatedRows.items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    {rows.length === 0
+                      ? "No project types yet."
+                      : "No project types match your search."}
+                  </td>
+                </tr>
+              )}
               {paginatedRows.items.map((r) => (
                 <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-2 py-1 font-medium">{r.code}</td>
@@ -220,10 +260,11 @@ export function ProjectTypesPage() {
               page={paginatedRows.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={paginatedRows.total}
-              onPageChange={setPage}
+              onPageChange={setTablePage}
             />
           )}
         </div>
+        </>
       )}
 
       {open && (

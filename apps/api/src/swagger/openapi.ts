@@ -428,7 +428,7 @@ export const openApiSpec = {
     "/api/v1/billing/projects/{projectId}/export.csv": {
       get: {
         tags: ["Billing"],
-        summary: "Export billing CSV backup",
+        summary: "Export full billing backup CSV (job info, summary, reports, lines, attachments)",
         parameters: [
           {
             name: "projectId",

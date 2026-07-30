@@ -22,6 +22,8 @@ clientsRouter.get(
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const all = req.query.all === "true";
     const page = Math.max(1, Number(req.query.page) || 1);
+    const sortByRaw = typeof req.query.sortBy === "string" ? req.query.sortBy : "";
+    const sortDir = req.query.sortDir === "desc" ? "desc" : "asc";
     const pageSize = all
       ? undefined
       : Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
@@ -31,11 +33,23 @@ clientsRouter.get(
       ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
     };
 
+    const orderBy =
+      sortByRaw === "name"
+        ? [{ name: sortDir as "asc" | "desc" }]
+        : sortByRaw === "foundationNumber"
+          ? [
+              { foundationNumber: sortDir as "asc" | "desc" },
+              { name: "asc" as const },
+            ]
+          : sortByRaw === "status"
+            ? [{ isActive: sortDir as "asc" | "desc" }, { name: "asc" as const }]
+            : [{ sortOrder: "asc" as const }, { name: "asc" as const }];
+
     const [total, clients] = await Promise.all([
       prisma.clientMaster.count({ where }),
       prisma.clientMaster.findMany({
         where,
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        orderBy,
         ...(pageSize != null
           ? { skip: (page - 1) * pageSize, take: pageSize }
           : {}),

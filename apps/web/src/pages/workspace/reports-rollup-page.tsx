@@ -5,7 +5,10 @@ import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 
 type RollupProject = {
   id: string;
@@ -32,7 +35,6 @@ export function WorkspaceReportsRollupPage({
 }) {
   const [projects, setProjects] = useState<RollupProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "attention">("all");
 
   const filtered = useMemo(() => {
@@ -42,14 +44,41 @@ export function WorkspaceReportsRollupPage({
     return projects;
   }, [projects, filter]);
 
-  const paginated = useMemo(
-    () => paginateSlice(filtered, page, ADMIN_PAGE_SIZE),
-    [filtered, page],
+  const reportSortAccessors = useMemo(
+    () => ({
+      jobNumber: (p: RollupProject) => p.jobNumber,
+      client: (p: RollupProject) =>
+        [p.clientName, p.location].filter(Boolean).join(" "),
+      tasks: (p: RollupProject) => p.taskCount,
+      approved: (p: RollupProject) => p.approvedCount,
+      pending: (p: RollupProject) => p.pendingCount,
+      returned: (p: RollupProject) => p.returnedCount,
+      draft: (p: RollupProject) => p.draftCount,
+      lastReport: (p: RollupProject) => p.lastReportDate ?? "",
+    }),
+    [],
   );
 
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated,
+    setPage: setTablePage,
+    total: filteredTotal,
+  } = useAdminTable({
+    rows: filtered,
+    getSearchText: (p) =>
+      `${p.jobNumber} ${p.name} ${p.clientName ?? ""} ${p.location ?? ""}`,
+    sortAccessors: reportSortAccessors,
+    defaultSort: { key: "jobNumber", direction: "asc" },
+  });
+
   useEffect(() => {
-    setPage(1);
-  }, [filter]);
+    setTablePage(1);
+  }, [filter, setTablePage]);
 
   useEffect(() => {
     void (async () => {
@@ -122,27 +151,35 @@ export function WorkspaceReportsRollupPage({
         </FilterChip>
       </div>
 
-      {filtered.length === 0 ? (
+      {filteredTotal === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
           {filter === "attention"
             ? "No projects with pending or returned reports."
-            : "No active projects in your scope."}
+            : projects.length === 0
+              ? "No active projects in your scope."
+              : "No projects match your search."}
         </p>
       ) : (
         <>
+          <AdminTableSearch
+            className="max-w-sm"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search report projects…"
+          />
           <div className="hidden overflow-hidden rounded-lg border md:block">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[52rem] text-left text-sm">
                 <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1 font-medium">Job</th>
-                    <th className="px-2 py-1 font-medium">Client / location</th>
-                    <th className="px-2 py-1 font-medium text-right">Tasks</th>
-                    <th className="px-2 py-1 font-medium text-right">Approved</th>
-                    <th className="px-2 py-1 font-medium text-right">Pending</th>
-                    <th className="px-2 py-1 font-medium text-right">Returned</th>
-                    <th className="px-2 py-1 font-medium text-right">Draft</th>
-                    <th className="px-2 py-1 font-medium">Last report</th>
+                    <SortableTh label="Job" sortKey="jobNumber" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableTh label="Client / location" sortKey="client" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableTh label="Tasks" sortKey="tasks" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableTh label="Approved" sortKey="approved" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableTh label="Pending" sortKey="pending" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableTh label="Returned" sortKey="returned" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableTh label="Draft" sortKey="draft" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableTh label="Last report" sortKey="lastReport" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="px-2 py-1 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
@@ -228,7 +265,7 @@ export function WorkspaceReportsRollupPage({
             totalPages={paginated.totalPages}
             totalItems={filtered.length}
             pageSize={ADMIN_PAGE_SIZE}
-            onPageChange={setPage}
+            onPageChange={setTablePage}
           />
         </>
       )}

@@ -44,6 +44,14 @@ const reportInclude = {
       location: true,
       clientName: true,
       division: true,
+      projectManager: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
     },
   },
   approvedBy: {
@@ -211,7 +219,15 @@ function mapReport(report: ReportLoaded) {
     /** Manager who returned (from RETURNED audit) */
     returnedBy:
       report.status === "RETURNED" ? mapPerson(returnAudit?.user) : null,
-    project: report.project,
+    project: {
+      id: report.project.id,
+      jobNumber: report.project.jobNumber,
+      name: report.project.name,
+      location: report.project.location,
+      clientName: report.project.clientName,
+      division: report.project.division,
+      projectManager: mapPerson(report.project.projectManager),
+    },
     lineItems: report.lineItems.map(mapLine),
     attachments: report.attachments.map((a) => ({
       id: a.id,

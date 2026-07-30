@@ -9,6 +9,12 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import {
+  buildWorkspacePackageCsv,
+  loadWorkspaceProjectForExport,
+  loadWorkspaceReportsForExport,
+} from "../lib/workspace-reports-csv.js";
+import { sendCsv } from "../lib/csv-utils.js";
 
 export const workspaceReportsRouter = Router();
 
@@ -323,5 +329,19 @@ workspaceReportsRouter.get(
       statusCounts,
       reports: reports.map((r) => mapReportRow(r)),
     });
+  }),
+);
+
+/** Full project reports backup CSV */
+workspaceReportsRouter.get(
+  "/projects/:projectId/export.csv",
+  requirePermission("reports.view_project_history"),
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.projectId);
+    const scope = workspaceProjectScopeWhere(req.user!.id, req.user!.roles);
+    const project = await loadWorkspaceProjectForExport(projectId, scope);
+    const reports = await loadWorkspaceReportsForExport(projectId);
+    const rows = buildWorkspacePackageCsv(project, reports);
+    sendCsv(res, `${project.jobNumber}-project-reports.csv`, rows);
   }),
 );

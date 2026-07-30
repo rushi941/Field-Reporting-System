@@ -15,7 +15,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
-import { ADMIN_PAGE_SIZE, paginateSlice } from "@/lib/admin-table";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
+import { useAdminTable } from "@/hooks/use-admin-table";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
@@ -218,7 +221,41 @@ export function ProjectsPage() {
   const [form, setForm] = useState(emptyForm);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
-  const [page, setPage] = useState(1);
+
+  const projectSortAccessors = useMemo(
+    () => ({
+      jobNumber: (p: Project) => p.jobNumber,
+      name: (p: Project) => p.name,
+      division: (p: Project) =>
+        formatDivisions(p.divisions.length > 0 ? p.divisions : [p.division]),
+      projectAdmin: (p: Project) => p.projectAdmin?.name ?? "",
+      divisionManager: (p: Project) =>
+        (p.divisionManagers?.length
+          ? p.divisionManagers.map((m) => m.name)
+          : p.projectManager
+            ? [p.projectManager.name]
+            : []
+        ).join(", "),
+      status: (p: Project) => p.status,
+    }),
+    [],
+  );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedProjects,
+    setPage: setTablePage,
+  } = useAdminTable({
+    rows: projects,
+    getSearchText: (p) =>
+      `${p.jobNumber} ${p.name} ${p.location ?? ""} ${p.clientName ?? ""} ${p.status}`,
+    sortAccessors: projectSortAccessors,
+    defaultSort: { key: "jobNumber", direction: "asc" },
+  });
 
   function snapshotForm(nextForm: typeof emptyForm) {
     return JSON.stringify(nextForm);
@@ -226,11 +263,6 @@ export function ProjectsPage() {
 
   const isDirty =
     open && formBaseline !== "" && snapshotForm(form) !== formBaseline;
-
-  const paginatedProjects = useMemo(
-    () => paginateSlice(projects, page, ADMIN_PAGE_SIZE),
-    [projects, page],
-  );
 
   const suggestedDivisionManagerIds = useMemo(
     () => suggestDivisionManagerIds(form.selectedDivisions, divisionManagers),
@@ -491,21 +523,35 @@ export function ProjectsPage() {
           No projects yet. Click <strong>Add project</strong> to create one.
         </div>
       ) : (
+        <>
+          <AdminTableSearch
+            className="mb-4"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search projects…"
+          />
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1">Job #</th>
-                  <th className="px-2 py-1">Name</th>
-                  <th className="px-2 py-1">Division</th>
-                  <th className="px-2 py-1">Project admin</th>
-                  <th className="px-2 py-1">Division manager</th>
-                  <th className="px-2 py-1">Status</th>
+                  <SortableTh label="Job #" sortKey="jobNumber" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Name" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Division" sortKey="division" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Project admin" sortKey="projectAdmin" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Division manager" sortKey="divisionManager" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                   <th className="px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
+                {paginatedProjects.items.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No projects match your search.
+                    </td>
+                  </tr>
+                )}
                 {paginatedProjects.items.map((p) => {
                   const unread = isProjectUnread(user?.id, p);
                   return (
@@ -582,9 +628,10 @@ export function ProjectsPage() {
             page={paginatedProjects.page}
             pageSize={ADMIN_PAGE_SIZE}
             total={paginatedProjects.total}
-            onPageChange={setPage}
+            onPageChange={setTablePage}
           />
         </div>
+        </>
       )}
 
       {deleteTarget && (
