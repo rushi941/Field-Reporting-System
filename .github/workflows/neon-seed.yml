@@ -30,6 +30,16 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate -w @frs/db
 
+      - name: Require DATABASE_URL secret
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::GitHub secret DATABASE_URL is missing. Add your Neon connection string under Settings → Secrets and variables → Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "DATABASE_URL is set (host redacted)."
+
       - name: Migrate and seed Neon
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

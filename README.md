@@ -34,17 +34,29 @@ npm run db:seed
 
 Uses DB `frs_advance_dev` (see `packages/db/.env`).
 
-## Neon (production) — auto migrate on push to `main`
+## Neon (production) — migrate + full seed on push to `main`
 
-GitHub Actions runs `prisma migrate deploy` on every push to `main` (`.github/workflows/neon-migrate.yml`).
+GitHub Actions runs **migrations and the full demo seed** on every push to `main` (`.github/workflows/neon-migrate.yml`):
 
-**One-time setup:** In GitHub → **Settings → Secrets and variables → Actions**, add:
+- **540 clients**, **516 bid masters**, **demo users** (lead01–lead15, division managers, admins), and demo project **JOB-2026-DEMO**
+
+**Required one-time setup:** GitHub → **Settings → Secrets and variables → Actions** → add:
 
 | Secret | Value |
 |--------|--------|
 | `DATABASE_URL` | Neon connection string with `?sslmode=require` (direct or pooler URL both work) |
 
-Manual migrate (local or CI script):
+If this secret is missing, every Neon workflow run fails in ~30s and **no users/clients/bid data is loaded**.
+
+**Manual re-seed:** Actions → **Neon seed** → **Run workflow** (same migrate + seed + count verification).
+
+**Local seed against Neon:**
+
+```bash
+DATABASE_URL="postgresql://..." npm run db:seed:neon
+```
+
+Manual migrate only:
 
 ```bash
 DATABASE_URL="postgresql://..." node scripts/migrate-deploy.mjs
