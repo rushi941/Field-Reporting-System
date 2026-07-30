@@ -10,6 +10,7 @@ import {
   ListChecks,
   FileSpreadsheet,
   ClipboardList,
+  ClipboardCheck,
   Ruler,
   Building2,
   LogOut,
@@ -24,7 +25,7 @@ import { useWorkspaceActivity } from "@/hooks/use-workspace-activity";
 
 type WorkspaceKind = "system" | "office";
 
-type NavBadge = "projects" | "billing" | "reports" | null;
+type NavBadge = "projects" | "billing" | "reports" | "approvals" | null;
 
 const navByKind: Record<
   WorkspaceKind,
@@ -41,6 +42,7 @@ const navByKind: Record<
     { to: "/system", end: true, label: "Overview", icon: LayoutDashboard, permission: null },
     { to: "/system/projects", label: "Projects", icon: FolderKanban, permission: "projects.manage", badge: "projects" },
     { to: "/system/reports", label: "Reports", icon: ClipboardList, permission: "reports.view_project_history", badge: "reports" },
+    { to: "/system/approvals", label: "Approvals", icon: ClipboardCheck, permission: "reports.view_pending_queue", badge: "approvals" },
     { to: "/system/billing", label: "Billing", icon: FileSpreadsheet, permission: "reports.view_approved", badge: "billing" },
     { to: "/system/project-types", label: "Project types", icon: Tags, permission: "projects.manage" },
     { to: "/system/units", label: "Units", icon: Ruler, permission: "projects.manage" },
@@ -66,16 +68,17 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { billingPending, recentProjects } = useWorkspaceActivity();
+  const { billingPending, recentProjects, approvalsPending } = useWorkspaceActivity();
 
   function showNavBadge(badge: NavBadge | undefined) {
     if (badge === "billing" || badge === "reports") return billingPending > 0;
+    if (badge === "approvals") return approvalsPending > 0;
     if (badge === "projects") return recentProjects > 0;
     return false;
   }
 
   const mobileHasActivity =
-    billingPending > 0 || recentProjects > 0;
+    billingPending > 0 || recentProjects > 0 || approvalsPending > 0;
 
   async function handleLogout() {
     setLoggingOut(true);

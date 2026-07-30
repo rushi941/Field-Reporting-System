@@ -49,10 +49,14 @@ type ApprovalDetail = {
   }[];
 };
 
-export function ApprovalsDetailPage() {
+export function ApprovalsDetailPage({
+  listPath = "/approvals",
+}: {
+  listPath?: string;
+}) {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [report, setReport] = useState<ApprovalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -92,7 +96,7 @@ export function ApprovalsDetailPage() {
         body: JSON.stringify(body),
       });
       toast.success("Report approved", { id: "approval-action" });
-      navigate("/approvals");
+      navigate(listPath);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Approve failed", {
         id: "approval-action",
@@ -119,7 +123,7 @@ export function ApprovalsDetailPage() {
         body: JSON.stringify(parsed.data),
       });
       toast.success("Approved with notes", { id: "approval-action" });
-      navigate("/approvals");
+      navigate(listPath);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Approve failed", {
         id: "approval-action",
@@ -146,7 +150,7 @@ export function ApprovalsDetailPage() {
         body: JSON.stringify(parsed.data),
       });
       toast.success("Returned for correction", { id: "approval-action" });
-      navigate("/approvals");
+      navigate(listPath);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Return failed", {
         id: "approval-action",
@@ -169,7 +173,7 @@ export function ApprovalsDetailPage() {
     return (
       <div className="space-y-2">
         <Link
-          to="/approvals"
+          to={listPath}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground"
         >
           <ArrowLeft className="size-4" /> Queue
@@ -184,7 +188,7 @@ export function ApprovalsDetailPage() {
   return (
     <div className="space-y-4 pb-8">
       <Link
-        to="/approvals"
+        to={listPath}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Queue
@@ -280,7 +284,7 @@ export function ApprovalsDetailPage() {
         </div>
       )}
 
-      {pending && (
+      {pending && can("reports.approve") && (
         <div className="space-y-3 border-t border-border pt-4">
           {mode === "idle" && (
             <div className="grid gap-2 sm:grid-cols-3">

@@ -67,6 +67,8 @@ type ProjectDetail = {
   divisions: string[];
   location: string | null;
   status: string;
+  fieldLeadIds: string[];
+  fieldLeads: { id: string; name: string; email: string }[];
   projectType: { id: string; code: string; name: string } | null;
   taskIds: string[];
   tasks: ProjectTask[];
@@ -235,11 +237,19 @@ export function ProjectDetailPage() {
   );
 
   const projectFieldLeads = useMemo(() => {
-    if (!form.division) return fieldLeads;
-    return fieldLeads.filter(
-      (u) => !u.division || u.division === form.division,
+    const projectLeadIds = new Set(
+      project?.fieldLeadIds ?? project?.fieldLeads.map((fl) => fl.id) ?? [],
     );
-  }, [fieldLeads, form.division]);
+    if (projectLeadIds.size === 0) return [];
+
+    let pool = fieldLeads.filter((u) => projectLeadIds.has(u.id));
+    if (form.division) {
+      pool = pool.filter(
+        (u) => !u.division || u.division === form.division,
+      );
+    }
+    return pool;
+  }, [fieldLeads, project, form.division]);
 
   const divisionMasters = useMemo(() => {
     if (!form.division) return [];
@@ -740,7 +750,7 @@ export function ProjectDetailPage() {
                   <option value="">— Select field person —</option>
                   {projectFieldLeads.length === 0 ? (
                     <option value="" disabled>
-                      No field leads for this division — add users with Field Lead role
+                      Add field persons on the project first
                     </option>
                   ) : (
                     projectFieldLeads.map((u) => (
@@ -754,7 +764,7 @@ export function ProjectDetailPage() {
                   )}
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Task appears on that field lead&apos;s My jobs screen.
+                  Only field persons assigned to this project are listed.
                 </p>
               </div>
 

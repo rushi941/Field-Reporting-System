@@ -129,7 +129,7 @@ async function managerProjectScopeWhere(
   roles: string[],
 ): Promise<Prisma.ProjectWhereInput> {
   if (roles.includes("SYSTEM_ADMIN")) {
-    return { status: "ACTIVE" };
+    return { status: { in: ["ACTIVE", "COMPLETED"] } };
   }
 
   const me = await prisma.user.findUnique({
@@ -370,6 +370,132 @@ approvalsRouter.get(
           : null,
       })),
     });
+  }),
+);
+
+/** Project-wise approval rollup — running & completed jobs in scope */
+approvalsRouter.get(
+  "/rollup",
+  requirePermission("reports.view_pending_queue"),
+  asyncHandler(async (req, res) => {
+    const projectScope = await managerProjectScopeWhere(
+      req.user!.id,
+      req.user!.roles,
+    );
+    const projects = await prisma.project.findMany({
+      where: projectScope,
+      select: {
+        id: true,
+        jobNumber: true,
+        name: true,
+        location: true,
+        division: true,
+        clientName: true,
+        status: true,
+        projectAdmin: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+      orderBy: [{ status: "asc" }, { jobNumber: "asc" }],
+    });
+
+    const projectIds = projects.map((p) => p.id);
+    if (projectIds.length === 0) {
+      res.json({ projects: [], pendingTotal: 0 });
+      return;
+    }
+
+    const reportScope = await managerScopeWhere(req.user!.id, req.user!.roles);
+    const groups = await prisma.report.groupBy({
+      by: ["projectId", "status"],
+      where: {
+        projectId: { in: projectIds },
+        status: { not: "DRAFT" },
+        ...reportScope,
+      },
+      _count: { _all: true },
+      _max: { reportDate: true },
+    });
+
+    const byProject = new Map<
+      string,
+      {
+        pendingCount: number;
+        returnedCount: number;
+        approvedCount: number;
+        totalCount: number;
+        lastReportDate: string | null;
+      }
+    >();
+
+    for (const id of projectIds) {
+      byProject.set(id, {
+        pendingCount: 0,
+        returnedCount: 0,
+        approvedCount: 0,
+        totalCount: 0,
+        lastReportDate: null,
+      });
+    }
+
+    for (const g of groups) {
+      const row = byProject.get(g.projectId);
+      if (!row) continue;
+      const count = g._count._all;
+      row.totalCount += count;
+      if (g.status === "SUBMITTED") row.pendingCount += count;
+      else if (g.status === "RETURNED") row.returnedCount += count;
+      else if (g.status === "APPROVED" || g.status === "APPROVED_WITH_NOTES") {
+        row.approvedCount += count;
+      }
+      const d = g._max.reportDate;
+      if (d) {
+        const iso = d.toISOString().slice(0, 10);
+        if (!row.lastReportDate || iso > row.lastReportDate) {
+          row.lastReportDate = iso;
+        }
+      }
+    }
+
+    const pendingTotal = await prisma.report.count({
+      where: { status: "SUBMITTED", ...reportScope },
+    });
+
+    const rollup = projects.map((p) => {
+      const stats = byProject.get(p.id)!;
+      return {
+        id: p.id,
+        jobNumber: p.jobNumber,
+        name: p.name,
+        location: p.location,
+        division: p.division,
+        clientName: p.clientName,
+        status: p.status,
+        projectAdmin: p.projectAdmin
+          ? {
+              name: `${p.projectAdmin.firstName} ${p.projectAdmin.lastName}`.trim(),
+              email: p.projectAdmin.email,
+            }
+          : null,
+        ...stats,
+        needsAttention: stats.pendingCount > 0 || stats.returnedCount > 0,
+      };
+    });
+
+    rollup.sort((a, b) => {
+      if (a.needsAttention !== b.needsAttention) {
+        return a.needsAttention ? -1 : 1;
+      }
+      if (a.pendingCount !== b.pendingCount) {
+        return b.pendingCount - a.pendingCount;
+      }
+      if (a.status !== b.status) {
+        return a.status === "ACTIVE" ? -1 : 1;
+      }
+      return a.jobNumber.localeCompare(b.jobNumber);
+    });
+
+    res.json({ projects: rollup, pendingTotal });
   }),
 );
 

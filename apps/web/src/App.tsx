@@ -29,6 +29,8 @@ import { FieldReportDetailPage } from "@/pages/field/report-detail-page";
 import { ApprovalsQueuePage } from "@/pages/approvals/queue-page";
 import { ApprovalsDetailPage } from "@/pages/approvals/detail-page";
 import { ApprovalsHistoryPage } from "@/pages/approvals/history-page";
+import { AdminApprovalsPage } from "@/pages/workspace/admin-approvals-page";
+import { AdminApprovalsProjectPage } from "@/pages/workspace/admin-approvals-project-page";
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -234,6 +236,30 @@ export function App() {
             element={
               <RequirePermission permission="permissions.manage">
                 <SystemPermissionsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="approvals"
+            element={
+              <RequirePermission permission="reports.view_pending_queue">
+                <AdminApprovalsPage base="system" />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="approvals/projects/:projectId"
+            element={
+              <RequirePermission permission="reports.view_project_history">
+                <AdminApprovalsProjectPage base="system" />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="approvals/reports/:reportId"
+            element={
+              <RequirePermission permission="reports.view_pending_queue">
+                <ApprovalsDetailPage listPath="/system/approvals" />
               </RequirePermission>
             }
           />

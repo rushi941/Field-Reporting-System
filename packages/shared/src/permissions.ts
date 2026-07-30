@@ -115,19 +115,19 @@ export const defaultPermissionMatrix: Record<
     FIELD_LEAD: "NO",
     DIVISION_MANAGER: "YES",
     PROJECT_ADMIN: "NO",
-    SYSTEM_ADMIN: "NO",
+    SYSTEM_ADMIN: "YES",
   },
   "reports.approve_with_notes": {
     FIELD_LEAD: "NO",
     DIVISION_MANAGER: "YES",
     PROJECT_ADMIN: "NO",
-    SYSTEM_ADMIN: "NO",
+    SYSTEM_ADMIN: "YES",
   },
   "reports.return": {
     FIELD_LEAD: "NO",
     DIVISION_MANAGER: "YES",
     PROJECT_ADMIN: "NO",
-    SYSTEM_ADMIN: "NO",
+    SYSTEM_ADMIN: "YES",
   },
   "reports.view_pending_queue": {
     FIELD_LEAD: "NO",

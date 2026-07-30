@@ -112,7 +112,12 @@ fieldProjectsRouter.get(
       orderBy: { jobNumber: "asc" },
     });
 
-    const taskIds = projects.flatMap((p) => p.tasks.map((t) => t.id));
+    const taskIds = projects.flatMap((p) =>
+      (isFieldLead
+        ? p.tasks.filter((t) => t.assignedToId === userId)
+        : p.tasks
+      ).map((t) => t.id),
+    );
     const completedMap = await fetchCompletedStaRanges(taskIds);
 
     res.json({
@@ -132,7 +137,10 @@ fieldProjectsRouter.get(
           name: `${dm.user.firstName} ${dm.user.lastName}`.trim(),
           email: dm.user.email,
         })),
-        tasks: p.tasks.map((t) => ({
+        tasks: (isFieldLead
+          ? p.tasks.filter((t) => t.assignedToId === userId)
+          : p.tasks
+        ).map((t) => ({
           id: t.id,
           division: t.division,
           assignedToId: t.assignedToId,

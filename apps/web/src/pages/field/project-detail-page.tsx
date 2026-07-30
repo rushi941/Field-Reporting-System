@@ -157,6 +157,11 @@ export function FieldProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when project or user changes
   }, [projectId, user?.id]);
 
+  const myTasks = useMemo(
+    () => project?.tasks.filter((t) => t.isMine) ?? [],
+    [project],
+  );
+
   const pendingByTask = useMemo(() => {
     return report?.totalsByTask ?? {};
   }, [report]);
@@ -358,17 +363,17 @@ export function FieldProjectDetailPage() {
       )}
 
       <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
-        {project.tasks.length === 0
-          ? "No work tasks on this project yet."
-          : "All job tasks are listed below. Tap yours to enter quantities and submit."}
+        {myTasks.length === 0
+          ? "No tasks assigned to you on this project yet."
+          : "Your assigned tasks are listed below. Tap one to enter quantities and submit."}
       </p>
 
       <ul className="space-y-2">
-        {project.tasks.map((t, idx) => {
+        {myTasks.map((t, idx) => {
           const pending = pendingByTask[t.id] ?? 0;
           const formLabel =
             formLabels[t.taskMaster.formType] ?? t.taskMaster.formType;
-          const canOpen = t.isMine && editable && !busy;
+          const canOpen = editable && !busy;
           return (
             <li key={t.id}>
               <button
@@ -395,15 +400,9 @@ export function FieldProjectDetailPage() {
                     #{String(idx + 1).padStart(4, "0")}
                   </span>
                   <div className="flex flex-wrap items-center justify-end gap-1">
-                    {t.isMine ? (
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800">
-                        Your task
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {t.assignedTo?.name ?? "Unassigned"}
-                      </span>
-                    )}
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800">
+                      Your task
+                    </span>
                     <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {formLabel}
                     </span>
@@ -449,21 +448,18 @@ export function FieldProjectDetailPage() {
             </li>
           );
         })}
-        {project.tasks.length === 0 && (
+        {myTasks.length === 0 && (
           <li className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            No tasks on this project.
+            No tasks assigned to you on this project.
           </li>
         )}
       </ul>
 
-      {project.tasks.length > 0 &&
-        !project.tasks.some((t) => t.isMine) &&
-        editable && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            You can view all tasks on this job. Quantities can only be entered
-            on tasks assigned to you.
-          </p>
-        )}
+      {myTasks.length === 0 && editable && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Ask your project admin to assign tasks to you on this job.
+        </p>
+      )}
 
       {report && !editable && (
         <p className="rounded-lg border bg-muted/40 px-3 py-2 text-center text-sm text-muted-foreground">
