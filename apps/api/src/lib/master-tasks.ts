@@ -96,6 +96,9 @@ export async function fetchSymbolTypesByMasterIds(
 
   for (const c of children) {
     if (!c.parentId) continue;
+    const meta = masterMeta.get(c.parentId);
+    if (!meta) continue;
+    if (!isSymbolsAndLegendsMaster(meta.code, meta.name)) continue;
     const list = map.get(c.parentId) ?? [];
     list.push({
       code: c.code,
@@ -110,7 +113,10 @@ export async function fetchSymbolTypesByMasterIds(
     if (!meta) continue;
     const existing = map.get(masterId) ?? [];
     if (existing.length > 0) continue;
-    if (isSymbolsAndLegendsMaster(meta.code, meta.name)) {
+    if (
+      isSymbolsAndLegendsMaster(meta.code, meta.name) ||
+      /^BI-0063$/i.test(meta.code.trim())
+    ) {
       map.set(masterId, defaultSymbolTypes());
     }
   }

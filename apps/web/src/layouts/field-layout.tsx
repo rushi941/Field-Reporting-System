@@ -169,13 +169,13 @@ export function FieldLayout() {
 
         <main
           className={cn(
-            "flex-1 px-3 py-4 lg:px-4 lg:py-5",
+            "flex-1 px-3 lg:px-4",
             showBottomNav
-              ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-5"
-              : "pb-4",
+              ? "pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:py-5"
+              : "pt-2 pb-4 lg:pt-3 lg:pb-5",
           )}
         >
-          <div className="mx-auto w-full max-w-lg">
+          <div className="mx-auto w-full min-w-0 max-w-lg overflow-x-hidden">
             <PageSuspense>
               <PageTransition>
                 <Outlet key={user?.id} />

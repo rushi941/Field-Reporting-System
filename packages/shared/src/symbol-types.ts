@@ -81,6 +81,15 @@ export function adminFieldEntryPreview(input: {
     };
   }
 
+  if (isLocationOnlyFieldEntry(input)) {
+    return {
+      title: "Field entry",
+      description:
+        "Add a row for each location — no Begin/End STA on this bid.",
+      fields: ["Station / location", `Quantity (${unit})`],
+    };
+  }
+
   if (input.formType !== "SINGLE_LOCATION") return null;
 
   return {
@@ -100,7 +109,35 @@ export function isSymbolsAndLegendsMaster(code: string, name: string): boolean {
   return /^BI-003[89]|^BI-004[01]/.test(code.toUpperCase());
 }
 
-/** Field entry uses symbol rows for PM symbols/signs and permanent-sign EA tasks. */
+export function isRaisedPavementMarkersMaster(code: string, name: string): boolean {
+  if (/^BI-0065$/i.test(code.trim())) return true;
+  return name.toUpperCase().includes("RAISED PAVEMENT MARKER");
+}
+
+export function isPreCutSymbolsMaster(code: string, name: string): boolean {
+  if (/^BI-0063$/i.test(code.trim())) return true;
+  return name.toUpperCase().includes("PRE-CUT SYMBOLS");
+}
+
+/** Station + qty only — no symbol/line picker (RPM, signs, painted area SF, etc.). */
+export function isLocationOnlyFieldEntry(input: {
+  formType: string;
+  division: string;
+  masterCode: string;
+  masterName: string;
+}): boolean {
+  if (input.formType !== "SINGLE_LOCATION") return false;
+  if (isPaintedPavementMarkingMaster(input.masterCode, input.masterName)) {
+    return true;
+  }
+  if (isRaisedPavementMarkersMaster(input.masterCode, input.masterName)) {
+    return true;
+  }
+  if (input.division === "PERMANENT_SIGNS") return true;
+  return false;
+}
+
+/** Field entry uses symbol rows (station + symbol type + qty). */
 export function usesSymbolEntryLayout(input: {
   formType: string;
   division: string;
@@ -110,11 +147,10 @@ export function usesSymbolEntryLayout(input: {
   symbolTypeCount?: number;
 }): boolean {
   if (input.formType !== "SINGLE_LOCATION") return false;
+  if (isLocationOnlyFieldEntry(input)) return false;
   if (isSymbolsAndLegendsMaster(input.masterCode, input.masterName)) return true;
-  if (input.division === "PERMANENT_SIGNS" && input.unit.toUpperCase() === "EA") {
-    return true;
-  }
-  return (input.symbolTypeCount ?? 0) > 0;
+  if (isPreCutSymbolsMaster(input.masterCode, input.masterName)) return true;
+  return false;
 }
 
 export function defaultSymbolTypes(): {

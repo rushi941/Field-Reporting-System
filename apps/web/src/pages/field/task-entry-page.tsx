@@ -12,6 +12,7 @@ import {
   type SegmentFieldErrors,
   matchSymbolTypeCode,
   symbolTypeLabelForCode,
+  isLocationOnlyFieldEntry,
 } from "@frs/shared";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -120,10 +121,16 @@ type LocSeg = {
   quantity: string;
 };
 
+const fieldLabelClass = "text-xs font-medium text-muted-foreground";
+const fieldHintClass = "text-[11px] leading-snug text-muted-foreground";
+const fieldSectionTitleClass = "text-xs font-semibold text-sky-900";
+const fieldCardClass =
+  "min-w-0 max-w-full space-y-2 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm";
 const selectClass =
-  "flex h-12 w-full rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-
-const inputClass = "h-12 text-base";
+  "flex h-10 w-full min-w-0 max-w-full truncate rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+const inputClass = "h-10 min-w-0 max-w-full text-sm";
+const addRowBtnClass =
+  "h-10 w-full border-2 border-dashed border-sky-300 bg-sky-50 text-xs font-semibold text-sky-900 hover:bg-sky-100 hover:text-sky-950";
 
 function defaultManagerIdForProject(project: ProjectInfo) {
   return project.projectManagerId ?? project.divisionManagers[0]?.id ?? "";
@@ -248,6 +255,15 @@ export function FieldTaskEntryPage() {
   const symbolTypes = task?.symbolTypes ?? [];
   const usesLineTypePicker = Boolean(task?.usesLineTypePicker && lineTypes.length);
   const isSymbolEntry = Boolean(task?.usesSymbolEntry);
+  const isLocationOnly =
+    !isSta &&
+    !isSymbolEntry &&
+    isLocationOnlyFieldEntry({
+      formType: task?.taskMaster.formType ?? "",
+      division: task?.taskMaster.division ?? "",
+      masterCode: task?.taskMaster.code ?? "",
+      masterName: task?.taskMaster.name ?? "",
+    });
   const hasSymbolCatalog = symbolTypes.length > 0;
   const editable =
     report?.status === "DRAFT" || report?.status === "RETURNED";
@@ -448,7 +464,9 @@ export function FieldTaskEntryPage() {
             ? hasSymbolCatalog
               ? symbolTypeLabelForCode(s.symbolTypeCode, symbolTypes)
               : s.symbolItemType.trim()
-            : s.symbolItemType.trim(),
+            : isLocationOnly
+              ? task.taskMaster.name
+              : s.symbolItemType.trim() || task.taskMaster.name,
           quantity:
             s.quantity.trim() === "" ? Number.NaN : Number(s.quantity),
         }));
@@ -588,32 +606,34 @@ export function FieldTaskEntryPage() {
   }
 
   return (
-    <div className={cn("space-y-4", editable && "pb-40 lg:pb-10")}>
-      <div className="-mx-3 space-y-3 border-b border-sky-100 bg-sky-50 px-3 py-4 lg:mx-0 lg:rounded-xl lg:border">
-        <Link
-          to={`/field/projects/${projectId}`}
-          className="inline-flex min-h-9 items-center text-sky-800 hover:text-sky-950"
-          aria-label="Back to tasks"
-        >
-          <ArrowLeft className="size-5" />
-        </Link>
-        <div>
-          <h1 className="text-base font-bold leading-snug text-sky-950 sm:text-lg">
-            #{task.taskMaster.code} — {task.taskMaster.name}
-          </h1>
-          <p className="mt-1 text-sm text-sky-900/75">
-            {project.jobNumber} · {project.name}
-            {project.location ? ` · ${project.location}` : ""}
-          </p>
+    <div className={cn("min-w-0 overflow-x-hidden space-y-2", editable && "pb-36 lg:pb-8")}>
+      <div className="-mx-3 border-b border-sky-100 bg-sky-50 px-3 py-2 lg:mx-0 lg:rounded-xl lg:border">
+        <div className="flex items-start gap-2">
+          <Link
+            to={`/field/projects/${projectId}`}
+            className="mt-0.5 inline-flex shrink-0 items-center text-sky-800 hover:text-sky-950"
+            aria-label="Back to tasks"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm font-bold leading-tight text-sky-950 sm:text-base">
+              #{task.taskMaster.code} — {task.taskMaster.name}
+            </h1>
+            <p className="mt-0.5 text-xs leading-tight text-sky-900/70">
+              {project.jobNumber} · {project.name}
+              {project.location ? ` · ${project.location}` : ""}
+            </p>
+          </div>
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {isSta
           ? "Add a row for each line segment. All rows submit as one entry under this bid item."
           : isSymbolEntry
             ? "Add a row for each symbol. All rows submit as one entry under this bid item."
-            : "Add each location and quantity for this task."}
+            : "Add a row for each location. All rows submit as one entry under this bid item."}
       </p>
 
       {!editable && (
@@ -623,18 +643,13 @@ export function FieldTaskEntryPage() {
       )}
 
       {isSta ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {staSegs.map((seg, i) => {
             const err = segErrors[i] ?? {};
             return (
-              <div
-                key={i}
-                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-              >
+              <div key={i} className={fieldCardClass}>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-sky-900">
-                    Segment {i + 1}
-                  </p>
+                  <p className={fieldSectionTitleClass}>Segment {i + 1}</p>
                   {staSegs.length > 1 && editable && (
                     <button
                       type="button"
@@ -654,15 +669,15 @@ export function FieldTaskEntryPage() {
                 </div>
 
                 {usesLineTypePicker && (
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor={`line-type-${i}`}>
+                  <div className="min-w-0 space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`line-type-${i}`}>
                       Line type
                     </Label>
                     <select
                       id={`line-type-${i}`}
                       className={selectClass}
                       disabled={!editable || busy}
-                      value={seg.lineTypeId || lineTypes[0]?.id || ""}
+                      value={seg.lineTypeId || ""}
                       onChange={(e) => {
                         const lt = lineTypes.find((l) => l.id === e.target.value);
                         updateSta(
@@ -677,6 +692,7 @@ export function FieldTaskEntryPage() {
                         );
                       }}
                     >
+                      <option value="">Select line type...</option>
                       {lineTypes.map((lt) => (
                         <option key={lt.id} value={lt.id}>
                           {lt.label}
@@ -686,9 +702,9 @@ export function FieldTaskEntryPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor={`begin-${i}`}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`begin-${i}`}>
                       Begin STA
                     </Label>
                     <Input
@@ -704,8 +720,8 @@ export function FieldTaskEntryPage() {
                     />
                     <FieldError message={err.beginSta} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor={`end-${i}`}>
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`end-${i}`}>
                       End STA
                     </Label>
                     <Input
@@ -723,9 +739,9 @@ export function FieldTaskEntryPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor={`cf-${i}`}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`cf-${i}`}>
                       Conv. factor
                     </Label>
                     <Input
@@ -749,19 +765,20 @@ export function FieldTaskEntryPage() {
                         )
                       }
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      1.0 = single · 2.0 = double line
-                    </p>
+                    <p className={fieldHintClass}>1.0 = single · 2.0 = double line</p>
                     <FieldError message={err.conversionFactor} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor={`lf-${i}`}>
-                      Calculated {task.taskMaster.unit}
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`lf-${i}`}>
+                      Calculated{" "}
+                      {task.taskMaster.unit.toUpperCase() === "LF"
+                        ? "LF"
+                        : task.taskMaster.unit}
                     </Label>
                     <Input
                       id={`lf-${i}`}
                       readOnly
-                      className={cn(inputClass, "bg-muted font-semibold")}
+                      className={cn(inputClass, "bg-muted/60 font-medium text-muted-foreground")}
                       value={calcPreview(seg, task.taskMaster.unit)}
                     />
                   </div>
@@ -775,7 +792,7 @@ export function FieldTaskEntryPage() {
               type="button"
               variant="outline"
               disabled={busy}
-              className="h-12 w-full border-2 border-dashed border-sky-300 bg-sky-50 text-sm font-semibold text-sky-900 hover:bg-sky-100 hover:text-sky-950"
+              className={addRowBtnClass}
               onClick={() =>
                 setStaSegs((rows) => [
                   ...rows,
@@ -785,23 +802,18 @@ export function FieldTaskEntryPage() {
                 ])
               }
             >
-              <Plus className="size-5" /> Add line segment
+              <Plus className="size-4" /> Add Line Segment
             </Button>
           )}
         </div>
       ) : isSymbolEntry ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {locSegs.map((seg, i) => {
             const err = segErrors[i] ?? {};
             return (
-              <div
-                key={i}
-                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-              >
+              <div key={i} className={fieldCardClass}>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-sky-900">
-                    Symbol {i + 1}
-                  </p>
+                  <p className={fieldSectionTitleClass}>Symbol {i + 1}</p>
                   {locSegs.length > 1 && editable && (
                     <button
                       type="button"
@@ -820,8 +832,8 @@ export function FieldTaskEntryPage() {
                   )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`station-${i}`}>
+                <div className="space-y-1">
+                  <Label className={fieldLabelClass} htmlFor={`station-${i}`}>
                     Station
                   </Label>
                   <Input
@@ -845,8 +857,8 @@ export function FieldTaskEntryPage() {
                   <FieldError message={err.locationDescription} />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`sym-type-${i}`}>
+                <div className="min-w-0 space-y-1">
+                  <Label className={fieldLabelClass} htmlFor={`sym-type-${i}`}>
                     Symbol type
                   </Label>
                   {hasSymbolCatalog ? (
@@ -892,8 +904,8 @@ export function FieldTaskEntryPage() {
                   <FieldError message={err.symbolItemType} />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`sym-qty-${i}`}>
+                <div className="space-y-1">
+                  <Label className={fieldLabelClass} htmlFor={`sym-qty-${i}`}>
                     Qty
                   </Label>
                   <Input
@@ -906,7 +918,7 @@ export function FieldTaskEntryPage() {
                     aria-invalid={Boolean(err.quantity)}
                     className={cn(
                       inputClass,
-                      "max-w-[8rem]",
+                      "max-w-[6rem]",
                       err.quantity && "border-destructive",
                     )}
                     value={seg.quantity}
@@ -925,7 +937,7 @@ export function FieldTaskEntryPage() {
               type="button"
               variant="outline"
               disabled={busy}
-              className="h-12 w-full border-2 border-dashed border-sky-300 bg-sky-50 text-sm font-semibold text-sky-900 hover:bg-sky-100 hover:text-sky-950"
+              className={addRowBtnClass}
               onClick={() =>
                 setLocSegs((rows) => [
                   ...rows,
@@ -933,23 +945,18 @@ export function FieldTaskEntryPage() {
                 ])
               }
             >
-              <Plus className="size-5" /> Add symbol
+              <Plus className="size-4" /> Add Symbol
             </Button>
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {locSegs.map((seg, i) => {
             const err = segErrors[i] ?? {};
             return (
-              <div
-                key={i}
-                className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-              >
+              <div key={i} className={fieldCardClass}>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">
-                    Location {i + 1}
-                  </p>
+                  <p className={fieldSectionTitleClass}>Location {i + 1}</p>
                   {locSegs.length > 1 && editable && (
                     <button
                       type="button"
@@ -967,124 +974,129 @@ export function FieldTaskEntryPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`loc-${i}`}>
-                    Station / location
-                  </Label>
-                  <Input
-                    id={`loc-${i}`}
-                    placeholder="e.g. STA 12+50 NB ramp"
-                    disabled={!editable || busy}
-                    aria-invalid={Boolean(err.locationDescription)}
-                    className={cn(
-                      inputClass,
-                      err.locationDescription && "border-destructive",
-                    )}
-                    value={seg.locationDescription}
-                    onChange={(e) =>
-                      updateLoc(
-                        i,
-                        { locationDescription: e.target.value },
-                        "locationDescription",
-                      )
-                    }
-                  />
-                  <FieldError message={err.locationDescription} />
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`loc-${i}`}>
+                      Station / Location
+                    </Label>
+                    <Input
+                      id={`loc-${i}`}
+                      placeholder="STA or description"
+                      disabled={!editable || busy}
+                      aria-invalid={Boolean(err.locationDescription)}
+                      className={cn(
+                        inputClass,
+                        err.locationDescription && "border-destructive",
+                      )}
+                      value={seg.locationDescription}
+                      onChange={(e) =>
+                        updateLoc(
+                          i,
+                          { locationDescription: e.target.value },
+                          "locationDescription",
+                        )
+                      }
+                    />
+                    <FieldError message={err.locationDescription} />
+                  </div>
+                  <div className="space-y-1 w-[5.5rem]">
+                    <Label className={fieldLabelClass} htmlFor={`qty-${i}`}>
+                      Qty ({defaultUnit || task.taskMaster.unit})
+                    </Label>
+                    <Input
+                      id={`qty-${i}`}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      disabled={!editable || busy}
+                      aria-invalid={Boolean(err.quantity)}
+                      className={cn(inputClass, err.quantity && "border-destructive")}
+                      value={seg.quantity}
+                      onChange={(e) =>
+                        updateLoc(i, { quantity: e.target.value }, "quantity")
+                      }
+                    />
+                    <FieldError message={err.quantity} />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`sym-${i}`}>
-                    Symbol / item type
-                  </Label>
-                  <Input
-                    id={`sym-${i}`}
-                    placeholder="e.g. Left turn arrow"
-                    disabled={!editable || busy}
-                    aria-invalid={Boolean(err.symbolItemType)}
-                    className={cn(inputClass, err.symbolItemType && "border-destructive")}
-                    value={seg.symbolItemType}
-                    onChange={(e) =>
-                      updateLoc(
-                        i,
-                        { symbolItemType: e.target.value },
-                        "symbolItemType",
-                      )
-                    }
-                  />
-                  <FieldError message={err.symbolItemType} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm" htmlFor={`qty-${i}`}>
-                    Quantity ({defaultUnit || task.taskMaster.unit})
-                  </Label>
-                  <Input
-                    id={`qty-${i}`}
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    inputMode="decimal"
-                    disabled={!editable || busy}
-                    aria-invalid={Boolean(err.quantity)}
-                    className={cn(inputClass, err.quantity && "border-destructive")}
-                    value={seg.quantity}
-                    onChange={(e) =>
-                      updateLoc(i, { quantity: e.target.value }, "quantity")
-                    }
-                  />
-                  <FieldError message={err.quantity} />
-                </div>
+                {!isLocationOnly && (
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`sym-${i}`}>
+                      Symbol / item type
+                    </Label>
+                    <Input
+                      id={`sym-${i}`}
+                      placeholder="e.g. Left turn arrow"
+                      disabled={!editable || busy}
+                      aria-invalid={Boolean(err.symbolItemType)}
+                      className={cn(inputClass, err.symbolItemType && "border-destructive")}
+                      value={seg.symbolItemType}
+                      onChange={(e) =>
+                        updateLoc(
+                          i,
+                          { symbolItemType: e.target.value },
+                          "symbolItemType",
+                        )
+                      }
+                    />
+                    <FieldError message={err.symbolItemType} />
+                  </div>
+                )}
               </div>
             );
           })}
           {editable && (
-            <button
+            <Button
               type="button"
+              variant="outline"
               disabled={busy}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+              className={addRowBtnClass}
               onClick={() =>
                 setLocSegs((rows) => [...rows, emptyLoc(defaultSymbol)])
               }
             >
-              <Plus className="size-4" /> Add location
-            </button>
+              <Plus className="size-4" /> Add Location
+            </Button>
           )}
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
-          <p className="text-sm font-semibold">Report total</p>
-          <p className="tabular-nums text-base font-bold">
-            {reportTotal > 0
-              ? `${reportTotal.toLocaleString()} ${defaultUnit || task.taskMaster.unit}`
-              : "—"}
-          </p>
-        </div>
-        <div className="space-y-4 p-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm" htmlFor="entry-notes">
-              Notes
-            </Label>
-            <textarea
-              id="entry-notes"
-              disabled={!editable || busy}
-              aria-invalid={Boolean(notesError)}
-              className={cn(
-                "min-h-24 w-full rounded-lg border border-input bg-card px-3 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
-                notesError && "border-destructive",
-              )}
-              placeholder="Conditions, partial work, issues…"
-              maxLength={2000}
-              value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value);
-                setNotesError(undefined);
-              }}
-            />
-            <FieldError message={notesError} />
-          </div>
+      <div className="flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
+        <p className="text-xs font-medium text-sky-900">Report Total</p>
+        <p className="tabular-nums text-sm font-bold text-sky-950">
+          {reportTotal > 0
+            ? `${reportTotal.toLocaleString()} ${defaultUnit || task.taskMaster.unit}`
+            : "—"}
+        </p>
+      </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm">Attachments</Label>
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label className={fieldLabelClass} htmlFor="entry-notes">
+            Notes
+          </Label>
+          <textarea
+            id="entry-notes"
+            disabled={!editable || busy}
+            aria-invalid={Boolean(notesError)}
+            className={cn(
+              "min-h-16 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+              notesError && "border-destructive",
+            )}
+            placeholder="Conditions, partial work, issues…"
+            maxLength={2000}
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setNotesError(undefined);
+            }}
+          />
+          <FieldError message={notesError} />
+        </div>
+
+        <div className="space-y-2">
+          <Label className={fieldLabelClass}>Attachments</Label>
             {report.attachments.length > 0 && (
               <ul className="space-y-2">
                 {report.attachments.map((a) => {
@@ -1140,7 +1152,7 @@ export function FieldTaskEntryPage() {
                 </select>
                 <label
                   className={cn(
-                    "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border py-4 text-sm text-muted-foreground hover:bg-muted/40",
+                    "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-xs text-muted-foreground hover:bg-muted/40",
                     busy && "pointer-events-none opacity-50",
                     attachError && "border-destructive",
                   )}
@@ -1152,7 +1164,7 @@ export function FieldTaskEntryPage() {
                   )}
                   {uploading
                     ? "Uploading…"
-                    : `Attach file (max ${attachmentUploadMeta.maxLabel})`}
+                    : "Tap to attach material tickets or photos"}
                   <input
                     type="file"
                     accept={attachmentUploadMeta.accept}
@@ -1170,11 +1182,11 @@ export function FieldTaskEntryPage() {
           </div>
 
           {editable && (
-            <div className="space-y-1.5 border-t border-border pt-4">
-              <Label className="text-sm" htmlFor="division-manager">
+            <div className="space-y-1 border-t border-border pt-3">
+              <Label className={fieldLabelClass} htmlFor="division-manager">
                 Division manager
               </Label>
-              <p className="text-xs text-muted-foreground">
+              <p className={fieldHintClass}>
                 Project managers only — change if needed before submit
               </p>
               <select
@@ -1199,7 +1211,6 @@ export function FieldTaskEntryPage() {
               </select>
             </div>
           )}
-        </div>
       </div>
 
       {editable && (
@@ -1208,7 +1219,7 @@ export function FieldTaskEntryPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full text-base"
+              className="h-10 w-full text-sm"
               disabled={busy}
               onClick={() => void saveToReport()}
             >
@@ -1217,12 +1228,12 @@ export function FieldTaskEntryPage() {
                   <Loader2 className="size-4 animate-spin" /> Saving…
                 </>
               ) : (
-                "Save & go back"
+                "Save to Report ✓"
               )}
             </Button>
             <Button
               type="button"
-              className="h-12 w-full bg-sky-800 text-base text-white hover:bg-sky-900"
+              className="h-10 w-full bg-sky-900 text-sm font-semibold text-white hover:bg-sky-950"
               disabled={busy}
               onClick={() => void saveAndSubmit()}
             >

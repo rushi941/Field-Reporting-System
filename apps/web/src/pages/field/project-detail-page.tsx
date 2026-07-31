@@ -263,17 +263,17 @@ export function FieldProjectDetailPage() {
     !report || report.status === "DRAFT" || report.status === "RETURNED";
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="space-y-3 pb-4">
       <Link
         to="/field/projects"
-        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-sm font-medium text-sky-800 hover:text-sky-900"
+        className="inline-flex items-center gap-1 text-xs font-medium text-sky-800 hover:text-sky-900"
       >
-        <ArrowLeft className="size-5" /> All projects
+        <ArrowLeft className="size-4" /> All projects
       </Link>
 
       <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">{project.jobNumber}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold">{project.jobNumber}</span>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
             {project.division === "PAVEMENT_MARKING"
               ? "PM"
@@ -282,12 +282,12 @@ export function FieldProjectDetailPage() {
                 : "PS"}
           </span>
         </div>
-        <h1 className="mt-1 text-lg font-semibold leading-snug">
+        <h1 className="mt-0.5 text-base font-semibold leading-tight">
           {project.name}
           {project.location ? ` — ${project.location}` : ""}
         </h1>
         {(project.clientName || project.generalContractor) && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {[project.clientName, project.generalContractor]
               .filter(Boolean)
               .join(" · ")}
@@ -302,8 +302,8 @@ export function FieldProjectDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="space-y-1">
           <Label className="text-xs" htmlFor="report-date">
             Report date
           </Label>
@@ -312,7 +312,7 @@ export function FieldProjectDetailPage() {
             <Input
               id="report-date"
               type="date"
-              className={cn("h-11 pl-9", dateError && "border-destructive")}
+              className={cn("h-10 pl-9 text-sm", dateError && "border-destructive")}
               value={reportDate}
               disabled={!editable || busy}
               aria-invalid={Boolean(dateError)}
@@ -325,7 +325,7 @@ export function FieldProjectDetailPage() {
             </p>
           )}
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label className="text-xs" htmlFor="crew-size">
             Crew size
           </Label>
@@ -335,7 +335,7 @@ export function FieldProjectDetailPage() {
               id="crew-size"
               type="number"
               min={1}
-              className={cn("h-11 pl-9", crewError && "border-destructive")}
+              className={cn("h-10 pl-9 text-sm", crewError && "border-destructive")}
               placeholder="# people"
               value={crewSize}
               disabled={!editable || busy}
@@ -362,7 +362,7 @@ export function FieldProjectDetailPage() {
         </p>
       )}
 
-      <p className="rounded-lg bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
+      <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
         {myTasks.length === 0
           ? "No tasks assigned to you on this project yet."
           : "Your assigned tasks are listed below. Tap one to enter quantities and submit."}
@@ -392,7 +392,7 @@ export function FieldProjectDetailPage() {
                   )
                 }
                 className={cn(
-                  "w-full rounded-xl border border-border bg-card px-4 py-4 text-left shadow-sm transition",
+                  "w-full rounded-xl border border-border bg-card px-3 py-3 text-left shadow-sm transition",
                   canOpen
                     ? "active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                     : "opacity-70",

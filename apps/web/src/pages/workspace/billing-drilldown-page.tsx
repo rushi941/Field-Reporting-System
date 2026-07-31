@@ -385,24 +385,6 @@ export function BillingDrilldownPage({
                   Approval notes: {r.approvalNotes}
                 </p>
               )}
-              <ul className="mt-2 space-y-1 text-xs">
-                {r.lineItems.map((li) => (
-                  <li key={li.id} className="flex justify-between gap-2">
-                    <span>
-                      {li.code} — {li.name}
-                      {li.locationDescription && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          ({li.locationDescription})
-                        </span>
-                      )}
-                    </span>
-                    <span className="tabular-nums font-medium">
-                      {li.finalQuantity.toLocaleString()} {li.unit}
-                    </span>
-                  </li>
-                ))}
-              </ul>
               {r.attachments.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {r.attachments.map((a) => (
