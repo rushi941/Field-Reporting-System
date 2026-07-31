@@ -27,6 +27,8 @@ import {
   ModalCloseButton,
   UnsavedCloseDialog,
 } from "@/components/unsaved-close-dialog";
+import { ModalOverlay } from "@/components/modal-overlay";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   downloadBidSampleCsv,
   downloadBidSampleExcel,
@@ -692,13 +694,13 @@ export function TasksPage() {
         }}
       />
 
-      {open && (
-        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
-          <form
-            id="bid-form-modal"
-            onSubmit={onSave}
-            className="relative z-[2001] max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
-          >
+      <ModalOverlay open={open} onBackdropClick={requestCloseForm}>
+        <form
+          id="bid-form-modal"
+          onSubmit={onSave}
+          onClick={(e) => e.stopPropagation()}
+          className="relative z-[2001] max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+        >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">{title}</h2>
@@ -920,12 +922,19 @@ export function TasksPage() {
               </Button>
             </div>
           </form>
-        </div>
-      )}
+      </ModalOverlay>
 
-      {importOpen && (
-        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
-          <div className="relative z-[2001] w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl">
+      <ModalOverlay
+        open={importOpen}
+        onBackdropClick={() => {
+          setImportOpen(false);
+          setImportFile(null);
+        }}
+      >
+          <div
+            className="relative z-[2001] w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-lg font-semibold">Import bid master (Excel)</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Upload <strong>Bid Item List.xlsx</strong> with columns: Item Reference #,
@@ -984,52 +993,36 @@ export function TasksPage() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalOverlay>
 
-      {deleteTarget && (
-        <div className="modal-overlay fixed inset-0 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div className="relative z-[2001] w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">
-              Delete {deleteTarget.parentId ? "sub-bid" : "master bid"}?
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Delete{" "}
-              <span className="font-medium text-foreground">
-                {deleteTarget.code} — {deleteTarget.name}
-              </span>
-              ?
-              {!deleteTarget.parentId &&
-                (childrenByParent.get(deleteTarget.id)?.length ?? 0) > 0 && (
-                  <>
-                    {" "}
-                    All sub-bids under this master will also be removed if they
-                    are not assigned to a project.
-                  </>
-                )}{" "}
-              Bids assigned to projects cannot be deleted.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => void confirmDelete()}
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={`Delete ${deleteTarget?.parentId ? "sub-bid" : "master bid"}?`}
+        description={
+          <>
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {deleteTarget?.code} — {deleteTarget?.name}
+            </span>
+            ?
+            {!deleteTarget?.parentId &&
+              deleteTarget &&
+              (childrenByParent.get(deleteTarget.id)?.length ?? 0) > 0 && (
+                <>
+                  {" "}
+                  All sub-bids under this master will also be removed if they
+                  are not assigned to a project.
+                </>
+              )}{" "}
+            Bids assigned to projects cannot be deleted.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

@@ -14,6 +14,8 @@ import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
 import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
 import { useAdminTable } from "@/hooks/use-admin-table";
+import { ModalOverlay } from "@/components/modal-overlay";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type FormState = {
   email: string;
@@ -416,107 +418,49 @@ export function SystemUsersPage() {
         </>
       )}
 
-      {statusConfirm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="status-confirm-title"
-            className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl"
-          >
-            <h2
-              id="status-confirm-title"
-              className="text-lg font-semibold tracking-tight"
-            >
-              {statusConfirm.isActive
-                ? "Deactivate user?"
-                : "Activate user?"}
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {statusConfirm.isActive
-                ? `Are you sure you want to deactivate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
-                : `Are you sure you want to activate ${statusConfirm.firstName} ${statusConfirm.lastName}?`}
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={togglingId === statusConfirm.id}
-                onClick={() => setStatusConfirm(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className={
-                  statusConfirm.isActive
-                    ? "bg-slate-700 text-white hover:bg-slate-800"
-                    : "bg-asphalt-mid text-white hover:bg-asphalt"
-                }
-                disabled={togglingId === statusConfirm.id}
-                onClick={() => void confirmToggleActive()}
-              >
-                {togglingId === statusConfirm.id ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Updating…
-                  </>
-                ) : statusConfirm.isActive ? (
-                  "Deactivate"
-                ) : (
-                  "Activate"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(statusConfirm)}
+        title={
+          statusConfirm?.isActive ? "Deactivate user?" : "Activate user?"
+        }
+        description={
+          statusConfirm?.isActive
+            ? `Are you sure you want to deactivate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
+            : `Are you sure you want to activate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
+        }
+        confirmLabel={statusConfirm?.isActive ? "Deactivate" : "Activate"}
+        destructive={Boolean(statusConfirm?.isActive)}
+        busy={Boolean(statusConfirm && togglingId === statusConfirm.id)}
+        onCancel={() => setStatusConfirm(null)}
+        onConfirm={() => void confirmToggleActive()}
+      />
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold tracking-tight">Delete user?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Delete{" "}
-              <span className="font-medium text-foreground">
-                {deleteTarget.firstName} {deleteTarget.lastName} ({deleteTarget.email})
-              </span>
-              ? Users with report or project history are deactivated instead of
-              permanently removed.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => void confirmDelete()}
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Deleting…
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete user?"
+        description={
+          <>
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {deleteTarget?.firstName} {deleteTarget?.lastName} ({deleteTarget?.email})
+            </span>
+            ? Users with report or project history are deactivated instead of
+            permanently removed.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+      />
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <form
-            onSubmit={onSave}
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-xl"
-          >
+      <ModalOverlay open={open} onBackdropClick={() => setOpen(false)}>
+        <form
+          onSubmit={onSave}
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-xl"
+        >
             <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
             <div className="mt-5 grid gap-3.5 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -680,8 +624,7 @@ export function SystemUsersPage() {
               </Button>
             </div>
           </form>
-        </div>
-      )}
+      </ModalOverlay>
     </div>
   );
 }

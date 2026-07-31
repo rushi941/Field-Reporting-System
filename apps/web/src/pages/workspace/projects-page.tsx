@@ -25,8 +25,10 @@ import {
 } from "@/components/unsaved-close-dialog";
 import { DivisionMultiSelect } from "@/components/division-multi-select";
 import { UserMultiSelect } from "@/components/user-multi-select";
+import { UserSingleSelect } from "@/components/user-single-select";
 import { ClientSuggestInput } from "@/components/client-suggest-input";
 import { ModalOverlay } from "@/components/modal-overlay";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type ProjectTypeOpt = { id: string; code: string; name: string };
 type ClientOpt = {
@@ -77,7 +79,8 @@ const emptyForm = {
   projectTypeId: "",
   projectAdminId: "",
   fieldLeadIds: [] as string[],
-  divisionManagerIds: [] as string[],
+  defaultDivisionManagerId: "",
+  additionalDivisionManagerIds: [] as string[],
   clientName: "",
   generalContractor: "",
   location: "",
@@ -141,23 +144,16 @@ const inputClass = "h-11 text-sm";
 
 function FormSection({
   title,
-  description,
   children,
 }: {
   title: string;
-  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-muted/15 p-5">
-      <div className="mb-4 border-b border-border pb-3">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          {title}
-        </h3>
-        {description ? (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+        {title}
+      </h3>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
     </section>
   );
@@ -185,6 +181,13 @@ function suggestDivisionManagerIds(
   return managers
     .filter((m) => !m.division || divs.has(m.division))
     .map((m) => m.id);
+}
+
+function buildDivisionManagerIds(
+  defaultId: string,
+  additionalIds: string[],
+): string[] {
+  return [...new Set([defaultId, ...additionalIds].filter(Boolean))];
 }
 
 function createEmptyForm(projectAdminId = "") {
@@ -291,6 +294,14 @@ export function ProjectsPage() {
       }));
   }, [divisionManagers, suggestedDivisionManagerIds]);
 
+  const additionalDivisionManagerOptions = useMemo(
+    () =>
+      divisionManagerOptions.filter(
+        (o) => o.id !== form.defaultDivisionManagerId,
+      ),
+    [divisionManagerOptions, form.defaultDivisionManagerId],
+  );
+
   async function load(background = false) {
     if (!background) setLoading(true);
     try {
@@ -343,7 +354,8 @@ export function ProjectsPage() {
       divisionManagers,
     );
     if (suggested.length) {
-      nextForm.divisionManagerIds = [suggested[0]];
+      nextForm.defaultDivisionManagerId = suggested[0];
+      nextForm.additionalDivisionManagerIds = [];
     }
     setForm(nextForm);
     setFormBaseline(snapshotForm(nextForm));
@@ -366,10 +378,20 @@ export function ProjectsPage() {
         p.fieldLeadIds ??
         p.fieldLeads?.map((u) => u.id) ??
         [],
-      divisionManagerIds:
-        p.divisionManagerIds ??
-        p.divisionManagers?.map((u) => u.id) ??
-        (p.projectManagerId ? [p.projectManagerId] : []),
+      defaultDivisionManagerId:
+        p.projectManagerId ??
+        p.divisionManagerIds?.[0] ??
+        p.divisionManagers?.[0]?.id ??
+        "",
+      additionalDivisionManagerIds: (() => {
+        const all =
+          p.divisionManagerIds ??
+          p.divisionManagers?.map((u) => u.id) ??
+          (p.projectManagerId ? [p.projectManagerId] : []);
+        const defaultId =
+          p.projectManagerId ?? all[0] ?? "";
+        return all.filter((id) => id !== defaultId);
+      })(),
       clientName: p.clientName ?? "",
       generalContractor: p.generalContractor ?? "",
       location: p.location ?? "",
@@ -415,7 +437,15 @@ export function ProjectsPage() {
       toast.error("Select at least one field person", { id: "project-form" });
       return;
     }
-    if (form.divisionManagerIds.length === 0) {
+    if (!form.defaultDivisionManagerId) {
+      toast.error("Select a default division manager", { id: "project-form" });
+      return;
+    }
+    const divisionManagerIds = buildDivisionManagerIds(
+      form.defaultDivisionManagerId,
+      form.additionalDivisionManagerIds,
+    );
+    if (divisionManagerIds.length === 0) {
       toast.error("Select at least one division manager", { id: "project-form" });
       return;
     }
@@ -435,8 +465,9 @@ export function ProjectsPage() {
         divisions,
         projectTypeId: form.projectTypeId || null,
         projectAdminId,
+        projectManagerId: form.defaultDivisionManagerId,
         fieldLeadIds: form.fieldLeadIds,
-        divisionManagerIds: form.divisionManagerIds,
+        divisionManagerIds,
         clientName: form.clientName.trim() || null,
         generalContractor: form.generalContractor.trim() || null,
         location: form.location.trim() || null,
@@ -636,53 +667,27 @@ export function ProjectsPage() {
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="project-delete-title"
-            className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl"
-          >
-            <h2
-              id="project-delete-title"
-              className="text-lg font-semibold tracking-tight"
-            >
-              Delete project?
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          title="Delete project?"
+          description={
+            <>
               Are you sure you want to delete{" "}
               <span className="font-medium text-foreground">
                 {deleteTarget.jobNumber} — {deleteTarget.name}
               </span>
               ? All tasks, field assignments, and reports on this job will be
               removed. This cannot be undone.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => void confirmDelete()}
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Deleting…
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          confirmLabel="Delete"
+          destructive
+          busy={deleting}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+          onConfirm={() => void confirmDelete()}
+        />
       )}
 
       <UnsavedCloseDialog
@@ -722,10 +727,7 @@ export function ProjectsPage() {
           </div>
 
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-              <FormSection
-                title="Basic information"
-                description="Core job identity and status"
-              >
+              <FormSection title="Basic information">
                 <FormField>
                   <Label>Job number *</Label>
                   <Input
@@ -782,9 +784,6 @@ export function ProjectsPage() {
                 </FormField>
                 <FormField>
                   <Label>Divisions *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Select one or more
-                  </p>
                   <DivisionMultiSelect
                     value={form.selectedDivisions}
                     onChange={(selectedDivisions) =>
@@ -793,21 +792,20 @@ export function ProjectsPage() {
                           selectedDivisions,
                           divisionManagers,
                         );
-                        const keepExisting =
-                          f.divisionManagerIds.length > 0 &&
-                          f.divisionManagerIds.some((id) =>
-                            suggested.includes(id),
-                          );
+                        const defaultStillValid = suggested.includes(
+                          f.defaultDivisionManagerId,
+                        );
                         return {
                           ...f,
                           selectedDivisions,
-                          divisionManagerIds: keepExisting
-                            ? f.divisionManagerIds.filter((id) =>
+                          defaultDivisionManagerId: defaultStillValid
+                            ? f.defaultDivisionManagerId
+                            : (suggested[0] ?? ""),
+                          additionalDivisionManagerIds: defaultStillValid
+                            ? f.additionalDivisionManagerIds.filter((id) =>
                                 suggested.includes(id),
                               )
-                            : suggested.length
-                              ? [suggested[0]]
-                              : [],
+                            : [],
                         };
                       })
                     }
@@ -817,10 +815,7 @@ export function ProjectsPage() {
                 </FormField>
               </FormSection>
 
-              <FormSection
-                title="Team & assignments"
-                description="Who manages and works this job in the field"
-              >
+              <FormSection title="Team & assignments">
                 {lockProjectAdmin ? (
                   <FormField>
                     <Label>Project admin</Label>
@@ -829,9 +824,6 @@ export function ProjectsPage() {
                       readOnly
                       className={cn(inputClass, "bg-muted/50")}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Assigned as project admin for new projects.
-                    </p>
                   </FormField>
                 ) : (
                   <FormField>
@@ -854,26 +846,40 @@ export function ProjectsPage() {
                   </FormField>
                 )}
                 <FormField>
-                  <Label>Division managers *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Suggested by division — change if needed
-                  </p>
-                  <UserMultiSelect
-                    value={form.divisionManagerIds}
-                    onChange={(divisionManagerIds) =>
-                      setForm((f) => ({ ...f, divisionManagerIds }))
+                  <Label>Default division manager *</Label>
+                  <UserSingleSelect
+                    value={form.defaultDivisionManagerId}
+                    onChange={(defaultDivisionManagerId) =>
+                      setForm((f) => ({
+                        ...f,
+                        defaultDivisionManagerId,
+                        additionalDivisionManagerIds:
+                          f.additionalDivisionManagerIds.filter(
+                            (id) => id !== defaultDivisionManagerId,
+                          ),
+                      }))
                     }
                     options={divisionManagerOptions}
-                    placeholder="Select division managers"
-                    minSelected={1}
+                    placeholder="Select default division manager"
+                    required
+                    disabled={saving}
+                  />
+                </FormField>
+                <FormField>
+                  <Label>Additional division managers</Label>
+                  <UserMultiSelect
+                    value={form.additionalDivisionManagerIds}
+                    onChange={(additionalDivisionManagerIds) =>
+                      setForm((f) => ({ ...f, additionalDivisionManagerIds }))
+                    }
+                    options={additionalDivisionManagerOptions}
+                    placeholder="Select additional managers"
+                    minSelected={0}
                     disabled={saving}
                   />
                 </FormField>
                 <FormField>
                   <Label>Field persons *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Field leads on this job
-                  </p>
                   <UserMultiSelect
                     value={form.fieldLeadIds}
                     onChange={(fieldLeadIds) =>
@@ -893,15 +899,9 @@ export function ProjectsPage() {
                 </FormField>
               </FormSection>
 
-              <FormSection
-                title="Project details"
-                description="Client, schedule, and contract information"
-              >
+              <FormSection title="Project details">
                 <FormField>
                   <Label>Client / owner</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Start typing for suggestions from the client master
-                  </p>
                   <ClientSuggestInput
                     className={inputClass}
                     value={form.clientName}
@@ -915,9 +915,6 @@ export function ProjectsPage() {
                 </FormField>
                 <FormField>
                   <Label>General contractor</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Optional — leave blank for direct client jobs
-                  </p>
                   <ClientSuggestInput
                     className={inputClass}
                     value={form.generalContractor}

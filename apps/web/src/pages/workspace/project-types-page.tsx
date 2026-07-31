@@ -13,6 +13,8 @@ import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
 import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
 import { useAdminTable } from "@/hooks/use-admin-table";
+import { ModalOverlay } from "@/components/modal-overlay";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type ProjectType = {
   id: string;
@@ -267,12 +269,12 @@ export function ProjectTypesPage() {
         </>
       )}
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <form
-            onSubmit={onSave}
-            className="w-full max-w-md rounded-lg border bg-card p-6 shadow-xl"
-          >
+      <ModalOverlay open={open} onBackdropClick={() => setOpen(false)}>
+        <form
+          onSubmit={onSave}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md rounded-lg border bg-card p-6 shadow-xl"
+        >
             <h2 className="text-lg font-semibold">
               {editingId ? "Edit project type" : "New project type"}
             </h2>
@@ -342,41 +344,26 @@ export function ProjectTypesPage() {
               </Button>
             </div>
           </form>
-        </div>
-      )}
+      </ModalOverlay>
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">Delete project type?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Delete{" "}
-              <span className="font-medium text-foreground">
-                {deleteTarget.code} — {deleteTarget.name}
-              </span>
-              ? Types linked to projects or bids cannot be deleted.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => void confirmDelete()}
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete project type?"
+        description={
+          <>
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {deleteTarget?.code} — {deleteTarget?.name}
+            </span>
+            ? Types linked to projects or bids cannot be deleted.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

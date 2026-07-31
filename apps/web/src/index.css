@@ -229,7 +229,7 @@
 }
 
 .modal-overlay {
-  z-index: 2000;
+  z-index: 4000;
 }
 
 /* Sonner toasts — keep readable stack, never under maps/modals */

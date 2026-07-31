@@ -21,10 +21,6 @@ import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { useAuth } from "@/auth/auth-context";
 import {
-  ReportHistoryCard,
-  type ReportHistoryCardData,
-} from "@/components/report-history-card";
-import {
   downloadProjectTaskSampleCsv,
   downloadProjectTaskSampleExcel,
   parseProjectTaskSpreadsheet,
@@ -39,6 +35,25 @@ import {
 } from "@/components/unsaved-close-dialog";
 import { ModalOverlay } from "@/components/modal-overlay";
 import type { TaskNode } from "@/types/task-tree";
+
+function ProjectStatusBadge({ status }: { status: string }) {
+  const normalized = status.toUpperCase();
+  const className =
+    normalized === "ACTIVE"
+      ? "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200"
+      : normalized === "COMPLETED"
+        ? "inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-200"
+        : "inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200";
+  const label =
+    normalized === "ACTIVE"
+      ? "Active"
+      : normalized === "COMPLETED"
+        ? "Completed"
+        : normalized === "INACTIVE"
+          ? "Inactive"
+          : status;
+  return <span className={className}>{label}</span>;
+}
 
 type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
 type UnitOpt = { id: string; code: string; name: string };
@@ -124,23 +139,16 @@ const emptyTaskForm = {
 
 function FormSection({
   title,
-  description,
   children,
 }: {
   title: string;
-  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-muted/15 p-5">
-      <div className="mb-4 border-b border-border pb-3">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          {title}
-        </h3>
-        {description ? (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+        {title}
+      </h3>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
     </section>
   );
@@ -197,14 +205,6 @@ export function ProjectDetailPage() {
   const canViewReports = can("reports.view_project_history");
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [fieldReports, setFieldReports] = useState<ReportHistoryCardData[]>([]);
-  const [reportCounts, setReportCounts] = useState({
-    approved: 0,
-    pending: 0,
-    returned: 0,
-    total: 0,
-  });
-  const [reportsLoading, setReportsLoading] = useState(false);
   const [fieldLeads, setFieldLeads] = useState<FieldLeadOpt[]>([]);
   const [units, setUnits] = useState<UnitOpt[]>([]);
   const [taskTree, setTaskTree] = useState<TaskNode[]>([]);
@@ -252,37 +252,6 @@ export function ProjectDetailPage() {
   useEffect(() => {
     void load();
   }, [projectId]);
-
-  useEffect(() => {
-    if (!projectId || !canViewReports) {
-      setFieldReports([]);
-      return;
-    }
-    void (async () => {
-      setReportsLoading(true);
-      try {
-        const data = await apiFetch<{
-          reports: ReportHistoryCardData[];
-          statusCounts: {
-            approved: number;
-            pending: number;
-            returned: number;
-            total: number;
-          };
-        }>(`/api/v1/workspace-reports/projects/${projectId}`);
-        setFieldReports(
-          data.reports
-            .filter((r) => r.status !== "DRAFT")
-            .slice(0, 5) as ReportHistoryCardData[],
-        );
-        setReportCounts(data.statusCounts);
-      } catch {
-        setFieldReports([]);
-      } finally {
-        setReportsLoading(false);
-      }
-    })();
-  }, [projectId, canViewReports]);
 
   const taskRows = useMemo(
     () => (project ? buildTaskRows(project.tasks) : []),
@@ -574,18 +543,20 @@ export function ProjectDetailPage() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
             {project.name}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {[
-              project.projectType?.name,
-              projectDivisions
-                .map((d) => divisionLabels[d] ?? d)
-                .join(", "),
-              project.location,
-              project.status,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              {[
+                project.projectType?.name,
+                projectDivisions
+                  .map((d) => divisionLabels[d] ?? d)
+                  .join(", "),
+                project.location,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            <ProjectStatusBadge status={project.status} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {canViewReports && isProjectAdminWorkspace && (
@@ -612,69 +583,9 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      {canViewReports && (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold">Field report status</h2>
-              <p className="text-xs text-muted-foreground">
-                View-only — approved and returned reports from division managers
-              </p>
-            </div>
-            <Link
-              to={`${base}/reports/${project.id}`}
-              className="text-xs font-medium text-sky-800 hover:underline"
-            >
-              View all
-            </Link>
-            {isProjectAdminWorkspace ? (
-              <Link
-                to={`${base}/reports/history?projectId=${project.id}`}
-                className="text-xs font-medium text-sky-800 hover:underline"
-              >
-                Approval history
-              </Link>
-            ) : null}
-          </div>
-          <div className="space-y-3 px-4 py-3">
-            <div className="flex flex-wrap gap-2 text-xs">
-              <StatPill label="Approved" value={reportCounts.approved} tone="ok" />
-              <StatPill label="Under review" value={reportCounts.pending} />
-              <StatPill label="Returned" value={reportCounts.returned} tone="warn" />
-            </div>
-            {reportsLoading ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> Loading reports…
-              </p>
-            ) : fieldReports.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No submitted field reports yet.
-              </p>
-            ) : (
-              <ul className="min-w-0 space-y-2">
-                {fieldReports.map((r) => (
-                  <li key={r.id}>
-                    <ReportHistoryCard
-                      report={r}
-                      linkTo={`${base}/reports/${project.id}/${r.id}`}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b bg-muted/40 px-2 py-1">
-          <div>
-            <h2 className="text-sm font-semibold">Project tasks</h2>
-            <p className="text-xs text-muted-foreground">
-              Master tasks assigned to field persons — quantities and STA are
-              entered in the field app.
-            </p>
-          </div>
+        <div className="flex items-center justify-between bg-muted/40 px-2 py-1">
+          <h2 className="text-sm font-semibold">Project tasks</h2>
           <span className="text-xs text-muted-foreground">
             {project.taskIds.length} items
           </span>
@@ -810,10 +721,7 @@ export function ProjectDetailPage() {
           </div>
 
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-            <FormSection
-              title="Assignment"
-              description="Master bid and field person for this work"
-            >
+            <FormSection title="Assignment">
               {projectDivisions.length > 1 && (
                 <FormField className="sm:col-span-2">
                   <Label>Division *</Label>
@@ -893,10 +801,7 @@ export function ProjectDetailPage() {
             </FormSection>
 
             {showStaWorkLimits && (
-              <FormSection
-                title="Work limits"
-                description="Station range for this task on the project"
-              >
+              <FormSection title="Work limits">
                 <FormField>
                   <Label>Begin STA *</Label>
                   <Input
@@ -951,10 +856,7 @@ export function ProjectDetailPage() {
             )}
 
             {fieldEntryPreview && (
-              <FormSection
-                title={fieldEntryPreview.title}
-                description={fieldEntryPreview.description}
-              >
+              <FormSection title={fieldEntryPreview.title}>
                 <ul className="sm:col-span-2 space-y-2 text-sm text-muted-foreground">
                   {fieldEntryPreview.fields.map((field) => (
                     <li key={field} className="flex items-start gap-2">
@@ -970,7 +872,7 @@ export function ProjectDetailPage() {
               </FormSection>
             )}
 
-            <FormSection title="Notes" description="Optional instructions">
+            <FormSection title="Notes">
               <FormField className="sm:col-span-2">
                 <Label>Notes</Label>
                 <textarea
@@ -1005,9 +907,17 @@ export function ProjectDetailPage() {
         </form>
       </ModalOverlay>
 
-      {importOpen && (
-        <div className="modal-overlay fixed inset-0 flex items-center justify-center bg-black/45 p-4">
-          <div className="relative z-[2001] w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl">
+      <ModalOverlay
+        open={importOpen}
+        onBackdropClick={() => {
+          setImportOpen(false);
+          setImportFile(null);
+        }}
+      >
+          <div
+            className="relative z-[2001] w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-lg font-semibold">Import project tasks</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Upload a CSV or Excel file with task rows for this project.
@@ -1082,32 +992,7 @@ export function ProjectDetailPage() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalOverlay>
     </div>
-  );
-}
-
-function StatPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "ok" | "warn";
-}) {
-  return (
-    <span
-      className={
-        tone === "ok" && value > 0
-          ? "rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-900"
-          : tone === "warn" && value > 0
-            ? "rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-900"
-            : "rounded-full bg-muted px-2.5 py-1 font-medium text-muted-foreground"
-      }
-    >
-      {label}: {value}
-    </span>
   );
 }

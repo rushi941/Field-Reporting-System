@@ -20,6 +20,8 @@ import {
   downloadClientSampleExcel,
   parseClientSpreadsheet,
 } from "@/lib/client-spreadsheet";
+import { ModalOverlay } from "@/components/modal-overlay";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type ClientRow = {
   id: string;
@@ -325,12 +327,12 @@ export function ClientsPage() {
         </div>
       )}
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <form
-            onSubmit={onSave}
-            className="w-full max-w-md rounded-lg border bg-card p-6 shadow-xl"
-          >
+      <ModalOverlay open={open} onBackdropClick={() => setOpen(false)}>
+        <form
+          onSubmit={onSave}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md rounded-lg border bg-card p-6 shadow-xl"
+        >
             <h2 className="text-lg font-semibold">
               {editingId ? "Edit client" : "New client"}
             </h2>
@@ -375,12 +377,19 @@ export function ClientsPage() {
               </Button>
             </div>
           </form>
-        </div>
-      )}
+      </ModalOverlay>
 
-      {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl">
+      <ModalOverlay
+        open={importOpen}
+        onBackdropClick={() => {
+          setImportOpen(false);
+          setImportFile(null);
+        }}
+      >
+          <div
+            className="w-full max-w-lg rounded-lg border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-lg font-semibold">Import clients (CSV/Excel)</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Columns: <strong>Foundation #</strong> and <strong>Name</strong>.
@@ -434,28 +443,23 @@ export function ClientsPage() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalOverlay>
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">Delete client?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Remove <strong>{deleteTarget.name}</strong>? This cannot be undone if
-              the client is not used on any project.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-                Cancel
-              </Button>
-              <Button variant="destructive" disabled={deleting} onClick={() => void confirmDelete()}>
-                {deleting ? "Deleting…" : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete client?"
+        description={
+          <>
+            Remove <strong>{deleteTarget?.name}</strong>? This cannot be undone if
+            the client is not used on any project.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

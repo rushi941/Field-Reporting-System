@@ -1,24 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-
-type Option = { value: string; label: string };
+import type { UserOption } from "@/components/user-multi-select";
 
 type Props = {
-  value: string[];
-  onChange: (value: string[]) => void;
-  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  options: UserOption[];
   disabled?: boolean;
   placeholder?: string;
+  required?: boolean;
 };
 
-export function DivisionMultiSelect({
+function matchesQuery(opt: UserOption, query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    opt.name.toLowerCase().includes(q) ||
+    (opt.hint?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+export function UserSingleSelect({
   value,
   onChange,
   options,
   disabled,
-  placeholder = "Select divisions",
+  placeholder = "Select user",
+  required,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -43,28 +53,12 @@ export function DivisionMultiSelect({
     }
   }, [open]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [options, query]);
+  const filtered = useMemo(
+    () => options.filter((opt) => matchesQuery(opt, query)),
+    [options, query],
+  );
 
-  function toggle(div: string) {
-    if (value.includes(div)) {
-      const next = value.filter((d) => d !== div);
-      if (next.length > 0) onChange(next);
-      return;
-    }
-    onChange([...value, div]);
-  }
-
-  const summary =
-    value.length === 0
-      ? placeholder
-      : options
-          .filter((o) => value.includes(o.value))
-          .map((o) => o.label)
-          .join(", ");
+  const selected = options.find((o) => o.id === value);
 
   return (
     <div ref={rootRef} className="relative">
@@ -75,17 +69,13 @@ export function DivisionMultiSelect({
         aria-haspopup="listbox"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
           disabled && "cursor-not-allowed opacity-50",
+          required && !value && "border-amber-300",
         )}
       >
-        <span
-          className={cn(
-            "truncate",
-            value.length === 0 && "text-muted-foreground",
-          )}
-        >
-          {summary}
+        <span className={cn("truncate", !selected && "text-muted-foreground")}>
+          {selected?.name ?? placeholder}
         </span>
         <ChevronDown
           className={cn(
@@ -112,45 +102,42 @@ export function DivisionMultiSelect({
               }}
             />
           </div>
-          <div
-            role="listbox"
-            aria-multiselectable
-            className="max-h-56 overflow-y-auto p-1"
-          >
+          <ul role="listbox" className="max-h-56 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <p className="px-2 py-2 text-sm text-muted-foreground">
+              <li className="px-2 py-2 text-sm text-muted-foreground">
                 No matches
-              </p>
+              </li>
             ) : (
               filtered.map((opt) => {
-                const checked = value.includes(opt.value);
+                const active = opt.id === value;
                 return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="option"
-                    aria-selected={checked}
-                    onClick={() => toggle(opt.value)}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted"
-                  >
-                    <span
+                  <li key={opt.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => {
+                        onChange(opt.id);
+                        setOpen(false);
+                        setQuery("");
+                      }}
                       className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded border",
-                        checked
-                          ? "border-asphalt bg-asphalt text-white"
-                          : "border-input bg-card",
+                        "flex w-full flex-col rounded-sm px-2 py-2 text-left text-sm hover:bg-muted",
+                        active && "bg-muted/70",
                       )}
                     >
-                      {checked ? (
-                        <Check className="size-3" strokeWidth={3} />
+                      <span className="font-medium">{opt.name}</span>
+                      {opt.hint ? (
+                        <span className="text-xs text-muted-foreground">
+                          {opt.hint}
+                        </span>
                       ) : null}
-                    </span>
-                    <span>{opt.label}</span>
-                  </button>
+                    </button>
+                  </li>
                 );
               })
             )}
-          </div>
+          </ul>
         </div>
       )}
     </div>

@@ -365,17 +365,34 @@ async function deleteProjectCascade(
   });
   const reportIds = reports.map((r) => r.id);
 
+  const tasks = await tx.projectTask.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+  const taskIds = tasks.map((t) => t.id);
+
   if (reportIds.length > 0) {
     await tx.auditLog.deleteMany({
+      where: { reportId: { in: reportIds } },
+    });
+    await tx.attachment.deleteMany({
       where: { reportId: { in: reportIds } },
     });
     await tx.reportLineItem.deleteMany({
       where: { reportId: { in: reportIds } },
     });
-    await tx.report.deleteMany({ where: { projectId } });
+    await tx.report.deleteMany({ where: { id: { in: reportIds } } });
+  }
+
+  if (taskIds.length > 0) {
+    await tx.reportLineItem.deleteMany({
+      where: { projectTaskId: { in: taskIds } },
+    });
   }
 
   await tx.attachment.deleteMany({ where: { projectId } });
+  await tx.projectFieldLead.deleteMany({ where: { projectId } });
+  await tx.projectDivisionManager.deleteMany({ where: { projectId } });
   await tx.projectRoute.deleteMany({ where: { projectId } });
   await tx.projectTask.deleteMany({ where: { projectId } });
   await tx.bidItem.deleteMany({ where: { projectId } });

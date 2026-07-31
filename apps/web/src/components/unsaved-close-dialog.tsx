@@ -21,7 +21,7 @@ export function UnsavedCloseDialog({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[4000] flex items-end justify-center bg-black/45 p-4 sm:items-center">
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/45 p-4">
       <div
         role="dialog"
         aria-modal="true"

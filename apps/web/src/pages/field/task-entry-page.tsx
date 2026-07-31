@@ -1187,7 +1187,7 @@ export function FieldTaskEntryPage() {
                 Division manager
               </Label>
               <p className={fieldHintClass}>
-                Project managers only — change if needed before submit
+                Defaults to the project&apos;s default division manager
               </p>
               <select
                 id="division-manager"

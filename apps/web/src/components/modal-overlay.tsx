@@ -30,7 +30,7 @@ export function ModalOverlay({
   return createPortal(
     <div
       className={cn(
-        "modal-overlay fixed inset-0 overflow-y-auto bg-black/45 p-4 sm:p-6",
+        "modal-overlay fixed inset-0 z-[4000] overflow-y-auto bg-black/45 p-4 sm:p-6",
         className,
       )}
       onClick={
@@ -41,7 +41,7 @@ export function ModalOverlay({
           : undefined
       }
     >
-      <div className="flex min-h-full items-end justify-center sm:items-center">
+      <div className="flex min-h-full items-center justify-center py-4">
         {children}
       </div>
     </div>,
