@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ClipboardCheck, History, LogOut } from "lucide-react";
@@ -9,6 +9,8 @@ import { ActivityDot } from "@/components/activity-dot";
 import { PageSuspense, PageTransition } from "@/components/page-shell";
 import { prefetchRoute } from "@/lib/route-prefetch";
 import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
+import { resolveActiveNavTo } from "@/lib/nav-active";
+import { UserHeaderIdentity } from "@/components/user-role-pill";
 
 const navItems = [
   {
@@ -21,7 +23,7 @@ const navItems = [
   },
   {
     to: "/approvals/history",
-    end: false,
+    end: true,
     label: "Project history",
     mobileLabel: "History",
     icon: History,
@@ -39,9 +41,12 @@ export function ApprovalsLayout() {
   const location = useLocation();
   const [loggingOut, setLoggingOut] = useState(false);
   const showBottomNav = isApprovalsListPage(location.pathname);
+  const activeNavTo = resolveActiveNavTo(navItems, location.pathname);
   const { unreadCount } = usePendingApprovalActivity(
     can("reports.view_pending_queue") ? user?.id : undefined,
   );
+  const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  const workspaceRole = "DIVISION_MANAGER" as const;
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -79,47 +84,37 @@ export function ApprovalsLayout() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const showBadge = item.badge && unreadCount > 0;
+          const active = item.to === activeNavTo;
           return (
-            <NavLink
+            <Link
               key={item.to}
               to={item.to}
-              end={item.end}
               onMouseEnter={() => prefetchRoute(item.to)}
               onFocus={() => prefetchRoute(item.to)}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-muted text-white shadow-sm ring-1 ring-lane/40"
-                    : "text-slate-300 hover:bg-white/5 hover:text-white",
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span className="relative shrink-0">
-                    <Icon
-                      className={cn(
-                        "size-4",
-                        isActive ? "text-lane" : "text-steel",
-                      )}
-                    />
-                    {showBadge && (
-                      <ActivityDot className="-right-0.5 -top-0.5 ring-sidebar" />
-                    )}
-                  </span>
-                  <span className="flex-1">{item.label}</span>
-                </>
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-sidebar-muted text-white shadow-sm ring-1 ring-lane/40"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white",
               )}
-            </NavLink>
+            >
+              <span className="relative shrink-0">
+                <Icon
+                  className={cn("size-4", active ? "text-lane" : "text-steel")}
+                />
+                {showBadge && (
+                  <ActivityDot className="-right-0.5 -top-0.5 ring-sidebar" />
+                )}
+              </span>
+              <span className="flex-1">{item.label}</span>
+            </Link>
           );
         })}
       </nav>
 
       <div className="border-t border-white/10 p-4">
-        <p className="truncate px-1 text-xs text-slate-300">
-          {user?.firstName} {user?.lastName}
-        </p>
+        <p className="truncate px-1 text-xs text-slate-300">{userName}</p>
         <Button
           variant="ghost"
           className="mt-2 w-full justify-start gap-2 text-slate-300 hover:bg-white/5 hover:text-white"
@@ -144,39 +139,33 @@ export function ApprovalsLayout() {
               AT
             </div>
             <div className="min-w-0 lg:hidden">
-              {showBottomNav ? (
-                <>
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    Approvals
-                  </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {user?.firstName} {user?.lastName}
-                  </p>
-                </>
-              ) : (
-                <p className="truncate text-sm font-semibold text-foreground">
-                  Review report
-                </p>
-              )}
+              <p className="truncate text-sm font-semibold text-foreground">
+                {showBottomNav ? "Approvals" : "Review report"}
+              </p>
             </div>
             <p className="hidden truncate text-sm font-semibold text-foreground lg:block">
-              Division Manager
+              Field Reporting System
             </p>
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground lg:hidden"
-            onClick={handleLogout}
-            disabled={loggingOut}
-          >
-            <LogOut className="size-4" />
-            <span className="sr-only sm:not-sr-only">
-              {loggingOut ? "…" : "Log out"}
-            </span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {userName ? (
+              <UserHeaderIdentity name={userName} role={workspaceRole} compact />
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 shrink-0 gap-1.5 px-2 text-muted-foreground"
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
+              <LogOut className="size-4" />
+              <span className="sr-only sm:not-sr-only">
+                {loggingOut ? "…" : "Log out"}
+              </span>
+            </Button>
+          </div>
         </header>
 
         <main
@@ -203,41 +192,32 @@ export function ApprovalsLayout() {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const hasBadge = item.badge && unreadCount > 0;
+                const active = item.to === activeNavTo;
                 return (
-                  <NavLink
+                  <Link
                     key={item.to}
                     to={item.to}
-                    end={item.end}
                     onMouseEnter={() => prefetchRoute(item.to)}
                     onFocus={() => prefetchRoute(item.to)}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold transition-colors",
-                        isActive
-                          ? "text-asphalt-mid"
-                          : "text-muted-foreground",
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span className="relative inline-flex">
-                          <Icon
-                            className={cn(
-                              "size-5",
-                              isActive
-                                ? "text-asphalt-mid"
-                                : "text-muted-foreground",
-                            )}
-                          />
-                          {hasBadge && (
-                            <ActivityDot className="right-0 top-0 translate-x-1/2 -translate-y-1/2" />
-                          )}
-                        </span>
-                        {item.mobileLabel}
-                      </>
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold transition-colors",
+                      active ? "text-asphalt-mid" : "text-muted-foreground",
                     )}
-                  </NavLink>
+                  >
+                    <span className="relative inline-flex">
+                      <Icon
+                        className={cn(
+                          "size-5",
+                          active ? "text-asphalt-mid" : "text-muted-foreground",
+                        )}
+                      />
+                      {hasBadge && (
+                        <ActivityDot className="right-0 top-0 translate-x-1/2 -translate-y-1/2" />
+                      )}
+                    </span>
+                    {item.mobileLabel}
+                  </Link>
                 );
               })}
             </div>

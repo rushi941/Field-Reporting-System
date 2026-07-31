@@ -110,6 +110,7 @@ export function WorkspaceOverviewPage({
       body: "Master list for pavement marking, traffic control, signs, and more.",
       icon: Tags,
       permission: "projects.manage",
+      systemOnly: true,
     },
     {
       to: `${base}/units`,
@@ -117,6 +118,7 @@ export function WorkspaceOverviewPage({
       body: "Units of measure — LF, EA, LS, and more for bids and reporting.",
       icon: Ruler,
       permission: "projects.manage",
+      systemOnly: true,
     },
     {
       to: `${base}/clients`,
@@ -124,6 +126,7 @@ export function WorkspaceOverviewPage({
       body: "Customer / contractor master list with CSV or Excel import.",
       icon: Building2,
       permission: "projects.manage",
+      systemOnly: true,
     },
     {
       to: `${base}/bids`,
@@ -131,6 +134,7 @@ export function WorkspaceOverviewPage({
       body: "Master bids and sub-bids by division, with CSV import.",
       icon: ListChecks,
       permission: "projects.manage",
+      systemOnly: true,
     },
     ...(kind === "system"
       ? [
@@ -214,6 +218,7 @@ export function WorkspaceOverviewPage({
           .filter(
             (c) =>
               (!("officeOnly" in c) || !c.officeOnly || kind === "office") &&
+              (!("systemOnly" in c) || !c.systemOnly || kind === "system") &&
               (!c.permission || can(c.permission)),
           )
           .map((c) => {

@@ -607,7 +607,10 @@ fieldReportsRouter.put(
       const parsedSegments: { beginSta: string; endSta: string }[] = [];
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = staRangeSegmentSchema.parse(seg);
-        const resolved = resolveStaSegment(parsed);
+        const resolved = resolveStaSegment(
+          parsed,
+          projectTask.taskMaster.unit,
+        );
         parsedSegments.push({
           beginSta: resolved.beginSta,
           endSta: resolved.endSta,

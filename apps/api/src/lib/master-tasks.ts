@@ -1,6 +1,7 @@
 import { prisma } from "@frs/db";
 import {
   defaultSymbolTypes,
+  estimateTaskQuantity,
   isSymbolsAndLegendsMaster,
   usesSymbolEntryLayout,
 } from "@frs/shared";
@@ -282,16 +283,30 @@ export function groupFieldTasksByMaster(
 
   return [...groups.values()].map((g) => {
     const { _projectTaskIds: _, ...rest } = g;
-    const pct =
+    const estimated = estimateTaskQuantity({
+      unit: rest.taskMaster.unit,
+      formType: rest.taskMaster.formType,
+      conversionFactor: rest.taskMaster.conversionFactor,
+      beginSta: rest.beginSta,
+      endSta: rest.endSta,
+      reportedApproved: rest.progress.approved,
+      reportedPending: rest.progress.pending,
+    });
+    if (estimated > 0) rest.progress.estimated = estimated;
+    const reportedPct =
       rest.progress.estimated > 0
         ? Math.min(
             100,
             Math.round(
-              (rest.progress.approved / rest.progress.estimated) * 100,
+              ((rest.progress.approved + rest.progress.pending) /
+                rest.progress.estimated) *
+                100,
             ),
           )
-        : 0;
-    rest.progress.approvedPct = pct;
+        : rest.progress.approved + rest.progress.pending > 0
+          ? 100
+          : 0;
+    rest.progress.approvedPct = reportedPct;
     return rest;
   });
 }

@@ -10,6 +10,8 @@ import {
   Upload,
 } from "lucide-react";
 import {
+  adminFieldEntryPreview,
+  adminNeedsStaWorkLimits,
   projectCreateTaskSchema,
   PROJECT_TASK_IMPORT_HEADERS,
   physicalLfFromSta,
@@ -325,8 +327,32 @@ export function ProjectDetailPage() {
   const lineTypesAtFieldEntry = Boolean(
     selectedMaster?.children.length &&
       form.division === "PAVEMENT_MARKING" &&
-      form.formType === "STA_RANGE",
+      adminNeedsStaWorkLimits({
+        formType: selectedMaster.formType,
+        masterCode: selectedMaster.code,
+        masterName: selectedMaster.name,
+      }),
   );
+
+  const showStaWorkLimits = Boolean(
+    selectedMaster &&
+      adminNeedsStaWorkLimits({
+        formType: form.formType,
+        masterCode: selectedMaster.code,
+        masterName: selectedMaster.name,
+      }),
+  );
+
+  const fieldEntryPreview = useMemo(() => {
+    if (!selectedMaster) return null;
+    return adminFieldEntryPreview({
+      formType: selectedMaster.formType,
+      division: selectedMaster.division ?? form.division,
+      unit: selectedMaster.unit,
+      masterCode: selectedMaster.code,
+      masterName: selectedMaster.name,
+    });
+  }, [selectedMaster, form.division]);
 
   const staPreview = useMemo(() => {
     if (!form.beginSta.trim() || !form.endSta.trim()) return null;
@@ -431,13 +457,21 @@ export function ProjectDetailPage() {
     setSaving(true);
     try {
       const master = taskTree.find((m) => m.id === form.masterBidId);
+      const masterFormType = master?.formType ?? form.formType;
+      const needsSta =
+        master &&
+        adminNeedsStaWorkLimits({
+          formType: masterFormType,
+          masterCode: master.code,
+          masterName: master.name,
+        });
       const raw = {
         taskMasterId: form.masterBidId,
         assignedToId: form.assignedToId,
         division: form.division,
-        formType: master?.formType ?? form.formType,
-        beginSta: form.beginSta.trim() || null,
-        endSta: form.endSta.trim() || null,
+        formType: needsSta ? masterFormType : "SINGLE_LOCATION",
+        beginSta: needsSta ? form.beginSta.trim() || null : null,
+        endSta: needsSta ? form.endSta.trim() || null : null,
         description: form.description.trim() || null,
       };
       const parsed = projectCreateTaskSchema.safeParse(raw);
@@ -655,7 +689,7 @@ export function ProjectDetailPage() {
                 <th className="w-36 px-2 py-1">Division</th>
                 <th className="w-20 px-2 py-1">Unit</th>
                 <th className="w-28 px-2 py-1">Form</th>
-                <th className="w-36 px-2 py-1">Work STA</th>
+                <th className="w-36 px-2 py-1">Work limits</th>
                 <th className="w-36 px-2 py-1">Field person</th>
                 <th className="w-16 px-2 py-1" />
               </tr>
@@ -690,11 +724,23 @@ export function ProjectDetailPage() {
                     {formLabels[row.formType] ?? row.formType}
                   </td>
                   <td className="px-2 py-1 font-mono text-[11px]">
-                    {row.formType === "STA_RANGE" && row.beginSta && row.endSta
+                    {row.formType === "STA_RANGE" &&
+                    adminNeedsStaWorkLimits({
+                      formType: row.formType,
+                      masterCode: row.code,
+                      masterName: row.name,
+                    }) &&
+                    row.beginSta &&
+                    row.endSta
                       ? `${row.beginSta} → ${row.endSta}`
-                      : row.formType === "STA_RANGE"
+                      : row.formType === "STA_RANGE" &&
+                          adminNeedsStaWorkLimits({
+                            formType: row.formType,
+                            masterCode: row.code,
+                            masterName: row.name,
+                          })
                         ? "—"
-                        : "—"}
+                        : "Field entry"}
                   </td>
                   <td className="px-2 py-1 text-xs">{row.fieldPerson}</td>
                   <td className="px-2 py-1 text-right">
@@ -746,7 +792,12 @@ export function ProjectDetailPage() {
                 Add task
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Select a master bid, assign a field person, and set work limits.
+                Select a master bid and assign a field person.
+                {showStaWorkLimits
+                  ? " Set Begin/End STA work limits for this task."
+                  : fieldEntryPreview
+                    ? " Quantities are entered by location in the field app."
+                    : null}
                 {lineTypesAtFieldEntry
                   ? " Line types are chosen by the field lead when entering quantities."
                   : null}
@@ -799,7 +850,12 @@ export function ProjectDetailPage() {
                 {selectedMaster ? (
                   <p className="text-xs text-muted-foreground">
                     {selectedMaster.unit} ·{" "}
-                    {formLabels[selectedMaster.formType] ?? selectedMaster.formType}
+                    {showStaWorkLimits
+                      ? formLabels.STA_RANGE
+                      : fieldEntryPreview
+                        ? formLabels.SINGLE_LOCATION
+                        : formLabels[selectedMaster.formType] ??
+                          selectedMaster.formType}
                   </p>
                 ) : null}
               </FormField>
@@ -836,7 +892,7 @@ export function ProjectDetailPage() {
               </FormField>
             </FormSection>
 
-            {form.formType === "STA_RANGE" && (
+            {showStaWorkLimits && (
               <FormSection
                 title="Work limits"
                 description="Station range for this task on the project"
@@ -891,6 +947,26 @@ export function ProjectDetailPage() {
                     </div>
                   </div>
                 ) : null}
+              </FormSection>
+            )}
+
+            {fieldEntryPreview && (
+              <FormSection
+                title={fieldEntryPreview.title}
+                description={fieldEntryPreview.description}
+              >
+                <ul className="sm:col-span-2 space-y-2 text-sm text-muted-foreground">
+                  {fieldEntryPreview.fields.map((field) => (
+                    <li key={field} className="flex items-start gap-2">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-lane" />
+                      {field}
+                    </li>
+                  ))}
+                </ul>
+                <p className="sm:col-span-2 text-xs text-muted-foreground">
+                  Assign the task here — the field lead fills in these details on
+                  each daily report.
+                </p>
               </FormSection>
             )}
 

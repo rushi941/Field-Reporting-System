@@ -1,4 +1,4 @@
-import { physicalLfFromSta, reportedLfFromSta } from "@frs/shared";
+import { estimateTaskQuantity } from "@frs/shared";
 import { prisma } from "@frs/db";
 
 const APPROVED = ["APPROVED", "APPROVED_WITH_NOTES"] as const;
@@ -15,6 +15,7 @@ type TaskForEstimate = {
   beginSta: string | null;
   endSta: string | null;
   taskMaster: {
+    unit: string;
     formType: string;
     conversionFactor: number | null;
   };
@@ -25,33 +26,20 @@ type RouteBounds = {
   endSta: string | null;
 } | null;
 
-function estimateQuantity(
-  task: TaskForEstimate,
-  route: RouteBounds,
-  totals: { approved: number; pending: number },
-): number {
-  const begin = task.beginSta ?? route?.beginSta;
-  const end = task.endSta ?? route?.endSta;
-
-  if (begin && end) {
-    try {
-      if (task.taskMaster.formType === "STA_RANGE") {
-        const cf = Number(task.taskMaster.conversionFactor ?? 1);
-        return reportedLfFromSta(begin, end, cf);
-      }
-      return physicalLfFromSta(begin, end);
-    } catch {
-      /* fall through */
-    }
+function pct(approved: number, pending: number, estimated: number) {
+  if (estimated <= 0) {
+    const reported = approved + pending;
+    return reported > 0 ? Math.round((approved / reported) * 100) : 0;
   }
-
-  const floor = totals.approved + totals.pending;
-  return floor > 0 ? floor : 0;
+  return Math.min(100, Math.round(((approved + pending) / estimated) * 100));
 }
 
-function pct(approved: number, estimated: number) {
-  if (estimated <= 0) return 0;
-  return Math.min(100, Math.round((approved / estimated) * 100));
+/** Older reports stored foot-feet (×100) for STA-unit bids — convert on read. */
+function normalizeStoredQuantity(unit: string, qty: number): number {
+  const u = unit.trim().toUpperCase();
+  if (u !== "STA") return qty;
+  if (qty >= 1000 && qty % 100 === 0) return qty / 100;
+  return qty;
 }
 
 export async function fetchTaskProgressMap(
@@ -85,7 +73,11 @@ export async function fetchTaskProgressMap(
   for (const row of rows) {
     const bucket = totals.get(row.projectTaskId);
     if (!bucket) continue;
-    const qty = Number(row.finalQuantity);
+    const task = tasks.find((t) => t.id === row.projectTaskId);
+    const qty = normalizeStoredQuantity(
+      task?.taskMaster.unit ?? "LF",
+      Number(row.finalQuantity),
+    );
     if (row.report.status === "SUBMITTED") bucket.pending += qty;
     else bucket.approved += qty;
   }
@@ -94,12 +86,22 @@ export async function fetchTaskProgressMap(
     const t = totals.get(task.id) ?? { approved: 0, pending: 0 };
     const projectId = projectIdForTask.get(task.id);
     const route = projectId ? routesByProjectId.get(projectId) ?? null : null;
-    const estimated = estimateQuantity(task, route, t);
+    const estimated = estimateTaskQuantity({
+      unit: task.taskMaster.unit,
+      formType: task.taskMaster.formType,
+      conversionFactor: task.taskMaster.conversionFactor,
+      beginSta: task.beginSta,
+      endSta: task.endSta,
+      routeBeginSta: route?.beginSta,
+      routeEndSta: route?.endSta,
+      reportedApproved: t.approved,
+      reportedPending: t.pending,
+    });
     result.set(task.id, {
       estimated,
       approved: t.approved,
       pending: t.pending,
-      approvedPct: pct(t.approved, estimated),
+      approvedPct: pct(t.approved, t.pending, estimated),
     });
   }
 

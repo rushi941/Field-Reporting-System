@@ -62,6 +62,51 @@ export function staRangesOverlap(
   return b0 < a1 && a0 < b1;
 }
 
+/** Billable quantity from a STA range — unit-aware (STA stations vs LF). */
+export function quantityFromStaRange(
+  unit: string,
+  beginSta: string,
+  endSta: string,
+  conversionFactor = 1,
+): number {
+  const u = unit.trim().toUpperCase();
+  if (u === "STA") {
+    return stationSpanDecimal(beginSta, endSta);
+  }
+  if (u === "LF") {
+    return reportedLfFromSta(beginSta, endSta, conversionFactor);
+  }
+  return physicalLfFromSta(beginSta, endSta);
+}
+
+/** Task progress estimate from work limits or reported totals. */
+export function estimateTaskQuantity(input: {
+  unit: string;
+  formType: string;
+  conversionFactor?: number | null;
+  beginSta?: string | null;
+  endSta?: string | null;
+  routeBeginSta?: string | null;
+  routeEndSta?: string | null;
+  reportedApproved?: number;
+  reportedPending?: number;
+}): number {
+  const begin = input.beginSta?.trim() || input.routeBeginSta?.trim();
+  const end = input.endSta?.trim() || input.routeEndSta?.trim();
+
+  if (input.formType === "STA_RANGE" && begin && end) {
+    try {
+      const cf = Number(input.conversionFactor ?? 1);
+      return quantityFromStaRange(input.unit, begin, end, cf);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const floor = (input.reportedApproved ?? 0) + (input.reportedPending ?? 0);
+  return floor > 0 ? floor : 0;
+}
+
 export function reportedLfFromSta(
   beginSta: string,
   endSta: string,

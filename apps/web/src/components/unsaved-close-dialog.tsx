@@ -1,4 +1,5 @@
 import { Loader2, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 
 type UnsavedCloseDialogProps = {
@@ -18,8 +19,9 @@ export function UnsavedCloseDialog({
   onSave,
 }: UnsavedCloseDialogProps) {
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-[3000] flex items-end justify-center bg-black/45 p-4 sm:items-center">
+
+  return createPortal(
+    <div className="fixed inset-0 z-[4000] flex items-end justify-center bg-black/45 p-4 sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
@@ -58,7 +60,8 @@ export function UnsavedCloseDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

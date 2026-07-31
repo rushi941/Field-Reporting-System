@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
 import {
   attachmentUploadMeta,
   normalizeSta,
-  reportedLfFromSta,
+  quantityFromStaRange,
   updateDraftReportSchema,
   validateAttachmentFile,
   validateReportTaskSegments,
@@ -173,7 +173,7 @@ function emptyLoc(defaultSymbol = "", symbolTypes: SymbolTypeOption[] = []): Loc
   };
 }
 
-function calcPreview(seg: StaSeg): string {
+function calcPreview(seg: StaSeg, unit: string): string {
   if (seg.useManualLf) {
     const n = Number(seg.manualLf);
     return Number.isFinite(n) && n > 0 ? n.toLocaleString() : "—";
@@ -181,7 +181,8 @@ function calcPreview(seg: StaSeg): string {
   try {
     const cf = Number(seg.conversionFactor);
     if (!seg.beginSta || !seg.endSta || Number.isNaN(cf)) return "—";
-    return reportedLfFromSta(
+    return quantityFromStaRange(
+      unit,
       normalizeSta(seg.beginSta),
       normalizeSta(seg.endSta),
       cf,
@@ -265,7 +266,7 @@ export function FieldTaskEntryPage() {
   const reportTotal = useMemo(() => {
     if (isSta) {
       return staSegs.reduce((sum, s) => {
-        const preview = calcPreview(s);
+        const preview = calcPreview(s, task?.taskMaster.unit ?? "LF");
         const n = Number(String(preview).replace(/,/g, ""));
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
@@ -755,13 +756,13 @@ export function FieldTaskEntryPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor={`lf-${i}`}>
-                      Calculated LF
+                      Calculated {task.taskMaster.unit}
                     </Label>
                     <Input
                       id={`lf-${i}`}
                       readOnly
                       className={cn(inputClass, "bg-muted font-semibold")}
-                      value={calcPreview(seg)}
+                      value={calcPreview(seg, task.taskMaster.unit)}
                     />
                   </div>
                 </div>

@@ -165,6 +165,7 @@ fieldProjectsRouter.get(
           beginSta: t.beginSta,
           endSta: t.endSta,
           taskMaster: {
+            unit: t.taskMaster.unit,
             formType: t.taskMaster.formType,
             conversionFactor:
               t.taskMaster.conversionFactor != null

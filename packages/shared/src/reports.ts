@@ -3,6 +3,7 @@ import { divisionEnum } from "./projects.js";
 import {
   normalizeSta,
   physicalLfFromSta,
+  quantityFromStaRange,
   reportedLfFromSta,
 } from "./sta.js";
 
@@ -307,7 +308,10 @@ export function validateStaSegmentsCoverage(
 }
 
 /** Resolve quantity fields for persistence */
-export function resolveStaSegment(segment: StaRangeSegmentInput): {
+export function resolveStaSegment(
+  segment: StaRangeSegmentInput,
+  unit: string,
+): {
   beginSta: string;
   endSta: string;
   conversionFactor: number;
@@ -331,18 +335,19 @@ export function resolveStaSegment(segment: StaRangeSegmentInput): {
       entryType: "MANUAL_FOOTAGE",
     };
   }
-  const calculatedLf = reportedLfFromSta(
-    beginSta,
-    endSta,
-    segment.conversionFactor,
-  );
+  const cf = segment.conversionFactor;
+  const finalQuantity = quantityFromStaRange(unit, beginSta, endSta, cf);
+  const calculatedLf =
+    unit.trim().toUpperCase() === "LF"
+      ? finalQuantity
+      : physicalLfFromSta(beginSta, endSta);
   return {
     beginSta,
     endSta,
-    conversionFactor: segment.conversionFactor,
+    conversionFactor: cf,
     calculatedLf,
     manualLf: null,
-    finalQuantity: calculatedLf,
+    finalQuantity,
     quantitySource: "STATION_CALCULATED",
     entryType: "STA_RANGE",
   };

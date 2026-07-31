@@ -262,9 +262,9 @@
   {
     "code": "BI-0034",
     "name": "PAINTED PAVEMENT MARKING MULTI-COMPONENT LIQUID",
-    "unit": "STA",
+    "unit": "SF",
     "division": "PAVEMENT_MARKING",
-    "formType": "STA_RANGE",
+    "formType": "SINGLE_LOCATION",
     "projectTypeCode": "PM",
     "description": "PAINTED PAVEMENT MARKING MULTI-COMPONENT LIQUID",
     "sortOrder": 34
@@ -272,9 +272,9 @@
   {
     "code": "BI-0035",
     "name": "PAINTED PAVEMENT MARKING WATERBORNE OR SOLVENT-BASED",
-    "unit": "STA",
+    "unit": "SF",
     "division": "PAVEMENT_MARKING",
-    "formType": "STA_RANGE",
+    "formType": "SINGLE_LOCATION",
     "projectTypeCode": "PM",
     "description": "PAINTED PAVEMENT MARKING WATERBORNE OR SOLVENT-BASED",
     "sortOrder": 35
@@ -282,9 +282,9 @@
   {
     "code": "BI-0036",
     "name": "PAINTED PAVEMENT MARKINGS DURABLE",
-    "unit": "STA",
+    "unit": "SF",
     "division": "PAVEMENT_MARKING",
-    "formType": "STA_RANGE",
+    "formType": "SINGLE_LOCATION",
     "projectTypeCode": "PM",
     "description": "PAINTED PAVEMENT MARKINGS DURABLE",
     "sortOrder": 36
@@ -292,9 +292,9 @@
   {
     "code": "BI-0037",
     "name": "PAINTED PAVEMENT MARKINGS HIGH-BUILD WATERBORNE",
-    "unit": "STA",
+    "unit": "SF",
     "division": "PAVEMENT_MARKING",
-    "formType": "STA_RANGE",
+    "formType": "SINGLE_LOCATION",
     "projectTypeCode": "PM",
     "description": "PAINTED PAVEMENT MARKINGS HIGH-BUILD WATERBORNE",
     "sortOrder": 37

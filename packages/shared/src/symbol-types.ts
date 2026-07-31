@@ -20,6 +20,77 @@ export function formatSymbolTypeLabel(code: string, name: string): string {
   return `${code} — ${name}`;
 }
 
+/** BI-0034 … BI-0037 — area markings counted by location, not STA span. */
+export function isPaintedPavementMarkingMaster(code: string, name: string): boolean {
+  if (/^BI-003[4-7]$/.test(code.trim().toUpperCase())) return true;
+  const upper = name.toUpperCase();
+  return (
+    upper.includes("PAINTED PAVEMENT MARKING") &&
+    !upper.includes("SYMBOLS") &&
+    !upper.includes("LEGENDS")
+  );
+}
+
+/** Admin Add task — only STA-range line work needs Begin/End STA. */
+export function adminNeedsStaWorkLimits(input: {
+  formType: string;
+  masterCode: string;
+  masterName: string;
+}): boolean {
+  if (input.formType !== "STA_RANGE") return false;
+  return !isPaintedPavementMarkingMaster(input.masterCode, input.masterName);
+}
+
+export type AdminFieldEntryPreview = {
+  title: string;
+  description: string;
+  fields: readonly string[];
+};
+
+/** What the field lead enters when admin does not set STA limits. */
+export function adminFieldEntryPreview(input: {
+  formType: string;
+  division: string;
+  unit: string;
+  masterCode: string;
+  masterName: string;
+}): AdminFieldEntryPreview | null {
+  const useSta = adminNeedsStaWorkLimits(input);
+  if (useSta) return null;
+
+  const unit = input.unit.trim().toUpperCase() || "EA";
+
+  if (
+    input.formType === "SINGLE_LOCATION" &&
+    usesSymbolEntryLayout({ ...input, symbolTypeCount: 1 })
+  ) {
+    return {
+      title: "Field entry",
+      description:
+        "No station limits here — the field lead adds a row for each symbol or sign.",
+      fields: ["Station / location", "Symbol or sign type", `Quantity (${unit})`],
+    };
+  }
+
+  if (isPaintedPavementMarkingMaster(input.masterCode, input.masterName)) {
+    return {
+      title: "Field entry",
+      description:
+        "Marked areas are counted by location — no Begin/End STA on this bid.",
+      fields: ["Station / location", `Area quantity (${unit})`],
+    };
+  }
+
+  if (input.formType !== "SINGLE_LOCATION") return null;
+
+  return {
+    title: "Field entry",
+    description:
+      "Quantities are entered at each location in the field app — no Begin/End STA.",
+    fields: ["Station / location", "Item or description", `Quantity (${unit})`],
+  };
+}
+
 /** Master bids that use symbol-row entry (station + symbol type + qty). */
 export function isSymbolsAndLegendsMaster(code: string, name: string): boolean {
   const upper = name.toUpperCase();

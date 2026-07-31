@@ -707,7 +707,7 @@ export function ProjectsPage() {
           aria-labelledby="project-form-title"
           onSubmit={onSave}
           onClick={(e) => e.stopPropagation()}
-          className="relative z-[2001] flex max-h-[min(94dvh,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:max-h-[90vh]"
+          className="relative z-[2001] flex max-h-[min(94dvh,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:max-h-[90vh]"
         >
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
             <div className="min-w-0">

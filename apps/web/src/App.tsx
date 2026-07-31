@@ -147,34 +147,58 @@ function projectRoutes(base: "system" | "office") {
           <RequirePermission permission="projects.manage"> <ProjectDetailPage /> </RequirePermission>
         }
       />
-      <Route
-        path="project-types"
-        element={
-          <RequirePermission permission="projects.manage"> <ProjectTypesPage /> </RequirePermission>
-        }
-      />
-      <Route
-        path="units"
-        element={
-          <RequirePermission permission="projects.manage"> <UnitsPage /> </RequirePermission>
-        }
-      />
-      <Route
-        path="clients"
-        element={
-          <RequirePermission permission="projects.manage"> <ClientsPage /> </RequirePermission>
-        }
-      />
-      <Route
-        path="bids"
-        element={
-          <RequirePermission permission="projects.manage"> <TasksPage /> </RequirePermission>
-        }
-      />
-      <Route
-        path="tasks"
-        element={<Navigate to="bids" relative="path" replace />}
-      />
+      {base === "system" ? (
+        <>
+          <Route
+            path="project-types"
+            element={
+              <RequirePermission permission="projects.manage">
+                {" "}
+                <ProjectTypesPage />{" "}
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="units"
+            element={
+              <RequirePermission permission="projects.manage">
+                {" "}
+                <UnitsPage />{" "}
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="clients"
+            element={
+              <RequirePermission permission="projects.manage">
+                {" "}
+                <ClientsPage />{" "}
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="bids"
+            element={
+              <RequirePermission permission="projects.manage">
+                {" "}
+                <TasksPage />{" "}
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="tasks"
+            element={<Navigate to="bids" relative="path" replace />}
+          />
+        </>
+      ) : (
+        <>
+          <Route path="project-types" element={<Navigate to="/office" replace />} />
+          <Route path="units" element={<Navigate to="/office" replace />} />
+          <Route path="clients" element={<Navigate to="/office" replace />} />
+          <Route path="bids" element={<Navigate to="/office" replace />} />
+          <Route path="tasks" element={<Navigate to="/office" replace />} />
+        </>
+      )}
       <Route
         path="reports"
         element={
