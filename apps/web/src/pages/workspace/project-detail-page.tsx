@@ -268,20 +268,29 @@ export function ProjectDetailPage() {
     [project],
   );
 
-  const projectFieldLeads = useMemo(() => {
-    const projectLeadIds = new Set(
-      project?.fieldLeadIds ?? project?.fieldLeads.map((fl) => fl.id) ?? [],
-    );
+  /** All field leads on the project — not filtered by task division. */
+  const projectFieldLeads = useMemo((): FieldLeadOpt[] => {
+    if (!project) return [];
+
+    const fromProject = project.fieldLeads;
+    if (fromProject.length > 0) {
+      const byId = new Map(fieldLeads.map((u) => [u.id, u]));
+      return fromProject.map((fl) => {
+        const lookup = byId.get(fl.id);
+        return {
+          id: fl.id,
+          name: fl.name,
+          email: fl.email,
+          division: lookup?.division ?? null,
+        };
+      });
+    }
+
+    const projectLeadIds = new Set(project.fieldLeadIds);
     if (projectLeadIds.size === 0) return [];
 
-    let pool = fieldLeads.filter((u) => projectLeadIds.has(u.id));
-    if (form.division) {
-      pool = pool.filter(
-        (u) => !u.division || u.division === form.division,
-      );
-    }
-    return pool;
-  }, [fieldLeads, project, form.division]);
+    return fieldLeads.filter((u) => projectLeadIds.has(u.id));
+  }, [fieldLeads, project]);
 
   const divisionMasters = useMemo(() => {
     if (!form.division) return [];
@@ -795,7 +804,7 @@ export function ProjectDetailPage() {
                   )}
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Only field persons assigned to this project are listed.
+                  All field persons assigned to this project are listed here.
                 </p>
               </FormField>
             </FormSection>
