@@ -123,8 +123,8 @@ usersRouter.post(
         lastName: body.lastName,
         phone: body.phone ?? null,
         isActive: body.isActive ?? true,
-        division: body.division ?? null,
-        managerId: body.managerId ?? null,
+        division: null,
+        managerId: null,
         crewId: body.crewId ?? null,
         roles: {
           create: body.roles.map((role) => ({ role: role as Role })),
@@ -175,9 +175,12 @@ usersRouter.patch(
           ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
           ...(body.phone !== undefined ? { phone: body.phone } : {}),
           ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
-          ...(body.division !== undefined ? { division: body.division } : {}),
-          ...(body.managerId !== undefined ? { managerId: body.managerId } : {}),
           ...(body.crewId !== undefined ? { crewId: body.crewId } : {}),
+          ...(body.division !== undefined ||
+          body.managerId !== undefined ||
+          body.roles !== undefined
+            ? { division: null, managerId: null }
+            : {}),
           ...(passwordHash ? { passwordHash } : {}),
         },
         include: userInclude,
