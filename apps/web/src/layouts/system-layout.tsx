@@ -206,7 +206,9 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
 
   return (
     <div className="flex min-h-svh bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 lg:block">{sidebar}</div>
+      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+        {sidebar}
+      </div>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">

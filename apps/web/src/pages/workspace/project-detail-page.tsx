@@ -12,6 +12,9 @@ import {
 import {
   adminFieldEntryPreview,
   adminNeedsStaWorkLimits,
+  FORM_TYPE_LABELS,
+  formTypeLabel,
+  isStaFormType,
   projectCreateTaskSchema,
   PROJECT_TASK_IMPORT_HEADERS,
   physicalLfFromSta,
@@ -29,6 +32,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { AdminTableSearch } from "@/components/admin-table-search";
+import { SortableTh } from "@/components/sortable-table-head";
+import { useAdminTable } from "@/hooks/use-admin-table";
 import {
   ModalCloseButton,
   UnsavedCloseDialog,
@@ -119,10 +125,7 @@ const divisionLabels: Record<string, string> = {
   MISCELLANEOUS: "Miscellaneous",
 };
 
-const formLabels: Record<string, string> = {
-  STA_RANGE: "STA Range",
-  SINGLE_LOCATION: "Single Location",
-};
+const formLabels: Record<string, string> = FORM_TYPE_LABELS;
 
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -131,7 +134,7 @@ const emptyTaskForm = {
   division: "",
   masterBidId: "",
   assignedToId: "",
-  formType: "STA_RANGE",
+  formType: "STA_WITH_CF",
   beginSta: "",
   endSta: "",
   description: "",
@@ -217,6 +220,7 @@ export function ProjectDetailPage() {
   const [form, setForm] = useState(emptyTaskForm);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+  const [divisionFilter, setDivisionFilter] = useState("ALL");
 
   function snapshotForm(next: typeof emptyTaskForm) {
     return JSON.stringify(next);
@@ -257,6 +261,45 @@ export function ProjectDetailPage() {
     () => (project ? buildTaskRows(project.tasks) : []),
     [project],
   );
+
+  const divisionFilteredTasks = useMemo(() => {
+    if (divisionFilter === "ALL") return taskRows;
+    return taskRows.filter((row) => row.division === divisionFilter);
+  }, [taskRows, divisionFilter]);
+
+  const taskSortAccessors = useMemo(
+    () => ({
+      wbs: (row: TableRow) => Number(row.wbs),
+      code: (row: TableRow) => row.code,
+      name: (row: TableRow) => row.name,
+      division: (row: TableRow) => row.division,
+      unit: (row: TableRow) => row.unit,
+      formType: (row: TableRow) => row.formType,
+      fieldPerson: (row: TableRow) => row.fieldPerson,
+    }),
+    [],
+  );
+
+  const {
+    searchInput,
+    setSearchInput,
+    sortKey,
+    sortDir,
+    toggleSort,
+    paginated: paginatedTasks,
+    total: filteredTaskTotal,
+    setPage: setTaskTablePage,
+  } = useAdminTable({
+    rows: divisionFilteredTasks,
+    getSearchText: (row) =>
+      `${row.code} ${row.name} ${row.fieldPerson} ${divisionLabels[row.division] ?? row.division}`,
+    sortAccessors: taskSortAccessors,
+    defaultSort: { key: "code", direction: "asc" },
+  });
+
+  useEffect(() => {
+    setTaskTablePage(1);
+  }, [divisionFilter, setTaskTablePage]);
 
   const projectDivisions = useMemo(
     () =>
@@ -375,7 +418,7 @@ export function ProjectDetailPage() {
       division,
       masterBidId: "",
       assignedToId: "",
-      formType: "STA_RANGE",
+      formType: "STA_WITH_CF",
       beginSta: "",
       endSta: "",
     }));
@@ -386,7 +429,7 @@ export function ProjectDetailPage() {
     setForm((f) => ({
       ...f,
       masterBidId: id,
-      formType: master?.formType ?? "STA_RANGE",
+      formType: master?.formType ?? "STA_WITH_CF",
       beginSta: "",
       endSta: "",
     }));
@@ -447,7 +490,7 @@ export function ProjectDetailPage() {
         taskMasterId: form.masterBidId,
         assignedToId: form.assignedToId,
         division: form.division,
-        formType: needsSta ? masterFormType : "SINGLE_LOCATION",
+        formType: needsSta ? masterFormType : "SINGLE_POINT",
         beginSta: needsSta ? form.beginSta.trim() || null : null,
         endSta: needsSta ? form.endSta.trim() || null : null,
         description: form.description.trim() || null,
@@ -536,54 +579,66 @@ export function ProjectDetailPage() {
 
   if (!project) return null;
 
+  const projectMeta = [
+    project.projectType?.name,
+    projectDivisions.map((d) => divisionLabels[d] ?? d).join(", "),
+    project.location,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            to={`${base}/projects`}
-            className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3.5" /> Projects
-          </Link>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+        <Link
+          to={`${base}/projects`}
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          <span className="hidden sm:inline">Projects</span>
+        </Link>
+
+        <div
+          className="hidden h-5 w-px shrink-0 bg-border md:block"
+          aria-hidden
+        />
+
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {project.jobNumber}
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+          </span>
+          <h1 className="min-w-0 truncate text-base font-semibold tracking-tight sm:text-lg">
             {project.name}
           </h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              {[
-                project.projectType?.name,
-                projectDivisions
-                  .map((d) => divisionLabels[d] ?? d)
-                  .join(", "),
-                project.location,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            <ProjectStatusBadge status={project.status} />
-          </div>
+          <ProjectStatusBadge status={project.status} />
+          {projectMeta ? (
+            <span
+              className="hidden min-w-0 truncate text-xs text-muted-foreground lg:inline"
+              title={projectMeta}
+            >
+              · {projectMeta}
+            </span>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {canViewReports && isProjectAdminWorkspace && (
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" size="sm">
               <Link to={`${base}/reports/history?projectId=${project.id}`}>
                 Approval history
               </Link>
             </Button>
           )}
           {canViewReports && (
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" size="sm">
               <Link to={`${base}/reports/${project.id}`}>Field reports</Link>
             </Button>
           )}
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="size-4" /> Import tasks
           </Button>
           <Button
+            size="sm"
             className="bg-asphalt-mid text-white hover:bg-asphalt"
             onClick={openCreate}
           >
@@ -593,24 +648,93 @@ export function ProjectDetailPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between bg-muted/40 px-2 py-1">
-          <h2 className="text-sm font-semibold">Project tasks</h2>
-          <span className="text-xs text-muted-foreground">
-            {project.taskIds.length} items
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+          <h2 className="shrink-0 text-sm font-semibold">Project tasks</h2>
+          <AdminTableSearch
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search tasks…"
+            className="min-w-[10rem] max-w-md flex-1"
+          />
+          <select
+            className={cn(
+              selectClass,
+              "h-9 w-auto min-w-[9.5rem] shrink-0 px-2.5 text-sm",
+            )}
+            value={divisionFilter}
+            onChange={(e) => setDivisionFilter(e.target.value)}
+          >
+            <option value="ALL">All divisions</option>
+            {Object.entries(divisionLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filteredTaskTotal} items
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="border-b bg-muted/50 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="w-20 px-2 py-1">WBS</th>
-                <th className="w-28 px-2 py-1">Master code</th>
-                <th className="px-2 py-1">Master name</th>
-                <th className="w-36 px-2 py-1">Division</th>
-                <th className="w-20 px-2 py-1">Unit</th>
-                <th className="w-28 px-2 py-1">Form</th>
+                <SortableTh
+                  label="WBS"
+                  sortKey="wbs"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-20"
+                />
+                <SortableTh
+                  label="Master code"
+                  sortKey="code"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-28"
+                />
+                <SortableTh
+                  label="Master name"
+                  sortKey="name"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="Division"
+                  sortKey="division"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-36"
+                />
+                <SortableTh
+                  label="Unit"
+                  sortKey="unit"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-20"
+                />
+                <SortableTh
+                  label="Form"
+                  sortKey="formType"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-28"
+                />
                 <th className="w-36 px-2 py-1">Work limits</th>
-                <th className="w-36 px-2 py-1">Field person</th>
+                <SortableTh
+                  label="Field person"
+                  sortKey="fieldPerson"
+                  activeSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="w-36"
+                />
                 <th className="w-16 px-2 py-1" />
               </tr>
             </thead>
@@ -626,7 +750,17 @@ export function ProjectDetailPage() {
                   </td>
                 </tr>
               )}
-              {taskRows.map((row) => (
+              {taskRows.length > 0 && filteredTaskTotal === 0 && (
+                <tr>
+                  <td
+                    colSpan={9}
+                    className="px-2 py-4 text-center text-sm text-muted-foreground"
+                  >
+                    No tasks match your search or filter.
+                  </td>
+                </tr>
+              )}
+              {paginatedTasks.items.map((row) => (
                 <tr
                   key={row.taskMasterId}
                   className="border-b last:border-0 hover:bg-muted/10"
@@ -644,7 +778,7 @@ export function ProjectDetailPage() {
                     {formLabels[row.formType] ?? row.formType}
                   </td>
                   <td className="px-2 py-1 font-mono text-[11px]">
-                    {row.formType === "STA_RANGE" &&
+                    {isStaFormType(row.formType) &&
                     adminNeedsStaWorkLimits({
                       formType: row.formType,
                       masterCode: row.code,

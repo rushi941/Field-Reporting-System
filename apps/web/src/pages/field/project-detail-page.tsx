@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Calendar, Loader2, Users } from "lucide-react";
-import { updateDraftReportSchema } from "@frs/shared";
+import { formTypeLabel, updateDraftReportSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
 import { markFieldTasksKnown } from "@/lib/activity-seen";
@@ -65,14 +65,9 @@ type FieldReport = {
   lineItems: { projectTaskId: string; finalQuantity: number }[];
 };
 
-const formLabels: Record<string, string> = {
-  STA_RANGE: "STA Range",
-  SINGLE_LOCATION: "Single Loc.",
-};
-
 function taskFormLabel(task: FieldTask): string {
   if (task.usesSymbolEntry) return "Symbols";
-  return formLabels[task.taskMaster.formType] ?? task.taskMaster.formType;
+  return formTypeLabel(task.taskMaster.formType);
 }
 
 function todayIso() {

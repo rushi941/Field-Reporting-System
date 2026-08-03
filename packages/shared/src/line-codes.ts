@@ -14,6 +14,8 @@
  * Default catalog CF uses 4" billing basis unless overridden.
  */
 
+import type { BidItemFormType } from "./form-types.js";
+
 export const LINE_WIDTHS = [4, 6, 10, 24] as const;
 export type LineWidth = (typeof LINE_WIDTHS)[number];
 
@@ -45,7 +47,7 @@ export type LineTypeDef = {
   cfByWidth?: Partial<Record<LineWidth, number>>;
   /** Which widths to generate */
   widths: LineWidth[];
-  formType?: "STA_RANGE" | "SINGLE_LOCATION";
+  formType?: BidItemFormType;
   sortOrder: number;
 };
 
@@ -291,7 +293,7 @@ export const pavementLineTypes: LineTypeDef[] = [
     basisInches: 4,
     cfByWidth: { 24: 6 },
     widths: [4, 6, 10, 24],
-    formType: "STA_RANGE",
+    formType: "STA_WITH_CF",
     sortOrder: 170,
   },
   {
@@ -386,7 +388,7 @@ export type GeneratedLineBid = {
   name: string;
   description: string;
   unit: "LF";
-  formType: "STA_RANGE" | "SINGLE_LOCATION";
+  formType: BidItemFormType;
   projectTypeCode: "PM";
   division: "PAVEMENT_MARKING";
   parentCode: string;
@@ -404,7 +406,7 @@ export function buildPavementMarkingBidCatalog(): {
     name: string;
     description: string;
     unit: "LF";
-    formType: "STA_RANGE" | "SINGLE_LOCATION";
+    formType: BidItemFormType;
     projectTypeCode: "PM";
     division: "PAVEMENT_MARKING";
     sortOrder: number;
@@ -416,7 +418,7 @@ export function buildPavementMarkingBidCatalog(): {
     name: string;
     description: string;
     unit: "LF";
-    formType: "STA_RANGE" | "SINGLE_LOCATION";
+    formType: BidItemFormType;
     projectTypeCode: "PM";
     division: "PAVEMENT_MARKING";
     sortOrder: number;
@@ -436,7 +438,7 @@ export function buildPavementMarkingBidCatalog(): {
         name: masterName,
         description: `Master bid — ${def.name}, color ${colorLabel}. Sub-bids are width variants with auto line codes.`,
         unit: "LF",
-        formType: def.formType ?? "STA_RANGE",
+        formType: def.formType ?? "STA_WITH_CF",
         projectTypeCode: "PM",
         division: "PAVEMENT_MARKING",
         sortOrder: def.sortOrder,
@@ -453,7 +455,7 @@ export function buildPavementMarkingBidCatalog(): {
         name: `${def.name} ${colorLabel} ${width}"`,
         description: `Line code ${code}. CF ${cf.toFixed(2)}. Reported LF = (End STA − Begin STA) × 100 × ${cf.toFixed(2)}.`,
         unit: "LF",
-        formType: def.formType ?? "STA_RANGE",
+        formType: def.formType ?? "STA_WITH_CF",
         projectTypeCode: "PM",
         division: "PAVEMENT_MARKING",
         parentCode: masterCode,

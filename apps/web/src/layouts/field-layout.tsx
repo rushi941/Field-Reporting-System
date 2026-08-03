@@ -128,10 +128,12 @@ export function FieldLayout() {
   );
 
   return (
-    <div className="flex min-h-svh overflow-x-hidden bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 lg:block">{sidebar}</div>
+    <div className="flex min-h-svh overflow-x-hidden bg-background lg:h-svh lg:overflow-hidden">
+      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+        {sidebar}
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-hidden">
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:h-14 lg:gap-3 lg:bg-card/95 lg:px-4 lg:pt-0">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt lg:hidden">
@@ -169,7 +171,7 @@ export function FieldLayout() {
 
         <main
           className={cn(
-            "flex-1 px-3 lg:px-4",
+            "flex-1 px-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-4",
             showBottomNav
               ? "pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:py-5"
               : "pt-2 pb-4 lg:pt-3 lg:pb-5",

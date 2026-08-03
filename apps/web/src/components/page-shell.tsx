@@ -56,7 +56,7 @@ export function InitialListLoad({
 
 function DelayedFallback() {
   return (
-    <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+    <div className="flex min-h-[8rem] flex-col items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
       <Loader2 className="size-5 animate-spin text-sky-800" />
       Loading page…
     </div>

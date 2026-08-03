@@ -441,25 +441,22 @@ export function TasksPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Masters
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+        <div className="flex shrink-0 items-baseline gap-2">
+          <h1 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
             Bid master
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Excel import adds new master bids. Existing items and sub-bids are kept.
-            Add sub-bids under each master for line
-            codes, color, width, and conversion factor.
-          </p>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            Masters
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
+
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="size-4" /> Import Excel
           </Button>
           <Button
+            size="sm"
             className="bg-asphalt-mid text-white hover:bg-asphalt"
             onClick={openCreateMaster}
           >
@@ -468,32 +465,38 @@ export function TasksPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <AdminTableSearch
-          value={searchInput}
-          onChange={setSearchInput}
-          placeholder="Search bid items…"
-        />
-        <select
-          className={cn(selectClass, "max-w-xs")}
-          value={divisionFilter}
-          onChange={(e) => setDivisionFilter(e.target.value)}
-        >
-          <option value="ALL">All divisions</option>
-          {Object.entries(divisionLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {showFullPageLoader(loading, bids.length > 0) ? (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading…
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+            <AdminTableSearch
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search bid items…"
+              className="min-w-[10rem] max-w-md flex-1"
+            />
+            <select
+              className={cn(
+                selectClass,
+                "h-9 w-auto min-w-[9.5rem] shrink-0 px-2.5 text-sm",
+              )}
+              value={divisionFilter}
+              onChange={(e) => setDivisionFilter(e.target.value)}
+            >
+              <option value="ALL">All divisions</option>
+              {Object.entries(divisionLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {filteredTotal} items
+            </span>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px] text-left text-sm">
               <thead className="border-b border-border bg-muted/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">

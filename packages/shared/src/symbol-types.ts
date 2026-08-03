@@ -1,4 +1,9 @@
 /** Standard pavement symbol types for field entry (Painted Symbols & Legends). */
+import {
+  isQuantityOnlyFormType,
+  isSinglePointFormType,
+  isStaFormType,
+} from "./form-types.js";
 export const SYMBOL_TYPE_CATALOG = [
   { code: "LTA", name: "Left Turn Arrow" },
   { code: "RTA", name: "Right Turn Arrow" },
@@ -37,7 +42,7 @@ export function adminNeedsStaWorkLimits(input: {
   masterCode: string;
   masterName: string;
 }): boolean {
-  if (input.formType !== "STA_RANGE") return false;
+  if (!isStaFormType(input.formType)) return false;
   return !isPaintedPavementMarkingMaster(input.masterCode, input.masterName);
 }
 
@@ -61,7 +66,7 @@ export function adminFieldEntryPreview(input: {
   const unit = input.unit.trim().toUpperCase() || "EA";
 
   if (
-    input.formType === "SINGLE_LOCATION" &&
+    isSinglePointFormType(input.formType) &&
     usesSymbolEntryLayout({ ...input, symbolTypeCount: 1 })
   ) {
     return {
@@ -90,7 +95,15 @@ export function adminFieldEntryPreview(input: {
     };
   }
 
-  if (input.formType !== "SINGLE_LOCATION") return null;
+  if (isQuantityOnlyFormType(input.formType)) {
+    return {
+      title: "Field entry",
+      description: "Enter daily quantity — no location required.",
+      fields: [`Quantity (${unit})`, "Notes (optional)"],
+    };
+  }
+
+  if (input.formType !== "SINGLE_POINT" && !isSinglePointFormType(input.formType)) return null;
 
   return {
     title: "Field entry",
@@ -126,7 +139,7 @@ export function isLocationOnlyFieldEntry(input: {
   masterCode: string;
   masterName: string;
 }): boolean {
-  if (input.formType !== "SINGLE_LOCATION") return false;
+  if (!isSinglePointFormType(input.formType)) return false;
   if (isPaintedPavementMarkingMaster(input.masterCode, input.masterName)) {
     return true;
   }
@@ -146,7 +159,7 @@ export function usesSymbolEntryLayout(input: {
   masterName: string;
   symbolTypeCount?: number;
 }): boolean {
-  if (input.formType !== "SINGLE_LOCATION") return false;
+  if (!isSinglePointFormType(input.formType)) return false;
   if (isLocationOnlyFieldEntry(input)) return false;
   if (isSymbolsAndLegendsMaster(input.masterCode, input.masterName)) return true;
   if (isPreCutSymbolsMaster(input.masterCode, input.masterName)) return true;

@@ -38,8 +38,10 @@ enum BidItemStatus {
 }
 
 enum BidItemFormType {
-  STA_RANGE
-  SINGLE_LOCATION
+  STA_WITH_CF
+  STA_NO_CF
+  SINGLE_POINT
+  QUANTITY_ONLY
 }
 
 enum ReportStatus {
@@ -249,7 +251,7 @@ model TaskMaster {
   name              String
   description       String?
   unit              String
-  formType          BidItemFormType @default(STA_RANGE)
+  formType          BidItemFormType @default(STA_WITH_CF)
   projectTypeId     String?
   projectType       ProjectType?    @relation(fields: [projectTypeId], references: [id])
   division          Division?
@@ -474,6 +476,10 @@ model ReportLineItem {
   finalQuantity       Decimal        @db.Decimal(14, 4)
   locationDescription String?
   symbolItemType      String?
+  /// Pavement line type code e.g. ELW4, DCY4 (stored at submit)
+  lineTypeCode        String?
+  /// Road side: L or R
+  side                String?
   sortOrder           Int            @default(0)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt

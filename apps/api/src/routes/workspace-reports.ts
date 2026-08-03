@@ -14,7 +14,11 @@ import {
   loadWorkspaceProjectForExport,
   loadWorkspaceReportsForExport,
 } from "../lib/workspace-reports-csv.js";
-import { sendCsv } from "../lib/csv-utils.js";
+import {
+  fetchTaskLedger,
+  groupLedgerRows,
+} from "../lib/task-ledger.js";
+import { fetchTaskProgressMap } from "../lib/task-progress.js";
 
 export const workspaceReportsRouter = Router();
 
@@ -336,6 +340,8 @@ workspaceReportsRouter.get(
           select: {
             id: true,
             division: true,
+            beginSta: true,
+            endSta: true,
             assignedTo: {
               select: { id: true, firstName: true, lastName: true, email: true },
             },
@@ -346,14 +352,50 @@ workspaceReportsRouter.get(
                 name: true,
                 unit: true,
                 formType: true,
+                conversionFactor: true,
               },
             },
           },
           orderBy: { sortOrder: "asc" },
         },
+        route: { select: { beginSta: true, endSta: true } },
       },
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+
+    const taskIds = project.tasks.map((t) => t.id);
+    const routesByProjectId = new Map([
+      [
+        project.id,
+        project.route
+          ? {
+              beginSta: project.route.beginSta,
+              endSta: project.route.endSta,
+            }
+          : null,
+      ],
+    ]);
+    const projectIdForTask = new Map(
+      project.tasks.map((t) => [t.id, project.id] as const),
+    );
+    const progressMap = await fetchTaskProgressMap(
+      taskIds,
+      project.tasks.map((t) => ({
+        id: t.id,
+        beginSta: t.beginSta,
+        endSta: t.endSta,
+        taskMaster: {
+          unit: t.taskMaster.unit,
+          formType: t.taskMaster.formType,
+          conversionFactor:
+            t.taskMaster.conversionFactor != null
+              ? Number(t.taskMaster.conversionFactor)
+              : null,
+        },
+      })),
+      routesByProjectId,
+      projectIdForTask,
+    );
 
     const reports = await prisma.report.findMany({
       where: { projectId },
@@ -417,7 +459,19 @@ workspaceReportsRouter.get(
               email: t.assignedTo.email,
             }
           : null,
-        taskMaster: t.taskMaster,
+        taskMaster: {
+          ...t.taskMaster,
+          conversionFactor:
+            t.taskMaster.conversionFactor != null
+              ? Number(t.taskMaster.conversionFactor)
+              : null,
+        },
+        progress: progressMap.get(t.id) ?? {
+          estimated: 0,
+          approved: 0,
+          pending: 0,
+          approvedPct: 0,
+        },
       })),
       statusCounts,
       reports: reports.map((r) => mapReportRow(r)),
@@ -541,6 +595,59 @@ workspaceReportsRouter.get(
     if (!report) throw new AppError("NOT_FOUND", "Report not found", 404);
 
     res.json({ report: mapReportDetail(report) });
+  }),
+);
+
+/** E026-style bid item ledger with running to-date totals */
+workspaceReportsRouter.get(
+  "/projects/:projectId/tasks/:projectTaskId/ledger",
+  requirePermission("reports.view_project_history"),
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.projectId);
+    const projectTaskId = routeParam(req.params.projectTaskId);
+    const scope = workspaceProjectScopeWhere(req.user!.id, req.user!.roles);
+
+    const task = await prisma.projectTask.findFirst({
+      where: { id: projectTaskId, projectId, project: scope, isActive: true },
+      include: {
+        taskMaster: {
+          select: { code: true, name: true, unit: true, formType: true },
+        },
+        project: { select: { jobNumber: true, name: true } },
+      },
+    });
+    if (!task) throw new AppError("NOT_FOUND", "Task not found", 404);
+
+    const rawStatus = String(req.query.status ?? "all").toLowerCase();
+    const statusFilter =
+      rawStatus === "approved" || rawStatus === "pending"
+        ? rawStatus
+        : "all";
+    const view = String(req.query.view ?? "flat").toLowerCase() === "grouped"
+      ? "grouped"
+      : "flat";
+
+    const { unit, rows } = await fetchTaskLedger({
+      projectTaskId,
+      statusFilter,
+    });
+
+    res.json({
+      project: {
+        id: projectId,
+        jobNumber: task.project.jobNumber,
+        name: task.project.name,
+      },
+      task: {
+        id: task.id,
+        taskMaster: task.taskMaster,
+      },
+      unit,
+      view,
+      statusFilter,
+      flat: rows,
+      grouped: view === "grouped" ? groupLedgerRows(rows) : undefined,
+    });
   }),
 );
 

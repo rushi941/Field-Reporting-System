@@ -130,7 +130,9 @@ export function ApprovalsLayout() {
 
   return (
     <div className="flex min-h-svh overflow-x-hidden bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 lg:block">{sidebar}</div>
+      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+        {sidebar}
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:h-14 lg:gap-3 lg:bg-card/95 lg:px-4 lg:pt-0">

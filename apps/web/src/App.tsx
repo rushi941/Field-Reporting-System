@@ -66,6 +66,11 @@ const WorkspaceReportsDetailPage = lazy(() =>
     default: m.WorkspaceReportsDetailPage,
   })),
 );
+const TaskLedgerPage = lazy(() =>
+  import("@/pages/workspace/task-ledger-page").then((m) => ({
+    default: m.TaskLedgerPage,
+  })),
+);
 const WorkspaceReportViewPage = lazy(() =>
   import("@/pages/workspace/report-view-page").then((m) => ({
     default: m.WorkspaceReportViewPage,
@@ -216,6 +221,15 @@ function projectRoutes(base: "system" | "office") {
           ) : (
             <Navigate to="/system/approvals" replace />
           )
+        }
+      />
+      <Route
+        path="reports/:projectId/tasks/:taskId"
+        element={
+          <RequirePermission permission="reports.view_project_history">
+            {" "}
+            <TaskLedgerPage base={base} />{" "}
+          </RequirePermission>
         }
       />
       <Route

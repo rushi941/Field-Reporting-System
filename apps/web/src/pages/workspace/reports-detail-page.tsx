@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
-import { frdStatusLabels } from "@frs/shared";
+import { frdStatusLabels, formTypeLabel } from "@frs/shared";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { workspaceReportsExportPath } from "@/lib/billing-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
+import { TaskProgressBar } from "@/components/task-progress-bar";
 import { useAdminTable } from "@/hooks/use-admin-table";
 
 type ProjectInfo = {
@@ -36,6 +37,12 @@ type TaskRow = {
     name: string;
     unit: string;
     formType: string;
+  };
+  progress: {
+    estimated: number;
+    approved: number;
+    pending: number;
+    approvedPct: number;
   };
 };
 
@@ -273,37 +280,37 @@ export function WorkspaceReportsDetailPage({
               onChange={tasksTable.setSearchInput}
               placeholder="Search tasks…"
             />
-          <div className="hidden overflow-hidden rounded-lg border md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
-                <tr>
-                  <SortableTh label="Code" sortKey="code" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
-                  <SortableTh label="Task" sortKey="name" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
-                  <SortableTh label="Unit" sortKey="unit" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
-                  <SortableTh label="Field lead" sortKey="lead" activeSortKey={tasksTable.sortKey} sortDir={tasksTable.sortDir} onSort={tasksTable.toggleSort} />
-                </tr>
-              </thead>
-              <tbody>
-                {tasksTable.total === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-2 py-4 text-center text-sm text-muted-foreground">
-                      No tasks match your search.
-                    </td>
-                  </tr>
-                )}
-                {tasksTable.paginated.items.map((t) => (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="px-2 py-1 font-mono text-xs">{t.taskMaster.code}</td>
-                    <td className="px-2 py-1">{t.taskMaster.name}</td>
-                    <td className="px-2 py-1">{t.taskMaster.unit}</td>
-                    <td className="px-2 py-1 text-xs">
-                      {t.assignedTo?.name ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {tasksTable.paginated.items.map((t) => (
+                <div
+                  key={t.id}
+                  className="space-y-3 rounded-lg border bg-card p-3 shadow-sm"
+                >
+                  <TaskProgressBar
+                    code={t.taskMaster.code}
+                    name={t.taskMaster.name}
+                    formLabel={formTypeLabel(t.taskMaster.formType)}
+                    unit={t.taskMaster.unit}
+                    estimated={t.progress.estimated}
+                    approved={t.progress.approved}
+                    pending={t.progress.pending}
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Field lead: {t.assignedTo?.name ?? "—"}</span>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/${base}/reports/${project.id}/tasks/${t.id}`}>
+                        View ledger (E026)
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {tasksTable.total === 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                No tasks match your search.
+              </p>
+            )}
           </>
         )}
       </section>

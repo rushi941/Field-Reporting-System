@@ -1,11 +1,38 @@
 import { z } from "zod";
 import { divisionEnum } from "./projects.js";
 import {
+  isQuantityOnlyFormType,
+  isSinglePointFormType,
+  isStaFormType,
+  isStaNoCf,
+  isStaWithCf,
+  lineSideEnum,
+  normalizeFormType,
+  type BidItemFormType,
+} from "./form-types.js";
+import {
   normalizeSta,
+  parseStaToDecimal,
   physicalLfFromSta,
   quantityFromStaRange,
   reportedLfFromSta,
+  staRangesOverlap,
 } from "./sta.js";
+
+export {
+  bidItemFormTypeEnum,
+  normalizeFormType,
+  isStaFormType,
+  isStaWithCf,
+  isStaNoCf,
+  isSinglePointFormType,
+  isQuantityOnlyFormType,
+  formTypeLabel,
+  inferFormType,
+  lineSideEnum,
+  type BidItemFormType,
+  type LineSide,
+} from "./form-types.js";
 
 export const reportStatusEnum = z.enum([
   "DRAFT",
@@ -81,6 +108,8 @@ export const staRangeSegmentSchema = z
     conversionFactor: z.number().nonnegative(),
     useManualLf: z.boolean().optional().default(false),
     manualLf: z.number().nonnegative().optional().nullable(),
+    lineTypeCode: z.string().max(40).optional().nullable(),
+    side: lineSideEnum.optional().nullable(),
   })
   .superRefine((val, ctx) => {
     try {
@@ -114,6 +143,11 @@ export const staRangeSegmentSchema = z
       }
     }
   });
+
+export const quantityOnlySegmentSchema = z.object({
+  quantity: z.number().positive(),
+  notes: z.string().max(500).optional().nullable(),
+});
 
 export const singleLocationSegmentSchema = z.object({
   locationDescription: z.string().min(1).max(300),
@@ -151,6 +185,7 @@ export type StaRangeSegmentInput = z.infer<typeof staRangeSegmentSchema>;
 export type SingleLocationSegmentInput = z.infer<
   typeof singleLocationSegmentSchema
 >;
+export type QuantityOnlySegmentInput = z.infer<typeof quantityOnlySegmentSchema>;
 export type UpsertDraftReportInput = z.infer<typeof upsertDraftReportSchema>;
 
 /** Per-row field errors keyed by segment index → field name → message */
@@ -217,12 +252,15 @@ function zodPathErrors(err: z.ZodError): Record<string, string> {
  * Used by field UI before PUT and mirrors API validation.
  */
 export function validateReportTaskSegments(
-  formType: "STA_RANGE" | "SINGLE_LOCATION",
+  formType: string,
   segments: unknown[],
 ):
   | {
       success: true;
-      segments: StaRangeSegmentInput[] | SingleLocationSegmentInput[];
+      segments:
+        | StaRangeSegmentInput[]
+        | SingleLocationSegmentInput[]
+        | QuantityOnlySegmentInput[];
     }
   | { success: false; errors: SegmentFieldErrors; message: string } {
   if (!segments.length) {
@@ -233,13 +271,19 @@ export function validateReportTaskSegments(
     };
   }
 
+  const normalized = normalizeFormType(formType);
   const errors: SegmentFieldErrors = {};
-  const parsed: (StaRangeSegmentInput | SingleLocationSegmentInput)[] = [];
+  const parsed: (
+    | StaRangeSegmentInput
+    | SingleLocationSegmentInput
+    | QuantityOnlySegmentInput
+  )[] = [];
 
   segments.forEach((seg, i) => {
-    const result =
-      formType === "STA_RANGE"
-        ? staRangeSegmentSchema.safeParse(seg)
+    const result = isStaFormType(normalized)
+      ? staRangeSegmentSchema.safeParse(seg)
+      : isQuantityOnlyFormType(normalized)
+        ? quantityOnlySegmentSchema.safeParse(seg)
         : singleLocationSegmentSchema.safeParse(seg);
     if (!result.success) {
       errors[i] = zodPathErrors(result.error);
@@ -256,25 +300,22 @@ export function validateReportTaskSegments(
     };
   }
 
-  if (formType === "STA_RANGE") {
-    return {
-      success: true,
-      segments: parsed as StaRangeSegmentInput[],
-    };
+  if (isStaFormType(normalized)) {
+    return { success: true, segments: parsed as StaRangeSegmentInput[] };
   }
-  return {
-    success: true,
-    segments: parsed as SingleLocationSegmentInput[],
-  };
+  if (isQuantityOnlyFormType(normalized)) {
+    return { success: true, segments: parsed as QuantityOnlySegmentInput[] };
+  }
+  return { success: true, segments: parsed as SingleLocationSegmentInput[] };
 }
 
 export type StaRangePair = { beginSta: string; endSta: string };
 
-/** Validate STA segment format only (no bounds, overlap, or direction checks). */
+/** Validate STA segments: format, overlap within submission, overlap with completed, bounds. */
 export function validateStaSegmentsCoverage(
   segments: StaRangePair[],
-  _completed: StaRangePair[],
-  _projectBounds?: StaRangePair | null,
+  completed: StaRangePair[],
+  projectBounds?: StaRangePair | null,
 ):
   | { success: true }
   | { success: false; errors: SegmentFieldErrors; message: string } {
@@ -288,6 +329,7 @@ export function validateStaSegmentsCoverage(
     try {
       normalizeSta(seg.beginSta);
       normalizeSta(seg.endSta);
+      physicalLfFromSta(seg.beginSta, seg.endSta);
     } catch (err) {
       errors[i] = {
         beginSta:
@@ -301,6 +343,73 @@ export function validateStaSegmentsCoverage(
       success: false,
       errors,
       message: "Fix the highlighted station fields",
+    };
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      const a = segments[i]!;
+      const b = segments[j]!;
+      if (
+        staRangesOverlap(a.beginSta, a.endSta, b.beginSta, b.endSta)
+      ) {
+        errors[i] = {
+          ...(errors[i] ?? {}),
+          beginSta: "Overlaps another row in this submission",
+        };
+        errors[j] = {
+          ...(errors[j] ?? {}),
+          beginSta: "Overlaps another row in this submission",
+        };
+      }
+    }
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]!;
+    for (const done of completed) {
+      if (
+        staRangesOverlap(
+          seg.beginSta,
+          seg.endSta,
+          done.beginSta,
+          done.endSta,
+        )
+      ) {
+        errors[i] = {
+          ...(errors[i] ?? {}),
+          beginSta: "Overlaps a station range already submitted on this task",
+        };
+        break;
+      }
+    }
+  }
+
+  if (projectBounds?.beginSta && projectBounds?.endSta) {
+    const lo = parseStaToDecimal(projectBounds.beginSta);
+    const hi = parseStaToDecimal(projectBounds.endSta);
+    const minB = Math.min(lo, hi);
+    const maxB = Math.max(lo, hi);
+
+    segments.forEach((seg, i) => {
+      const b0 = parseStaToDecimal(seg.beginSta);
+      const b1 = parseStaToDecimal(seg.endSta);
+      const segLo = Math.min(b0, b1);
+      const segHi = Math.max(b0, b1);
+      if (segLo < minB || segHi > maxB) {
+        errors[i] = {
+          ...(errors[i] ?? {}),
+          endSta: `Must stay within ${projectBounds.beginSta} – ${projectBounds.endSta}`,
+        };
+      }
+    });
+  }
+
+  if (Object.keys(errors).length) {
+    return {
+      success: false,
+      errors,
+      message: "Fix station overlap or limits",
     };
   }
 
@@ -320,9 +429,13 @@ export function resolveStaSegment(
   finalQuantity: number;
   quantitySource: "STATION_CALCULATED" | "MANUAL";
   entryType: "STA_RANGE" | "MANUAL_FOOTAGE";
+  lineTypeCode: string | null;
+  side: string | null;
 } {
   const beginSta = normalizeSta(segment.beginSta);
   const endSta = normalizeSta(segment.endSta);
+  const lineTypeCode = segment.lineTypeCode?.trim() || null;
+  const side = segment.side ?? null;
   if (segment.useManualLf && segment.manualLf != null) {
     return {
       beginSta,
@@ -333,6 +446,8 @@ export function resolveStaSegment(
       finalQuantity: segment.manualLf,
       quantitySource: "MANUAL",
       entryType: "MANUAL_FOOTAGE",
+      lineTypeCode,
+      side,
     };
   }
   const cf = segment.conversionFactor;
@@ -350,6 +465,8 @@ export function resolveStaSegment(
     finalQuantity,
     quantitySource: "STATION_CALCULATED",
     entryType: "STA_RANGE",
+    lineTypeCode,
+    side,
   };
 }
 

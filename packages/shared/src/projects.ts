@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bidItemFormTypeEnum, isStaFormType } from "./form-types.js";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
 import { normalizeSta, physicalLfFromSta } from "./sta.js";
 
@@ -10,7 +11,8 @@ export const divisionEnum = z.enum([
 ]);
 
 export const projectStatusEnum = z.enum(["ACTIVE", "INACTIVE", "COMPLETED"]);
-export const formTypeEnum = z.enum(["STA_RANGE", "SINGLE_LOCATION"]);
+
+export const formTypeEnum = bidItemFormTypeEnum;
 
 export const projectTypeSchema = z.object({
   code: z.string().min(1).max(32),
@@ -28,7 +30,7 @@ export const taskMasterSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(500).optional().nullable(),
   unit: z.string().min(1).max(20),
-  formType: formTypeEnum.optional().default("STA_RANGE"),
+  formType: formTypeEnum.optional().default("STA_WITH_CF"),
   projectTypeId: z.string().optional().nullable(),
   parentId: z.string().optional().nullable(),
   division: divisionEnum.optional().nullable(),
@@ -105,7 +107,7 @@ export const projectCreateTaskSchema = z
     name: z.string().min(1).max(200).optional(),
     code: z.string().min(1).max(40).optional(),
     unit: z.string().min(1).max(20).optional().default("LF"),
-    formType: formTypeEnum.optional().default("STA_RANGE"),
+    formType: formTypeEnum.optional().default("STA_WITH_CF"),
     division: divisionEnum.optional(),
     color: z.string().max(40).optional().nullable(),
     widthInches: z.number().int().positive().optional().nullable(),
@@ -132,7 +134,7 @@ export const projectCreateTaskSchema = z
         });
       }
     }
-    if (val.formType !== "STA_RANGE") return;
+    if (!isStaFormType(val.formType)) return;
     if (!val.beginSta?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -178,7 +180,7 @@ export const projectTaskImportRowSchema = z
     code: z.string().trim().max(40).optional(),
     name: z.string().trim().max(200).optional(),
     unit: z.string().trim().min(1).max(20).optional().default("LF"),
-    formType: formTypeEnum.optional().default("STA_RANGE"),
+    formType: formTypeEnum.optional().default("STA_WITH_CF"),
     division: divisionEnum.optional(),
     color: z.string().trim().max(40).optional().nullable(),
     widthInches: z.number().int().positive().optional().nullable(),
@@ -212,7 +214,7 @@ export const projectTaskImportRowSchema = z
         });
       }
     }
-    if (val.formType !== "STA_RANGE") return;
+    if (!isStaFormType(val.formType)) return;
     if (!val.beginSta?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -281,7 +283,7 @@ export function normalizeProjectTaskImportRow(
   const widthRaw = pick("widthInches", "width_inches", "width");
   const cfRaw = pick("conversionFactor", "conversion_factor", "cf");
   const division = pick("division");
-  const formType = (pick("formType", "form_type") || "STA_RANGE").toUpperCase();
+  const formType = (pick("formType", "form_type") || "STA_WITH_CF").toUpperCase();
 
   return {
     masterBidCode: pick("masterBidCode", "master_bid_code", "masterCode", "master_code"),
@@ -334,7 +336,7 @@ export const taskImportRowSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   unit: z.string().min(1),
-  formType: formTypeEnum.optional().default("STA_RANGE"),
+  formType: formTypeEnum.optional().default("STA_WITH_CF"),
   projectTypeCode: z.string().optional().nullable(),
   parentCode: z.string().optional().nullable(),
   division: divisionEnum.optional().nullable(),
@@ -396,7 +398,7 @@ export type SeedTaskMaster = {
   code: string;
   name: string;
   unit: string;
-  formType: "STA_RANGE" | "SINGLE_LOCATION";
+  formType: z.infer<typeof formTypeEnum>;
   projectTypeCode: string;
   division: "PAVEMENT_MARKING" | "TRAFFIC_CONTROL" | "PERMANENT_SIGNS";
   description: string;

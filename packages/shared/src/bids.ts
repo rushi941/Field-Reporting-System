@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { divisionEnum } from "./projects.js";
+import { inferFormType } from "./form-types.js";
 
 export const BID_IMPORT_HEADERS = [
   "Item Reference #",
@@ -49,9 +50,10 @@ export function mapBidDivisionLabel(
   return BID_DIVISION_LABELS[compact] ?? null;
 }
 
-export function inferBidFormType(unit: string): "STA_RANGE" | "SINGLE_LOCATION" {
-  const u = unit.trim().toUpperCase();
-  return u === "STA" || u === "LF" ? "STA_RANGE" : "SINGLE_LOCATION";
+export function inferBidFormType(unit: string): "STA_WITH_CF" | "SINGLE_POINT" {
+  const ft = inferFormType({ unit });
+  if (ft === "STA_WITH_CF" || ft === "STA_NO_CF") return "STA_WITH_CF";
+  return "SINGLE_POINT";
 }
 
 export function bidCodeFromReference(ref: string | number): string {
@@ -112,7 +114,7 @@ export function normalizeBidImportRow(
     name,
     unit,
     division,
-    formType: inferBidFormType(unit),
+    formType: inferFormType({ unit, division: division ?? undefined }),
     projectTypeCode: division ? BID_PROJECT_TYPE_BY_DIVISION[division] : null,
     description: name,
     sortOrder: Number(String(refRaw ?? "").replace(/\D/g, "")) || undefined,
@@ -132,7 +134,7 @@ export const bidImportRowSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   unit: z.string().min(1),
-  formType: z.enum(["STA_RANGE", "SINGLE_LOCATION"]).optional(),
+  formType: z.enum(["STA_WITH_CF", "STA_NO_CF", "SINGLE_POINT", "QUANTITY_ONLY"]).optional(),
   projectTypeCode: z.string().optional().nullable(),
   division: divisionEnum.optional().nullable(),
   description: z.string().optional().nullable(),

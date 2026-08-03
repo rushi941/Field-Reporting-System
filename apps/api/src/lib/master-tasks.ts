@@ -2,8 +2,10 @@ import { prisma } from "@frs/db";
 import {
   defaultSymbolTypes,
   estimateTaskQuantity,
+  isStaWithCf,
   isSymbolsAndLegendsMaster,
   usesSymbolEntryLayout,
+  catalogPavementLineTypes,
 } from "@frs/shared";
 
 export type LineTypeOption = {
@@ -40,17 +42,13 @@ export function resolveMasterId(tm: TaskMasterRef): string {
   return tm.parentId ?? tm.parent?.id ?? tm.id;
 }
 
-/** PM / STA_RANGE masters with sub-bids get a line-type picker at field entry. */
+/** PM / STA_WITH_CF masters get a line-type picker at field entry. */
 export function usesLineTypePicker(
   division: string,
   formType: string,
-  lineTypeCount: number,
+  _lineTypeCount = 0,
 ): boolean {
-  return (
-    lineTypeCount > 0 &&
-    division === "PAVEMENT_MARKING" &&
-    formType === "STA_RANGE"
-  );
+  return division === "PAVEMENT_MARKING" && isStaWithCf(formType);
 }
 
 export async function fetchLineTypesByMasterIds(
@@ -77,6 +75,22 @@ export async function fetchLineTypesByMasterIds(
       color: c.color,
     });
     map.set(c.parentId, list);
+  }
+
+  if (masterIds.length === 0) return map;
+
+  const masters = await prisma.taskMaster.findMany({
+    where: { id: { in: masterIds } },
+    select: { id: true, division: true, formType: true },
+  });
+
+  const catalog = catalogPavementLineTypes();
+  for (const master of masters) {
+    const existing = map.get(master.id) ?? [];
+    if (existing.length > 0) continue;
+    if (usesLineTypePicker(master.division ?? "", master.formType, 0)) {
+      map.set(master.id, catalog);
+    }
   }
 
   return map;

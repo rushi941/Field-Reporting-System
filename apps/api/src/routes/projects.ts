@@ -830,7 +830,7 @@ async function addProjectTaskInternal(
           code,
           name: body.name!,
           unit: body.unit ?? "LF",
-          formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
+          formType: (body.formType as BidItemFormType) ?? "STA_WITH_CF",
           division: taskDivision,
           color: body.color ?? null,
           widthInches: body.widthInches ?? null,
@@ -860,7 +860,7 @@ async function addProjectTaskInternal(
   const formType =
     (body.formType as BidItemFormType) ??
     (master.formType as BidItemFormType) ??
-    "STA_RANGE";
+    "STA_WITH_CF";
 
   const existing = await prisma.projectTask.findUnique({
     where: {
@@ -882,7 +882,7 @@ async function addProjectTaskInternal(
 
   let beginSta: string | null = null;
   let endSta: string | null = null;
-  if (formType === "STA_RANGE" || body.beginSta || body.endSta) {
+  if (formType === "STA_WITH_CF" || formType === "STA_NO_CF" || body.beginSta || body.endSta) {
     try {
       if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
       if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
@@ -1073,7 +1073,7 @@ projectsRouter.patch(
     if (!task) {
       throw new AppError("NOT_FOUND", "Task not found", 404);
     }
-    if (task.taskMaster.formType !== "STA_RANGE") {
+    if (task.taskMaster.formType !== "STA_WITH_CF" && task.taskMaster.formType !== "STA_NO_CF") {
       throw new AppError(
         "VALIDATION_ERROR",
         "STA limits apply only to STA range tasks",

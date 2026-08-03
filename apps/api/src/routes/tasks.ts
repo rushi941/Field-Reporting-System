@@ -83,7 +83,7 @@ tasksRouter.post(
         name: body.name,
         description: body.description ?? null,
         unit: body.unit,
-        formType: (body.formType as BidItemFormType) ?? "STA_RANGE",
+        formType: (body.formType as BidItemFormType) ?? "STA_WITH_CF",
         projectTypeId: body.projectTypeId ?? null,
         parentId: body.parentId ?? null,
         division: (body.division as Division | null | undefined) ?? null,
@@ -303,7 +303,7 @@ async function importBidRows(
     const data = {
       name: row.name,
       unit: row.unit.trim().toUpperCase(),
-      formType: (row.formType ?? "SINGLE_LOCATION") as BidItemFormType,
+      formType: (row.formType ?? "SINGLE_POINT") as BidItemFormType,
       projectTypeId,
       parentId: null,
       division: (row.division as Division | null | undefined) ?? null,

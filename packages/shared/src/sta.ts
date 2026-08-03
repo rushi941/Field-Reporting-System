@@ -3,6 +3,8 @@
  * Accepts `142+50` and `142.50`; stores/display as plus-sign form.
  */
 
+import { isStaFormType } from "./form-types.js";
+
 export function normalizeSta(input: string): string {
   const raw = input.trim();
   if (!raw) throw new Error("Station is required");
@@ -94,7 +96,7 @@ export function estimateTaskQuantity(input: {
   const begin = input.beginSta?.trim() || input.routeBeginSta?.trim();
   const end = input.endSta?.trim() || input.routeEndSta?.trim();
 
-  if (input.formType === "STA_RANGE" && begin && end) {
+  if (isStaFormType(input.formType) && begin && end) {
     try {
       const cf = Number(input.conversionFactor ?? 1);
       return quantityFromStaRange(input.unit, begin, end, cf);
@@ -129,12 +131,32 @@ export function projectStaScope(
   };
 }
 
-/** Field-level bounds checks — disabled for field entry (crews may enter any STA span). */
+/** Field-level bounds checks against project/task corridor. */
 export function staSegmentProjectBoundsErrors(
-  _beginSta: string,
-  _endSta: string,
-  _projectBounds: { beginSta: string; endSta: string } | null | undefined,
+  beginSta: string,
+  endSta: string,
+  projectBounds: { beginSta: string; endSta: string } | null | undefined,
 ): Record<string, string> {
+  if (!projectBounds?.beginSta?.trim() || !projectBounds?.endSta?.trim()) {
+    return {};
+  }
+  try {
+    const lo = parseStaToDecimal(projectBounds.beginSta);
+    const hi = parseStaToDecimal(projectBounds.endSta);
+    const minB = Math.min(lo, hi);
+    const maxB = Math.max(lo, hi);
+    const b0 = parseStaToDecimal(beginSta);
+    const b1 = parseStaToDecimal(endSta);
+    const segLo = Math.min(b0, b1);
+    const segHi = Math.max(b0, b1);
+    if (segLo < minB || segHi > maxB) {
+      return {
+        endSta: `Must stay within ${projectBounds.beginSta} – ${projectBounds.endSta}`,
+      };
+    }
+  } catch {
+    return {};
+  }
   return {};
 }
 

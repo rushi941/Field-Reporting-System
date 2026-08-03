@@ -4,11 +4,19 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
 import {
   attachmentUploadMeta,
+  allowsManualLf,
+  formTypeLabel,
+  isQuantityOnlyFormType,
+  isStaFormType,
+  isStaNoCf,
+  isStaWithCf,
   normalizeSta,
   quantityFromStaRange,
+  resolveStaWorkLimits,
   updateDraftReportSchema,
   validateAttachmentFile,
   validateReportTaskSegments,
+  validateStaSegmentsCoverage,
   type SegmentFieldErrors,
   matchSymbolTypeCode,
   symbolTypeLabelForCode,
@@ -91,6 +99,8 @@ type FieldReport = {
     finalQuantity: number;
     locationDescription: string | null;
     symbolItemType: string | null;
+    lineTypeCode: string | null;
+    side: string | null;
     projectTask?: {
       id: string;
       taskMaster: TaskMaster;
@@ -107,8 +117,10 @@ type FieldReport = {
 
 type StaSeg = {
   lineTypeId: string;
+  lineTypeCode: string;
   beginSta: string;
   endSta: string;
+  side: string;
   conversionFactor: string;
   useManualLf: boolean;
   manualLf: string;
@@ -119,6 +131,11 @@ type LocSeg = {
   symbolTypeCode: string;
   symbolItemType: string;
   quantity: string;
+};
+
+type QtySeg = {
+  quantity: string;
+  notes: string;
 };
 
 const fieldLabelClass = "text-xs font-medium text-muted-foreground";
@@ -136,11 +153,13 @@ function defaultManagerIdForProject(project: ProjectInfo) {
   return project.projectManagerId ?? project.divisionManagers[0]?.id ?? "";
 }
 
-function emptySta(cf: number, lineTypeId = ""): StaSeg {
+function emptySta(cf: number, lineTypeId = "", lineTypeCode = ""): StaSeg {
   return {
     lineTypeId,
+    lineTypeCode,
     beginSta: "",
     endSta: "",
+    side: "",
     conversionFactor: Number.isFinite(cf) ? cf.toFixed(2) : "1.00",
     useManualLf: false,
     manualLf: "",
@@ -149,17 +168,25 @@ function emptySta(cf: number, lineTypeId = ""): StaSeg {
 
 function emptyStaFromLineTypes(lineTypes: LineTypeOption[], fallbackCf = 1): StaSeg {
   const first = lineTypes[0];
-  if (first) return emptySta(first.conversionFactor, first.id);
+  if (first) return emptySta(first.conversionFactor, first.id, first.code);
   return emptySta(fallbackCf);
 }
 
 function pickLineTypeId(
   lineTypes: LineTypeOption[],
   li: {
+    lineTypeCode?: string | null;
     conversionFactor: number | null;
     projectTask?: { taskMaster: { id: string } };
   },
 ): string {
+  const code = li.lineTypeCode?.trim();
+  if (code) {
+    const byCode = lineTypes.find(
+      (lt) => lt.code.toLowerCase() === code.toLowerCase(),
+    );
+    if (byCode) return byCode.id;
+  }
   const subId = li.projectTask?.taskMaster?.id;
   if (subId && lineTypes.some((lt) => lt.id === subId)) return subId;
   const cf = li.conversionFactor;
@@ -236,6 +263,7 @@ export function FieldTaskEntryPage() {
   const [notesError, setNotesError] = useState<string | undefined>();
   const [staSegs, setStaSegs] = useState<StaSeg[]>([emptySta(1)]);
   const [locSegs, setLocSegs] = useState<LocSeg[]>([emptyLoc()]);
+  const [qtySegs, setQtySegs] = useState<QtySeg[]>([{ quantity: "", notes: "" }]);
   const [segErrors, setSegErrors] = useState<SegmentFieldErrors>({});
   const [uploading, setUploading] = useState(false);
   const [attachCategory, setAttachCategory] = useState("PHOTO");
@@ -250,16 +278,21 @@ export function FieldTaskEntryPage() {
     [project, taskId],
   );
 
-  const isSta = task?.taskMaster.formType === "STA_RANGE";
+  const formType = task?.taskMaster.formType ?? "";
+  const isSta = isStaFormType(formType);
+  const isQtyOnly = isQuantityOnlyFormType(formType);
+  const staNoCf = isStaNoCf(formType);
+  const showManualLfToggle = allowsManualLf(formType);
   const lineTypes = task?.lineTypes ?? [];
   const symbolTypes = task?.symbolTypes ?? [];
-  const usesLineTypePicker = Boolean(task?.usesLineTypePicker && lineTypes.length);
+  const usesLineTypePicker = Boolean(task?.usesLineTypePicker);
   const isSymbolEntry = Boolean(task?.usesSymbolEntry);
   const isLocationOnly =
     !isSta &&
+    !isQtyOnly &&
     !isSymbolEntry &&
     isLocationOnlyFieldEntry({
-      formType: task?.taskMaster.formType ?? "",
+      formType,
       division: task?.taskMaster.division ?? "",
       masterCode: task?.taskMaster.code ?? "",
       masterName: task?.taskMaster.name ?? "",
@@ -287,11 +320,17 @@ export function FieldTaskEntryPage() {
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
     }
+    if (isQtyOnly) {
+      return qtySegs.reduce((sum, s) => {
+        const n = Number(s.quantity);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+    }
     return locSegs.reduce((sum, s) => {
       const n = Number(s.quantity);
       return sum + (Number.isFinite(n) ? n : 0);
     }, 0);
-  }, [isSta, staSegs, locSegs]);
+  }, [isSta, isQtyOnly, staSegs, locSegs, qtySegs, task?.taskMaster.unit]);
 
   useEffect(() => {
     if (!projectId || !taskId) return;
@@ -347,34 +386,51 @@ export function FieldTaskEntryPage() {
         const cf = Number(foundTask.taskMaster.conversionFactor ?? 1);
         const taskLineTypes = foundTask.lineTypes ?? [];
         const taskSymbolTypes = foundTask.symbolTypes ?? [];
-        const taskUsesPicker =
-          foundTask.usesLineTypePicker && taskLineTypes.length > 0;
+        const taskUsesPicker = foundTask.usesLineTypePicker;
         const taskUsesSymbolEntry = foundTask.usesSymbolEntry;
         const symbolDefault = foundTask.taskMaster.name;
         setDefaultCf(Number.isFinite(cf) ? cf.toFixed(2) : "1.00");
         setDefaultSymbol(symbolDefault);
         setDefaultUnit(foundTask.taskMaster.unit || "LF");
 
-        const isStaLocal = foundTask.taskMaster.formType === "STA_RANGE";
+        const isStaLocal = isStaFormType(foundTask.taskMaster.formType);
+        const isQtyOnlyLocal = isQuantityOnlyFormType(foundTask.taskMaster.formType);
 
         if (isStaLocal) {
           if (existing.length) {
             setStaSegs(
-              existing.map((li) => ({
-                lineTypeId: taskUsesPicker
+              existing.map((li) => {
+                const ltId = taskUsesPicker
                   ? pickLineTypeId(taskLineTypes, li)
-                  : "",
-                beginSta: li.beginSta ?? "",
-                endSta: li.endSta ?? "",
-                conversionFactor: String(li.conversionFactor ?? cf),
-                useManualLf: li.entryType === "MANUAL_FOOTAGE",
-                manualLf: li.manualLf != null ? String(li.manualLf) : "",
-              })),
+                  : "";
+                const lt = taskLineTypes.find((l) => l.id === ltId);
+                return {
+                  lineTypeId: ltId,
+                  lineTypeCode: li.lineTypeCode ?? lt?.code ?? "",
+                  beginSta: li.beginSta ?? "",
+                  endSta: li.endSta ?? "",
+                  side: li.side ?? "",
+                  conversionFactor: String(li.conversionFactor ?? cf),
+                  useManualLf: li.entryType === "MANUAL_FOOTAGE",
+                  manualLf: li.manualLf != null ? String(li.manualLf) : "",
+                };
+              }),
             );
           } else if (taskUsesPicker) {
             setStaSegs([emptyStaFromLineTypes(taskLineTypes, cf)]);
           } else {
-            setStaSegs([emptySta(cf)]);
+            setStaSegs([emptySta(isStaNoCf(foundTask.taskMaster.formType) ? 1 : cf)]);
+          }
+        } else if (isQtyOnlyLocal) {
+          if (existing.length) {
+            setQtySegs(
+              existing.map((li) => ({
+                quantity: String(li.finalQuantity),
+                notes: li.locationDescription ?? "",
+              })),
+            );
+          } else {
+            setQtySegs([{ quantity: "", notes: "" }]);
           }
         } else if (existing.length) {
           setLocSegs(
@@ -445,39 +501,67 @@ export function FieldTaskEntryPage() {
 
     const rawSegments: unknown[] = isSta
       ? staSegs.map(
-          (s): Record<string, unknown> => ({
-            beginSta: s.beginSta.trim(),
-            endSta: s.endSta.trim(),
-            conversionFactor: Number(s.conversionFactor),
-            useManualLf: s.useManualLf,
-            manualLf: s.useManualLf
-              ? s.manualLf.trim() === ""
-                ? null
-                : Number(s.manualLf)
-              : null,
-          }),
+          (s): Record<string, unknown> => {
+            const lt = lineTypes.find((l) => l.id === s.lineTypeId);
+            return {
+              beginSta: s.beginSta.trim(),
+              endSta: s.endSta.trim(),
+              conversionFactor: staNoCf ? 1 : Number(s.conversionFactor),
+              useManualLf: s.useManualLf,
+              manualLf: s.useManualLf
+                ? s.manualLf.trim() === ""
+                  ? null
+                  : Number(s.manualLf)
+                : null,
+              lineTypeCode: s.lineTypeCode || lt?.code || null,
+              side: s.side === "L" || s.side === "R" ? s.side : null,
+            };
+          },
         )
-      : locSegs.map((s) => ({
-          locationDescription: s.locationDescription.trim(),
-          symbolItemType: isSymbolEntry
-            ? hasSymbolCatalog
-              ? symbolTypeLabelForCode(s.symbolTypeCode, symbolTypes)
-              : s.symbolItemType.trim()
-            : isLocationOnly
-              ? task.taskMaster.name
-              : s.symbolItemType.trim() || task.taskMaster.name,
-          quantity:
-            s.quantity.trim() === "" ? Number.NaN : Number(s.quantity),
-        }));
+      : isQtyOnly
+        ? qtySegs.map((s) => ({
+            quantity:
+              s.quantity.trim() === "" ? Number.NaN : Number(s.quantity),
+            notes: s.notes.trim() || null,
+          }))
+        : locSegs.map((s) => ({
+            locationDescription: s.locationDescription.trim(),
+            symbolItemType: isSymbolEntry
+              ? hasSymbolCatalog
+                ? symbolTypeLabelForCode(s.symbolTypeCode, symbolTypes)
+                : s.symbolItemType.trim()
+              : isLocationOnly
+                ? task.taskMaster.name
+                : s.symbolItemType.trim() || task.taskMaster.name,
+            quantity:
+              s.quantity.trim() === "" ? Number.NaN : Number(s.quantity),
+          }));
 
-    const validated = validateReportTaskSegments(
-      isSta ? "STA_RANGE" : "SINGLE_LOCATION",
-      rawSegments,
-    );
+    const validated = validateReportTaskSegments(formType, rawSegments);
     if (!validated.success) {
       setSegErrors(validated.errors);
       toast.error(validated.message, { id: "field-entry" });
       return null;
+    }
+
+    if (isSta) {
+      const workLimits = resolveStaWorkLimits(task, project?.route ?? null);
+      const completed = (task.completedStaRanges ?? []).map((r) => ({
+        beginSta: r.beginSta,
+        endSta: r.endSta,
+      }));
+      const coverage = validateStaSegmentsCoverage(
+        (validated.segments as { beginSta: string; endSta: string }[]).map(
+          (s) => ({ beginSta: s.beginSta, endSta: s.endSta }),
+        ),
+        completed,
+        workLimits,
+      );
+      if (!coverage.success) {
+        setSegErrors(coverage.errors);
+        toast.error(coverage.message, { id: "field-entry" });
+        return null;
+      }
     }
     setSegErrors({});
 
@@ -630,9 +714,11 @@ export function FieldTaskEntryPage() {
       <p className="text-xs text-muted-foreground">
         {isSta
           ? "Add a row for each line segment. All rows submit as one entry under this bid item."
-          : isSymbolEntry
-            ? "Add a row for each symbol. All rows submit as one entry under this bid item."
-            : "Add a row for each location. All rows submit as one entry under this bid item."}
+          : isQtyOnly
+            ? "Enter daily quantity for this lump-sum or calendar-day item."
+            : isSymbolEntry
+              ? "Add a row for each symbol. All rows submit as one entry under this bid item."
+              : "Add a row for each location. All rows submit as one entry under this bid item."}
       </p>
 
       {!editable && (
@@ -643,6 +729,18 @@ export function FieldTaskEntryPage() {
 
       {isSta ? (
         <div className="space-y-2">
+          {(task.completedStaRanges?.length ?? 0) > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              <p className="font-semibold">Already submitted on this task</p>
+              <ul className="mt-1 list-inside list-disc space-y-0.5">
+                {task.completedStaRanges.map((r, idx) => (
+                  <li key={`${r.reportNumber}-${idx}`}>
+                    {r.beginSta} → {r.endSta} ({r.reportNumber})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {staSegs.map((seg, i) => {
             const err = segErrors[i] ?? {};
             return (
@@ -683,6 +781,7 @@ export function FieldTaskEntryPage() {
                           i,
                           {
                             lineTypeId: e.target.value,
+                            lineTypeCode: lt?.code ?? "",
                             conversionFactor: lt
                               ? lt.conversionFactor.toFixed(2)
                               : seg.conversionFactor,
@@ -740,6 +839,72 @@ export function FieldTaskEntryPage() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`side-${i}`}>
+                      Side
+                    </Label>
+                    <select
+                      id={`side-${i}`}
+                      className={selectClass}
+                      disabled={!editable || busy}
+                      value={seg.side}
+                      onChange={(e) =>
+                        updateSta(i, { side: e.target.value }, "side")
+                      }
+                    >
+                      <option value="">—</option>
+                      <option value="L">Left (L)</option>
+                      <option value="R">Right (R)</option>
+                    </select>
+                  </div>
+                  {showManualLfToggle && (
+                    <div className="space-y-1">
+                      <Label className={fieldLabelClass} htmlFor={`manual-${i}`}>
+                        Entry mode
+                      </Label>
+                      <label className="flex h-10 items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm">
+                        <input
+                          id={`manual-${i}`}
+                          type="checkbox"
+                          disabled={!editable || busy}
+                          checked={seg.useManualLf}
+                          onChange={(e) =>
+                            updateSta(
+                              i,
+                              { useManualLf: e.target.checked },
+                              "manualLf",
+                            )
+                          }
+                        />
+                        Manual LF
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {seg.useManualLf && (
+                  <div className="space-y-1">
+                    <Label className={fieldLabelClass} htmlFor={`mlf-${i}`}>
+                      Manual LF
+                    </Label>
+                    <Input
+                      id={`mlf-${i}`}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      disabled={!editable || busy}
+                      className={cn(inputClass, err.manualLf && "border-destructive")}
+                      value={seg.manualLf}
+                      onChange={(e) =>
+                        updateSta(i, { manualLf: e.target.value }, "manualLf")
+                      }
+                    />
+                    <FieldError message={err.manualLf} />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {!staNoCf && (
+                  <div className="space-y-1">
                     <Label className={fieldLabelClass} htmlFor={`cf-${i}`}>
                       Conv. factor
                     </Label>
@@ -749,7 +914,7 @@ export function FieldTaskEntryPage() {
                       min={0}
                       step="0.01"
                       inputMode="decimal"
-                      disabled={!editable || busy || seg.useManualLf}
+                      disabled={!editable || busy || seg.useManualLf || usesLineTypePicker}
                       aria-invalid={Boolean(err.conversionFactor)}
                       className={cn(
                         inputClass,
@@ -767,6 +932,7 @@ export function FieldTaskEntryPage() {
                     <p className={fieldHintClass}>1.0 = single · 2.0 = double line</p>
                     <FieldError message={err.conversionFactor} />
                   </div>
+                  )}
                   <div className="space-y-1">
                     <Label className={fieldLabelClass} htmlFor={`lf-${i}`}>
                       Calculated{" "}
@@ -802,6 +968,76 @@ export function FieldTaskEntryPage() {
               }
             >
               <Plus className="size-4" /> Add Line Segment
+            </Button>
+          )}
+        </div>
+      ) : isQtyOnly ? (
+        <div className="space-y-2">
+          {qtySegs.map((seg, i) => {
+            const err = segErrors[i] ?? {};
+            return (
+              <div key={i} className={fieldCardClass}>
+                <div className="flex items-center justify-between">
+                  <p className={fieldSectionTitleClass}>Quantity {i + 1}</p>
+                  {qtySegs.length > 1 && editable && (
+                    <button
+                      type="button"
+                      className="text-destructive disabled:opacity-50"
+                      disabled={busy}
+                      onClick={() =>
+                        setQtySegs((rows) => rows.filter((_, idx) => idx !== i))
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className={fieldLabelClass}>Quantity ({task.taskMaster.unit})</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    disabled={!editable || busy}
+                    className={cn(inputClass, err.quantity && "border-destructive")}
+                    value={seg.quantity}
+                    onChange={(e) => {
+                      setQtySegs((rows) =>
+                        rows.map((r, idx) =>
+                          idx === i ? { ...r, quantity: e.target.value } : r,
+                        ),
+                      );
+                      clearSegField(i, "quantity");
+                    }}
+                  />
+                  <FieldError message={err.quantity} />
+                </div>
+                <div className="space-y-1">
+                  <Label className={fieldLabelClass}>Notes (optional)</Label>
+                  <Input
+                    disabled={!editable || busy}
+                    value={seg.notes}
+                    onChange={(e) =>
+                      setQtySegs((rows) =>
+                        rows.map((r, idx) =>
+                          idx === i ? { ...r, notes: e.target.value } : r,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })}
+          {editable && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              className={addRowBtnClass}
+              onClick={() => setQtySegs((rows) => [...rows, { quantity: "", notes: "" }])}
+            >
+              <Plus className="size-4" /> Add row
             </Button>
           )}
         </div>

@@ -9,7 +9,11 @@ import {
 } from "@frs/db";
 import {
   attachmentUploadMeta,
+  isQuantityOnlyFormType,
+  isStaFormType,
+  quantityOnlySegmentSchema,
   resolveStaSegment,
+  resolveStaWorkLimits,
   singleLocationSegmentSchema,
   staRangeSegmentSchema,
   submitReportSchema,
@@ -18,6 +22,7 @@ import {
   validateAttachmentFile,
   validateStaSegmentsCoverage,
 } from "@frs/shared";
+import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
@@ -148,6 +153,8 @@ function mapLine(item: ReportLoaded["lineItems"][number]) {
       finalQuantity: Number(item.finalQuantity),
       locationDescription: item.locationDescription,
       symbolItemType: item.symbolItemType,
+      lineTypeCode: item.lineTypeCode,
+      side: item.side,
       sortOrder: item.sortOrder,
       projectTask: {
         id: item.projectTask.id,
@@ -156,7 +163,7 @@ function mapLine(item: ReportLoaded["lineItems"][number]) {
           code: "—",
           name: "Removed task",
           unit: "LF",
-          formType: "STA_RANGE",
+          formType: "STA_WITH_CF",
           color: null,
           widthInches: null,
           conversionFactor: null,
@@ -600,10 +607,27 @@ fieldReportsRouter.put(
       finalQuantity: number;
       locationDescription: string | null;
       symbolItemType: string | null;
+      lineTypeCode: string | null;
+      side: string | null;
       sortOrder: number;
     }[] = [];
 
-    if (formType === "STA_RANGE") {
+    if (isStaFormType(formType)) {
+      const completedMap = await fetchCompletedStaRanges(
+        [projectTaskId],
+        reportId,
+      );
+      const completed = (completedMap.get(projectTaskId) ?? []).map((r) => ({
+        beginSta: r.beginSta,
+        endSta: r.endSta,
+      }));
+
+      const route = await prisma.projectRoute.findUnique({
+        where: { projectId: report.projectId },
+        select: { beginSta: true, endSta: true },
+      });
+      const workLimits = resolveStaWorkLimits(projectTask, route);
+
       const parsedSegments: { beginSta: string; endSta: string }[] = [];
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = staRangeSegmentSchema.parse(seg);
@@ -628,14 +652,41 @@ fieldReportsRouter.put(
           finalQuantity: resolved.finalQuantity,
           locationDescription: null,
           symbolItemType: null,
+          lineTypeCode: resolved.lineTypeCode,
+          side: resolved.side,
           sortOrder: i,
         });
       });
 
-      const coverage = validateStaSegmentsCoverage(parsedSegments, [], null);
+      const coverage = validateStaSegmentsCoverage(
+        parsedSegments,
+        completed,
+        workLimits,
+      );
       if (!coverage.success) {
         throw new AppError("VALIDATION_ERROR", coverage.message, 400);
       }
+    } else if (isQuantityOnlyFormType(formType)) {
+      rawSegments.forEach((seg: unknown, i: number) => {
+        const parsed = quantityOnlySegmentSchema.parse(seg);
+        rows.push({
+          reportId,
+          projectTaskId,
+          entryType: "SINGLE_LOCATION",
+          quantitySource: "MANUAL",
+          beginSta: null,
+          endSta: null,
+          conversionFactor: null,
+          calculatedLf: null,
+          manualLf: null,
+          finalQuantity: parsed.quantity,
+          locationDescription: parsed.notes ?? null,
+          symbolItemType: null,
+          lineTypeCode: null,
+          side: null,
+          sortOrder: i,
+        });
+      });
     } else {
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = singleLocationSegmentSchema.parse(seg);
@@ -652,6 +703,8 @@ fieldReportsRouter.put(
           finalQuantity: parsed.quantity,
           locationDescription: parsed.locationDescription,
           symbolItemType: parsed.symbolItemType,
+          lineTypeCode: null,
+          side: null,
           sortOrder: i,
         });
       });

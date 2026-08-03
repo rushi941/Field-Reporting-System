@@ -37,6 +37,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -128,11 +129,9 @@
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -232,9 +231,9 @@
   z-index: 4000;
 }
 
-/* Sonner toasts — keep readable stack, never under maps/modals */
+/* Sonner toasts — above modals (4000) so errors show when a popup is open */
 [data-sonner-toaster] {
-  z-index: 3000 !important;
+  z-index: 5000 !important;
 }
 
 [data-sonner-toast] {

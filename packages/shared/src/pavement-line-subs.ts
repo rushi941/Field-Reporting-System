@@ -75,3 +75,29 @@ export const PAVEMENT_LINE_SUB_CATALOG: PavementLineSubSeed[] = [
 export function subBidCodeForMaster(masterPrefix: string, lineCode: string): string {
   return `${masterPrefix}-${lineCode}`.toUpperCase();
 }
+
+export type CatalogLineTypeOption = {
+  id: string;
+  code: string;
+  name: string;
+  label: string;
+  conversionFactor: number;
+  widthInches: number | null;
+  color: string | null;
+};
+
+/** Standard PM line types for STA+CF field entry when no sub-bids exist on the master. */
+export function catalogPavementLineTypes(): CatalogLineTypeOption[] {
+  return PAVEMENT_LINE_SUB_CATALOG.map((line) => ({
+    id: `catalog:${line.lineCode}`,
+    code: line.lineCode,
+    name: line.name,
+    label:
+      line.widthInches != null
+        ? `${line.widthInches}" ${line.name}`
+        : line.name,
+    conversionFactor: line.conversionFactor,
+    widthInches: line.widthInches,
+    color: line.color,
+  }));
+}
