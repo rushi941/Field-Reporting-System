@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ClipboardCheck } from "lucide-react";
-import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import { InitialListLoad, RefreshBar } from "@/components/page-shell";
 import {
   PendingApprovalCard,
   type PendingReportSummary,
@@ -55,7 +55,7 @@ export function ApprovalsQueuePage() {
             Tap a report to review quantities and approve or return.
           </p>
         </div>
-        <ListPageSkeleton rows={4} />
+        <InitialListLoad label="Loading pending reports…" rows={4} />
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,18 +15,46 @@ export function AppBootScreen() {
   );
 }
 
+/** Centered spinner for first data fetch on a page. */
+export function DataPageLoader({
+  label = "Loading…",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[40vh] flex-col items-center justify-center gap-3 py-12",
+        className,
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <Loader2 className="size-6 animate-spin text-sky-800" aria-hidden />
+      <p className="text-sm text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+/** Full-page first load: spinner + list skeleton. */
+export function InitialListLoad({
+  label = "Loading…",
+  rows = 4,
+}: {
+  label?: string;
+  rows?: number;
+}) {
+  return (
+    <div className="space-y-4" role="status" aria-live="polite">
+      <DataPageLoader label={label} className="min-h-[8rem] py-6" />
+      <ListPageSkeleton rows={rows} />
+    </div>
+  );
+}
+
 function DelayedFallback() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setVisible(true), 120);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  if (!visible) {
-    return <div className="min-h-[12rem]" aria-hidden />;
-  }
-
   return (
     <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
       <Loader2 className="size-5 animate-spin text-sky-800" />

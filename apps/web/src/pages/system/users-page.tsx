@@ -50,6 +50,11 @@ const divisionOptions = [
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+function userDisplayName(u: Pick<ManagedUser, "firstName" | "lastName" | "email">) {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+  return name || u.email;
+}
+
 export function SystemUsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -69,7 +74,7 @@ export function SystemUsersPage() {
 
   const userSortAccessors = useMemo(
     () => ({
-      name: (u: ManagedUser) => `${u.firstName} ${u.lastName}`,
+      name: (u: ManagedUser) => userDisplayName(u),
       email: (u: ManagedUser) => u.email,
       roles: (u: ManagedUser) =>
         u.roles.map((r) => roleLabels[r as AppRole] ?? r).join(", "),
@@ -89,7 +94,7 @@ export function SystemUsersPage() {
   } = useAdminTable({
     rows: users,
     getSearchText: (u) =>
-      `${u.firstName} ${u.lastName} ${u.email} ${u.roles.join(" ")} ${u.phone ?? ""}`,
+      `${userDisplayName(u)} ${u.email} ${u.roles.join(" ")} ${u.phone ?? ""}`,
     sortAccessors: userSortAccessors,
     defaultSort: { key: "name", direction: "asc" },
   });
@@ -250,8 +255,8 @@ export function SystemUsersPage() {
       setStatusConfirm(null);
       toast.success(
         next
-          ? `${user.firstName} ${user.lastName} is now active`
-          : `${user.firstName} ${user.lastName} is now inactive`,
+          ? `${userDisplayName(user)} is now active`
+          : `${userDisplayName(user)} is now inactive`,
       );
     } catch (err) {
       toast.error(
@@ -272,13 +277,10 @@ export function SystemUsersPage() {
       }>(`/api/v1/users/${deleteTarget.id}`, { method: "DELETE" });
       if (result.mode === "deactivated") {
         toast.success(
-          result.message ??
-            `${deleteTarget.firstName} ${deleteTarget.lastName} deactivated`,
+          result.message ?? `${userDisplayName(deleteTarget)} deactivated`,
         );
       } else {
-        toast.success(
-          `Deleted ${deleteTarget.firstName} ${deleteTarget.lastName}`,
-        );
+        toast.success(`Deleted ${userDisplayName(deleteTarget)}`);
       }
       setDeleteTarget(null);
       await load(true);
@@ -349,7 +351,7 @@ export function SystemUsersPage() {
                   >
                     <td className="px-2 py-1.5">
                       <div className="font-medium text-foreground">
-                        {u.firstName} {u.lastName}
+                        {userDisplayName(u)}
                       </div>
                       <div className="text-xs text-muted-foreground">{u.email}</div>
                     </td>
@@ -424,9 +426,11 @@ export function SystemUsersPage() {
           statusConfirm?.isActive ? "Deactivate user?" : "Activate user?"
         }
         description={
-          statusConfirm?.isActive
-            ? `Are you sure you want to deactivate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
-            : `Are you sure you want to activate ${statusConfirm.firstName} ${statusConfirm.lastName}?`
+          statusConfirm
+            ? statusConfirm.isActive
+              ? `Are you sure you want to deactivate ${userDisplayName(statusConfirm)}?`
+              : `Are you sure you want to activate ${userDisplayName(statusConfirm)}?`
+            : null
         }
         confirmLabel={statusConfirm?.isActive ? "Deactivate" : "Activate"}
         destructive={Boolean(statusConfirm?.isActive)}
@@ -442,7 +446,9 @@ export function SystemUsersPage() {
           <>
             Delete{" "}
             <span className="font-medium text-foreground">
-              {deleteTarget?.firstName} {deleteTarget?.lastName} ({deleteTarget?.email})
+              {deleteTarget
+                ? `${userDisplayName(deleteTarget)} (${deleteTarget.email})`
+                : ""}
             </span>
             ? Users with report or project history are deactivated instead of
             permanently removed.

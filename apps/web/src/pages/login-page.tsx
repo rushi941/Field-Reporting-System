@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { LoginHeroSlider } from "@/components/auth/login-hero-slider";
+import { prefetchHomeForRoles } from "@/lib/route-prefetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const signedIn = await login(values.email, values.password);
+      prefetchHomeForRoles(signedIn.roles);
       toast.success("Signed in successfully");
       const home = getHomePathForRoles(signedIn.roles);
       const from = (location.state as { from?: string } | null)?.from;
@@ -155,7 +157,7 @@ export function LoginPage() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Signing in…
+                  Loading workspace…
                 </>
               ) : (
                 "Sign in"

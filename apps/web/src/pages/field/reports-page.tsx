@@ -3,7 +3,7 @@ import { ClipboardList } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { cn } from "@/lib/utils";
 import { ActivityDot } from "@/components/activity-dot";
-import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import { InitialListLoad, RefreshBar } from "@/components/page-shell";
 import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { useFieldReportActivity } from "@/hooks/use-field-report-activity";
@@ -48,13 +48,15 @@ export function FieldReportsPage() {
   return (
     <div className="space-y-4">
       <RefreshBar active={refreshing} />
+      {loading && reports.length === 0 ? (
+        <InitialListLoad label="Loading reports…" rows={4} />
+      ) : (
+        <>
       <p className="text-sm text-muted-foreground">
         Open a report for full details. Correct returned reports and resubmit.
       </p>
 
-      {loading && reports.length === 0 ? (
-        <ListPageSkeleton rows={4} />
-      ) : reports.length === 0 ? (
+      {reports.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-card px-4 py-12 text-center">
           <ClipboardList className="mx-auto size-8 text-muted-foreground/60" />
           <p className="mt-3 text-sm font-medium">No reports yet</p>
@@ -127,6 +129,8 @@ export function FieldReportsPage() {
             );
           })}
         </ul>
+      )}
+        </>
       )}
     </div>
   );

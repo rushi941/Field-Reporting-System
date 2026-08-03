@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 import { ActivityDot } from "@/components/activity-dot";
-import { ListPageSkeleton, RefreshBar } from "@/components/page-shell";
+import { RefreshBar, InitialListLoad } from "@/components/page-shell";
 import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { useFieldProjectsActivity } from "@/hooks/use-field-projects-activity";
@@ -60,6 +60,10 @@ export function FieldProjectsPage() {
   return (
     <div className="space-y-5">
       <RefreshBar active={refreshing} />
+      {loading && projects.length === 0 ? (
+        <InitialListLoad label="Loading projects…" rows={5} />
+      ) : (
+        <>
       <p className="text-sm text-muted-foreground">
         Select a project to begin your daily report.
       </p>
@@ -105,9 +109,7 @@ export function FieldProjectsPage() {
       </div>
 
       <div className="border-t border-border/60 pt-4">
-      {loading && projects.length === 0 ? (
-        <ListPageSkeleton rows={5} />
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
           No projects match your search.
         </p>
@@ -142,6 +144,8 @@ export function FieldProjectsPage() {
         </ul>
       )}
       </div>
+        </>
+      )}
     </div>
   );
 }

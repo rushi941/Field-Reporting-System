@@ -118,10 +118,10 @@ export function FieldProjectDetailPage() {
     if (!projectId) return;
     setLoading(true);
     try {
-      const data = await apiFetch<{ projects: FieldProject[] }>(
-        "/api/v1/field/projects",
+      const data = await apiFetch<{ project: FieldProject }>(
+        `/api/v1/field/projects/${projectId}`,
       );
-      const found = data.projects.find((p) => p.id === projectId) ?? null;
+      const found = data.project;
       setProject(found);
       if (found) {
         markFieldTasksKnown(

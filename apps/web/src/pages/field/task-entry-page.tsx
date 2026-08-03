@@ -298,12 +298,11 @@ export function FieldTaskEntryPage() {
     void (async () => {
       setLoading(true);
       try {
-        const projectsData = await apiFetch<{ projects: ProjectInfo[] }>(
-          "/api/v1/field/projects",
+        const projectData = await apiFetch<{ project: ProjectInfo }>(
+          `/api/v1/field/projects/${projectId}`,
         );
 
-        const found =
-          projectsData.projects.find((p) => p.id === projectId) ?? null;
+        const found = projectData.project;
         setProject(found);
         const foundTask = found?.tasks.find((t) => t.id === taskId);
         if (!found || !foundTask) {

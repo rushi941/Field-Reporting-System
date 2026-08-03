@@ -5,7 +5,6 @@ import {
   FileSpreadsheet,
   FolderKanban,
   ListChecks,
-  Loader2,
   Ruler,
   Shield,
   Tags,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { apiFetch } from "@/lib/api";
+import { DataPageLoader } from "@/components/page-shell";
 import { cn } from "@/lib/utils";
 
 type RollupProject = {
@@ -176,9 +176,7 @@ export function WorkspaceOverviewPage({
       {can("reports.view_approved") && (
         <div className="mt-6 space-y-3">
           {loadingRollup ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Loading rollup…
-            </div>
+            <DataPageLoader label="Loading dashboard…" className="min-h-[8rem]" />
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
