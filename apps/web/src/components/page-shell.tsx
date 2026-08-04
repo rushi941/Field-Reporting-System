@@ -2,13 +2,12 @@ import { Suspense, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function AppBootScreen() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background">
-      <div className="flex size-10 items-center justify-center rounded-lg bg-lane font-display text-sm font-bold text-asphalt">
-        AT
-      </div>
+      <BrandLogo variant="mark" imgClassName="h-10 w-10" />
       <Loader2 className="size-5 animate-spin text-sky-800" aria-hidden />
       <p className="text-sm text-muted-foreground">Loading…</p>
     </div>

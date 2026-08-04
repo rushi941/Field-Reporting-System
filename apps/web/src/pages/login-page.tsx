@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/auth-context";
 import { LoginHeroSlider } from "@/components/auth/login-hero-slider";
+import { BrandLogo } from "@/components/brand-logo";
 import { prefetchHomeForRoles } from "@/lib/route-prefetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,21 +65,13 @@ export function LoginPage() {
       <section className="relative flex flex-col px-6 py-8 sm:px-10 lg:px-16 xl:px-24">
         <div className="animate-fade-up mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center">
           <header className="mb-10">
-            <div className="flex items-center gap-3.5">
-              <div className="flex size-12 shrink-0 items-center justify-center bg-asphalt shadow-[3px_3px_0_0_var(--color-lane)]">
-                <span className="font-display text-xl font-bold leading-none text-lane">
-                  AT
-                </span>
-              </div>
-              <div className="min-w-0">
-                <p className="font-display text-2xl font-semibold tracking-tight text-asphalt-mid sm:text-[1.75rem]">
-                  Advance Traffic
-                </p>
-                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Field Reporting System
-                </p>
-              </div>
-            </div>
+            <BrandLogo
+              variant="full"
+              onLight
+              subtitle="Field Reporting System"
+              subtitleClassName="text-[11px] font-semibold uppercase tracking-[0.2em]"
+              imgClassName="h-10 sm:h-11"
+            />
 
             <div className="mt-10 border-t border-border/80 pt-8">
               <h1 className="font-display text-4xl font-semibold tracking-tight text-asphalt-mid sm:text-[2.75rem]">

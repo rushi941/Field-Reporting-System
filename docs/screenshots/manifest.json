@@ -18,12 +18,6 @@
     "route": "/field/reports"
   },
   {
-    "id": "field-report-detail",
-    "file": "06-field-report-detail.png",
-    "role": "Field Lead",
-    "route": "/field/reports/cmru6iawf0001trh8lqtrm177"
-  },
-  {
     "id": "approvals-queue",
     "file": "07-approvals-queue.png",
     "role": "Division Manager",
@@ -75,7 +69,7 @@
     "id": "office-billing-drilldown",
     "file": "17-office-billing-drilldown.png",
     "role": "Project Admin",
-    "route": "/office/billing/cmrt3qr5y0005trisi699gy84"
+    "route": "/office/billing/cms7uugq20001trgs5562w8x9"
   },
   {
     "id": "system-overview",

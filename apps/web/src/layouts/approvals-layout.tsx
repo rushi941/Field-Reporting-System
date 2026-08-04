@@ -11,6 +11,7 @@ import { prefetchRoute } from "@/lib/route-prefetch";
 import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
 import { resolveActiveNavTo } from "@/lib/nav-active";
 import { UserHeaderIdentity } from "@/components/user-role-pill";
+import { BrandLogo, SidebarBrand } from "@/components/brand-logo";
 
 const navItems = [
   {
@@ -63,18 +64,8 @@ export function ApprovalsLayout() {
 
   const sidebar = (
     <aside className="flex h-full w-72 flex-col bg-sidebar text-slate-200">
-      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-        <div className="flex size-9 items-center justify-center rounded bg-lane font-display text-sm font-bold text-asphalt">
-          AT
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight text-white">
-            Advance Traffic
-          </p>
-          <p className="truncate text-[11px] font-medium text-steel">
-            Division Manager
-          </p>
-        </div>
+      <div className="border-b border-white/10 px-4 py-4">
+        <SidebarBrand roleLabel="Division Manager" />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -137,14 +128,11 @@ export function ApprovalsLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:h-14 lg:gap-3 lg:bg-card/95 lg:px-4 lg:pt-0">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded bg-lane font-display text-xs font-bold text-asphalt lg:hidden">
-              AT
-            </div>
-            <div className="min-w-0 lg:hidden">
-              <p className="truncate text-sm font-semibold text-foreground">
-                {showBottomNav ? "Approvals" : "Review report"}
-              </p>
-            </div>
+            <BrandLogo
+              variant="compact"
+              className="min-w-0 shrink lg:hidden"
+              imgClassName="h-7 max-w-[11rem] sm:max-w-[13rem]"
+            />
             <p className="hidden truncate text-sm font-semibold text-foreground lg:block">
               Field Reporting System
             </p>

@@ -29,6 +29,7 @@ import {
   resolveActiveNavTo,
 } from "@/lib/nav-active";
 import { UserHeaderIdentity } from "@/components/user-role-pill";
+import { BrandLogo, SidebarBrand } from "@/components/brand-logo";
 
 type WorkspaceKind = "system" | "office";
 
@@ -136,16 +137,8 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
 
   const sidebar = (
     <aside className="flex h-full w-64 flex-col bg-sidebar text-slate-200">
-      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-        <div className="flex size-9 items-center justify-center rounded bg-lane font-display text-sm font-bold text-asphalt">
-          AT
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight text-white">
-            Advance Traffic
-          </p>
-          <p className="truncate text-[11px] font-medium text-steel">{title}</p>
-        </div>
+      <div className="border-b border-white/10 px-4 py-4">
+        <SidebarBrand roleLabel={title} />
       </div>
 
       <nav className="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -238,9 +231,11 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
                 <ActivityDot className="right-1 top-1" />
               )}
             </Button>
-            <p className="truncate text-sm font-semibold text-foreground lg:hidden">
-              {title}
-            </p>
+            <BrandLogo
+              variant="compact"
+              className="min-w-0 shrink lg:hidden"
+              imgClassName="h-7 max-w-[11rem] sm:max-w-[13rem]"
+            />
             <p className="hidden truncate text-sm font-semibold text-foreground lg:block">
               Field Reporting System
             </p>
