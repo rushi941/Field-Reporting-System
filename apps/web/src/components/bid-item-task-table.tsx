@@ -5,6 +5,7 @@ import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
 import { Button } from "@/components/ui/button";
 import type { useAdminTable } from "@/hooks/use-admin-table";
+import { workspaceHref } from "@/lib/workspace-path";
 
 export type BidItemTaskRow = {
   id: string;
@@ -229,7 +230,10 @@ export function BidItemTaskTable({
                     <div className="inline-flex items-center justify-end gap-2">
                       {showViewEntries && (
                         <Link
-                          to={`/${base}/reports/${projectId}/tasks/${t.id}`}
+                          to={workspaceHref(
+                            base,
+                            `reports/${projectId}/tasks/${t.id}`,
+                          )}
                           className="text-xs font-medium text-sky-800 hover:underline"
                         >
                           View entries &gt;

@@ -168,8 +168,8 @@ function FormField({
   return <div className={cn("space-y-1.5", className)}>{children}</div>;
 }
 
-function workspaceBase(pathname: string) {
-  return pathname.startsWith("/office") ? "/office" : "/system";
+function workspaceBase(pathname: string): "office" | "system" {
+  return pathname.startsWith("/office") ? "office" : "system";
 }
 
 function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
