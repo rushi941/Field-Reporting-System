@@ -120,10 +120,10 @@ export function TaskLedgerPage({ base }: { base: "office" | "system" }) {
   return (
     <div className="space-y-4">
       <Link
-        to={`${reportsBase}/projects/${projectId}`}
+        to={`${reportsBase}/${projectId}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Back to project
+        <ArrowLeft className="size-4" /> Back to project reports
       </Link>
 
       <div>

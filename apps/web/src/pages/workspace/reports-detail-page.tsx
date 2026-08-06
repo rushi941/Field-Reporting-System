@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
-import { frdStatusLabels, formTypeLabel } from "@frs/shared";
+import { frdStatusLabels } from "@frs/shared";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { workspaceReportsExportPath } from "@/lib/billing-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdminTableSearch } from "@/components/admin-table-search";
+import { BidItemTaskTable } from "@/components/bid-item-task-table";
 import { SortableTh } from "@/components/sortable-table-head";
-import { TaskProgressBar } from "@/components/task-progress-bar";
 import { useAdminTable } from "@/hooks/use-admin-table";
 
 type ProjectInfo = {
@@ -93,6 +93,12 @@ export function WorkspaceReportsDetailPage({
       code: (t: TaskRow) => t.taskMaster.code,
       name: (t: TaskRow) => t.taskMaster.name,
       unit: (t: TaskRow) => t.taskMaster.unit,
+      planQty: (t: TaskRow) => t.progress.estimated,
+      installed: (t: TaskRow) => t.progress.approved,
+      progress: (t: TaskRow) =>
+        t.progress.estimated > 0
+          ? t.progress.approved / t.progress.estimated
+          : t.progress.approved,
       lead: (t: TaskRow) => t.assignedTo?.name ?? "",
     }),
     [],
@@ -266,53 +272,14 @@ export function WorkspaceReportsDetailPage({
         <CountCard label="Draft" value={statusCounts.draft} />
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Project tasks ({tasks.length})</h2>
-        {tasks.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-            No tasks on this project yet.
-          </p>
-        ) : (
-          <>
-            <AdminTableSearch
-              className="max-w-sm"
-              value={tasksTable.searchInput}
-              onChange={tasksTable.setSearchInput}
-              placeholder="Search tasks…"
-            />
-            <div className="grid gap-3 md:grid-cols-2">
-              {tasksTable.paginated.items.map((t) => (
-                <div
-                  key={t.id}
-                  className="space-y-3 rounded-lg border bg-card p-3 shadow-sm"
-                >
-                  <TaskProgressBar
-                    code={t.taskMaster.code}
-                    name={t.taskMaster.name}
-                    formLabel={formTypeLabel(t.taskMaster.formType)}
-                    unit={t.taskMaster.unit}
-                    estimated={t.progress.estimated}
-                    approved={t.progress.approved}
-                    pending={t.progress.pending}
-                  />
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>Field lead: {t.assignedTo?.name ?? "—"}</span>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/${base}/reports/${project.id}/tasks/${t.id}`}>
-                        View ledger (E026)
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {tasksTable.total === 0 && (
-              <p className="text-center text-sm text-muted-foreground">
-                No tasks match your search.
-              </p>
-            )}
-          </>
-        )}
+      <section>
+        <BidItemTaskTable
+          projectId={project.id}
+          base={base}
+          tasks={tasks}
+          totalTasksCount={tasks.length}
+          table={tasksTable}
+        />
       </section>
 
       <section className="space-y-2">

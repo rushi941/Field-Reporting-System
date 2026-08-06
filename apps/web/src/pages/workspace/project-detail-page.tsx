@@ -6,7 +6,6 @@ import {
   Download,
   Loader2,
   Plus,
-  Trash2,
   Upload,
 } from "lucide-react";
 import {
@@ -32,8 +31,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { AdminTableSearch } from "@/components/admin-table-search";
-import { SortableTh } from "@/components/sortable-table-head";
+import {
+  BidItemTaskTable,
+  type BidItemTaskRow,
+} from "@/components/bid-item-task-table";
 import { useAdminTable } from "@/hooks/use-admin-table";
 import {
   ModalCloseButton,
@@ -221,6 +222,9 @@ export function ProjectDetailPage() {
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
   const [divisionFilter, setDivisionFilter] = useState("ALL");
+  const [progressByTaskId, setProgressByTaskId] = useState<
+    Map<string, BidItemTaskRow["progress"]>
+  >(new Map());
 
   function snapshotForm(next: typeof emptyTaskForm) {
     return JSON.stringify(next);
@@ -245,9 +249,24 @@ export function ProjectDetailPage() {
       setFieldLeads(lookups.fieldLeads);
       setTaskTree(lookups.taskTree);
       setUnits(lookups.units);
+
+      const progressMap = new Map<string, BidItemTaskRow["progress"]>();
+      if (canViewReports) {
+        try {
+          const wr = await apiFetch<{
+            tasks: { id: string; progress: BidItemTaskRow["progress"] }[];
+          }>(`/api/v1/workspace-reports/projects/${projectId}`);
+          for (const t of wr.tasks) {
+            progressMap.set(t.id, t.progress);
+          }
+        } catch {
+          /* progress is optional on project setup */
+        }
+      }
+      setProgressByTaskId(progressMap);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load project");
-      navigate(`${base}/projects`);
+      navigate(`/${base}/projects`);
     } finally {
       setLoading(false);
     }
@@ -262,44 +281,61 @@ export function ProjectDetailPage() {
     [project],
   );
 
-  const divisionFilteredTasks = useMemo(() => {
-    if (divisionFilter === "ALL") return taskRows;
-    return taskRows.filter((row) => row.division === divisionFilter);
-  }, [taskRows, divisionFilter]);
+  const bidItemRows = useMemo((): BidItemTaskRow[] => {
+    const filtered =
+      divisionFilter === "ALL"
+        ? taskRows
+        : taskRows.filter((row) => row.division === divisionFilter);
+
+    return filtered.map((row) => ({
+      id: row.id,
+      taskMasterId: row.taskMasterId,
+      assignedTo:
+        row.fieldPerson !== "—"
+          ? { name: row.fieldPerson, email: "" }
+          : null,
+      taskMaster: {
+        code: row.code,
+        name: row.name,
+        unit: row.unit,
+        formType: row.formType,
+      },
+      progress: progressByTaskId.get(row.id) ?? {
+        estimated: 0,
+        approved: 0,
+        pending: 0,
+        approvedPct: 0,
+      },
+    }));
+  }, [taskRows, divisionFilter, progressByTaskId]);
 
   const taskSortAccessors = useMemo(
     () => ({
-      wbs: (row: TableRow) => Number(row.wbs),
-      code: (row: TableRow) => row.code,
-      name: (row: TableRow) => row.name,
-      division: (row: TableRow) => row.division,
-      unit: (row: TableRow) => row.unit,
-      formType: (row: TableRow) => row.formType,
-      fieldPerson: (row: TableRow) => row.fieldPerson,
+      code: (row: BidItemTaskRow) => row.taskMaster.code,
+      name: (row: BidItemTaskRow) => row.taskMaster.name,
+      unit: (row: BidItemTaskRow) => row.taskMaster.unit,
+      planQty: (row: BidItemTaskRow) => row.progress.estimated,
+      installed: (row: BidItemTaskRow) => row.progress.approved,
+      progress: (row: BidItemTaskRow) =>
+        row.progress.estimated > 0
+          ? row.progress.approved / row.progress.estimated
+          : row.progress.approved,
+      lead: (row: BidItemTaskRow) => row.assignedTo?.name ?? "",
     }),
     [],
   );
 
-  const {
-    searchInput,
-    setSearchInput,
-    sortKey,
-    sortDir,
-    toggleSort,
-    paginated: paginatedTasks,
-    total: filteredTaskTotal,
-    setPage: setTaskTablePage,
-  } = useAdminTable({
-    rows: divisionFilteredTasks,
+  const tasksTable = useAdminTable({
+    rows: bidItemRows,
     getSearchText: (row) =>
-      `${row.code} ${row.name} ${row.fieldPerson} ${divisionLabels[row.division] ?? row.division}`,
+      `${row.taskMaster.code} ${row.taskMaster.name} ${row.assignedTo?.name ?? ""}`,
     sortAccessors: taskSortAccessors,
     defaultSort: { key: "code", direction: "asc" },
   });
 
   useEffect(() => {
-    setTaskTablePage(1);
-  }, [divisionFilter, setTaskTablePage]);
+    tasksTable.setPage(1);
+  }, [divisionFilter, tasksTable.setPage]);
 
   const projectDivisions = useMemo(
     () =>
@@ -591,7 +627,7 @@ export function ProjectDetailPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
         <Link
-          to={`${base}/projects`}
+          to={`/${base}/projects`}
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" />
@@ -624,14 +660,14 @@ export function ProjectDetailPage() {
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {canViewReports && isProjectAdminWorkspace && (
             <Button asChild variant="outline" size="sm">
-              <Link to={`${base}/reports/history?projectId=${project.id}`}>
+              <Link to={`/${base}/reports/history?projectId=${project.id}`}>
                 Approval history
               </Link>
             </Button>
           )}
           {canViewReports && (
             <Button asChild variant="outline" size="sm">
-              <Link to={`${base}/reports/${project.id}`}>Field reports</Link>
+              <Link to={`/${base}/reports/${project.id}`}>Field reports</Link>
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
@@ -647,15 +683,16 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
-          <h2 className="shrink-0 text-sm font-semibold">Project tasks</h2>
-          <AdminTableSearch
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search tasks…"
-            className="min-w-[10rem] max-w-md flex-1"
-          />
+      <BidItemTaskTable
+        projectId={project.id}
+        base={base}
+        tasks={bidItemRows}
+        totalTasksCount={taskRows.length}
+        table={tasksTable}
+        saving={saving}
+        showViewEntries={canViewReports}
+        onRemove={(taskMasterId) => void removeTask(taskMasterId)}
+        toolbarExtra={
           <select
             className={cn(
               selectClass,
@@ -671,150 +708,15 @@ export function ProjectDetailPage() {
               </option>
             ))}
           </select>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {filteredTaskTotal} items
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="border-b bg-muted/50 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              <tr>
-                <SortableTh
-                  label="WBS"
-                  sortKey="wbs"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-20"
-                />
-                <SortableTh
-                  label="Master code"
-                  sortKey="code"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-28"
-                />
-                <SortableTh
-                  label="Master name"
-                  sortKey="name"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  label="Division"
-                  sortKey="division"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-36"
-                />
-                <SortableTh
-                  label="Unit"
-                  sortKey="unit"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-20"
-                />
-                <SortableTh
-                  label="Form"
-                  sortKey="formType"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-28"
-                />
-                <th className="w-36 px-2 py-1">Work limits</th>
-                <SortableTh
-                  label="Field person"
-                  sortKey="fieldPerson"
-                  activeSortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="w-36"
-                />
-                <th className="w-16 px-2 py-1" />
-              </tr>
-            </thead>
-            <tbody>
-              {taskRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-2 py-4 text-center text-sm text-muted-foreground"
-                  >
-                    No tasks yet. Click <strong>Add task</strong> or{" "}
-                    <strong>Import tasks</strong> to add work scope.
-                  </td>
-                </tr>
-              )}
-              {taskRows.length > 0 && filteredTaskTotal === 0 && (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-2 py-4 text-center text-sm text-muted-foreground"
-                  >
-                    No tasks match your search or filter.
-                  </td>
-                </tr>
-              )}
-              {paginatedTasks.items.map((row) => (
-                <tr
-                  key={row.taskMasterId}
-                  className="border-b last:border-0 hover:bg-muted/10"
-                >
-                  <td className="px-2 py-1 tabular-nums text-muted-foreground">
-                    {row.wbs}
-                  </td>
-                  <td className="px-2 py-1 font-mono text-xs">{row.code}</td>
-                  <td className="px-2 py-1">{row.name}</td>
-                  <td className="px-2 py-1 text-xs">
-                    {divisionLabels[row.division] ?? row.division}
-                  </td>
-                  <td className="px-2 py-1 text-xs">{row.unit}</td>
-                  <td className="px-2 py-1 text-xs">
-                    {formLabels[row.formType] ?? row.formType}
-                  </td>
-                  <td className="px-2 py-1 font-mono text-[11px]">
-                    {isStaFormType(row.formType) &&
-                    adminNeedsStaWorkLimits({
-                      formType: row.formType,
-                      masterCode: row.code,
-                      masterName: row.name,
-                    }) &&
-                    row.beginSta &&
-                    row.endSta
-                      ? `${row.beginSta} → ${row.endSta}`
-                      : row.formType === "STA_RANGE" &&
-                          adminNeedsStaWorkLimits({
-                            formType: row.formType,
-                            masterCode: row.code,
-                            masterName: row.name,
-                          })
-                        ? "—"
-                        : "Field entry"}
-                  </td>
-                  <td className="px-2 py-1 text-xs">{row.fieldPerson}</td>
-                  <td className="px-2 py-1 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="iconSm"
-                      disabled={saving}
-                      title="Remove task"
-                      onClick={() => void removeTask(row.taskMasterId)}
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        }
+        emptyMessage={
+          <>
+            No tasks yet. Click <strong>Add task</strong> or{" "}
+            <strong>Import tasks</strong> to add work scope.
+          </>
+        }
+        filteredEmptyMessage="No tasks match your search or filter."
+      />
 
       <UnsavedCloseDialog
         open={unsavedPrompt}

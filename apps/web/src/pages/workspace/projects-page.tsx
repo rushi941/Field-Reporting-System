@@ -424,7 +424,7 @@ export function ProjectsPage() {
 
   function openDetail(id: string) {
     markProjectsKnown(user?.id, [id]);
-    navigate(`${base}/projects/${id}`);
+    navigate(`/${base}/projects/${id}`);
   }
 
   async function onSave(e: React.FormEvent) {
@@ -499,7 +499,7 @@ export function ProjectsPage() {
         markProjectsKnown(user?.id, [created.project.id]);
         toast.success("Project created", { id: "project-form" });
         closeForm();
-        navigate(`${base}/projects/${created.project.id}`);
+        navigate(`/${base}/projects/${created.project.id}`);
         return;
       }
       closeForm();
