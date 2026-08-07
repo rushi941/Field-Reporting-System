@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, Loader2, Users } from "lucide-react";
+import { ArrowLeft, Calendar, Loader2 } from "lucide-react";
 import { formTypeLabel, updateDraftReportSchema } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
@@ -81,31 +81,21 @@ export function FieldProjectDetailPage() {
   const [project, setProject] = useState<FieldProject | null>(null);
   const [report, setReport] = useState<FieldReport | null>(null);
   const [reportDate, setReportDate] = useState(todayIso());
-  const [crewSize, setCrewSize] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [crewError, setCrewError] = useState<string | undefined>();
   const [dateError, setDateError] = useState<string | undefined>();
 
-  function parseMeta(nextDate = reportDate, nextCrew = crewSize) {
-    const crewRaw = nextCrew.trim();
+  function parseMeta(nextDate = reportDate) {
     const parsed = updateDraftReportSchema.safeParse({
       reportDate: nextDate.trim(),
-      crewSize:
-        crewRaw === ""
-          ? null
-          : Number.isFinite(Number(crewRaw))
-            ? Number(crewRaw)
-            : Number.NaN,
+      crewSize: null,
     });
     if (!parsed.success) {
       const fieldErrors = parsed.error.flatten().fieldErrors;
       setDateError(fieldErrors.reportDate?.[0]);
-      setCrewError(fieldErrors.crewSize?.[0]);
       return null;
     }
     setDateError(undefined);
-    setCrewError(undefined);
     return parsed.data;
   }
 
@@ -149,9 +139,6 @@ export function FieldProjectDetailPage() {
       );
       setReport(draft.report);
       setReportDate(draft.report.reportDate);
-      setCrewSize(
-        draft.report.crewSize != null ? String(draft.report.crewSize) : "",
-      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -171,41 +158,11 @@ export function FieldProjectDetailPage() {
 
   const busy = saving;
 
-  async function saveMeta() {
-    if (!report) return;
-    const meta = parseMeta();
-    if (!meta) {
-      toast.error("Fix report date or crew size", { id: "field-report" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const data = await apiFetch<{ report: FieldReport }>(
-        `/api/v1/field/reports/${report.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            reportDate: meta.reportDate,
-            crewSize: meta.crewSize ?? null,
-          }),
-        },
-      );
-      setReport(data.report);
-      toast.success("Report details saved", { id: "field-report" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed", {
-        id: "field-report",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function onDateChange(next: string) {
     setReportDate(next);
     setDateError(undefined);
     if (!projectId) return;
-    const meta = parseMeta(next, crewSize);
+    const meta = parseMeta(next);
     if (!meta?.reportDate) {
       toast.error("Enter a valid report date", { id: "field-report" });
       return;
@@ -219,7 +176,6 @@ export function FieldProjectDetailPage() {
           body: JSON.stringify({
             projectId,
             reportDate: meta.reportDate,
-            crewSize: meta.crewSize ?? null,
           }),
         },
       );
@@ -297,57 +253,27 @@ export function FieldProjectDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs" htmlFor="report-date">
-            Report date
-          </Label>
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="report-date"
-              type="date"
-              className={cn("h-10 pl-9 text-sm", dateError && "border-destructive")}
-              value={reportDate}
-              disabled={!editable || busy}
-              aria-invalid={Boolean(dateError)}
-              onChange={(e) => void onDateChange(e.target.value)}
-            />
-          </div>
-          {dateError && (
-            <p className="text-[11px] text-destructive" role="alert">
-              {dateError}
-            </p>
-          )}
+      <div className="max-w-xs space-y-1">
+        <Label className="text-xs" htmlFor="report-date">
+          Report date
+        </Label>
+        <div className="relative">
+          <Calendar className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="report-date"
+            type="date"
+            className={cn("h-10 pl-9 text-sm", dateError && "border-destructive")}
+            value={reportDate}
+            disabled={!editable || busy}
+            aria-invalid={Boolean(dateError)}
+            onChange={(e) => void onDateChange(e.target.value)}
+          />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs" htmlFor="crew-size">
-            Crew size
-          </Label>
-          <div className="relative">
-            <Users className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="crew-size"
-              type="number"
-              min={1}
-              className={cn("h-10 pl-9 text-sm", crewError && "border-destructive")}
-              placeholder="# people"
-              value={crewSize}
-              disabled={!editable || busy}
-              aria-invalid={Boolean(crewError)}
-              onChange={(e) => {
-                setCrewSize(e.target.value);
-                setCrewError(undefined);
-              }}
-              onBlur={() => void saveMeta()}
-            />
-          </div>
-          {crewError && (
-            <p className="text-[11px] text-destructive" role="alert">
-              {crewError}
-            </p>
-          )}
-        </div>
+        {dateError && (
+          <p className="text-[11px] text-destructive" role="alert">
+            {dateError}
+          </p>
+        )}
       </div>
 
       {saving && (

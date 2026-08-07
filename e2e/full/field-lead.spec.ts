@@ -34,7 +34,6 @@ test.describe("Field Lead — workspace & inputs", () => {
     await projectBtn.click();
     await page.waitForURL(/\/field\/projects\/[^/]+$/);
     await expect(page.getByLabel(/report date/i)).toBeVisible();
-    await expect(page.getByLabel(/crew size/i)).toBeVisible();
 
     const taskBtn = page.locator('button').filter({ hasText: /segment|location|#/i }).first();
     if ((await taskBtn.count()) === 0) {

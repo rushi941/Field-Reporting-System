@@ -62,7 +62,6 @@ function ProjectStatusBadge({ status }: { status: string }) {
   return <span className={className}>{label}</span>;
 }
 
-type FieldLeadOpt = { id: string; name: string; email: string; division: string | null };
 type UnitOpt = { id: string; code: string; name: string };
 
 type ProjectTask = {
@@ -134,7 +133,6 @@ const selectClass =
 const emptyTaskForm = {
   division: "",
   masterBidId: "",
-  assignedToId: "",
   formType: "STA_WITH_CF",
   beginSta: "",
   endSta: "",
@@ -209,7 +207,6 @@ export function ProjectDetailPage() {
   const canViewReports = can("reports.view_project_history");
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [fieldLeads, setFieldLeads] = useState<FieldLeadOpt[]>([]);
   const [units, setUnits] = useState<UnitOpt[]>([]);
   const [taskTree, setTaskTree] = useState<TaskNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,13 +237,11 @@ export function ProjectDetailPage() {
       const [p, lookups] = await Promise.all([
         apiFetch<{ project: ProjectDetail }>(`/api/v1/projects/${projectId}`),
         apiFetch<{
-          fieldLeads: FieldLeadOpt[];
           taskTree: TaskNode[];
           units: UnitOpt[];
         }>("/api/v1/projects/lookups"),
       ]);
       setProject(p.project);
-      setFieldLeads(lookups.fieldLeads);
       setTaskTree(lookups.taskTree);
       setUnits(lookups.units);
 
@@ -347,30 +342,6 @@ export function ProjectDetailPage() {
     [project],
   );
 
-  /** All field leads on the project — not filtered by task division. */
-  const projectFieldLeads = useMemo((): FieldLeadOpt[] => {
-    if (!project) return [];
-
-    const fromProject = project.fieldLeads;
-    if (fromProject.length > 0) {
-      const byId = new Map(fieldLeads.map((u) => [u.id, u]));
-      return fromProject.map((fl) => {
-        const lookup = byId.get(fl.id);
-        return {
-          id: fl.id,
-          name: fl.name,
-          email: fl.email,
-          division: lookup?.division ?? null,
-        };
-      });
-    }
-
-    const projectLeadIds = new Set(project.fieldLeadIds);
-    if (projectLeadIds.size === 0) return [];
-
-    return fieldLeads.filter((u) => projectLeadIds.has(u.id));
-  }, [fieldLeads, project]);
-
   const divisionMasters = useMemo(() => {
     if (!form.division) return [];
     return taskTree.filter((t) => t.division === form.division);
@@ -453,7 +424,6 @@ export function ProjectDetailPage() {
       ...f,
       division,
       masterBidId: "",
-      assignedToId: "",
       formType: "STA_WITH_CF",
       beginSta: "",
       endSta: "",
@@ -524,7 +494,7 @@ export function ProjectDetailPage() {
         });
       const raw = {
         taskMasterId: form.masterBidId,
-        assignedToId: form.assignedToId,
+        assignedToId: null,
         division: form.division,
         formType: needsSta ? masterFormType : "SINGLE_POINT",
         beginSta: needsSta ? form.beginSta.trim() || null : null,
@@ -665,11 +635,6 @@ export function ProjectDetailPage() {
               </Link>
             </Button>
           )}
-          {canViewReports && (
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/${base}/reports/${project.id}`}>Field reports</Link>
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="size-4" /> Import tasks
           </Button>
@@ -690,7 +655,7 @@ export function ProjectDetailPage() {
         totalTasksCount={taskRows.length}
         table={tasksTable}
         saving={saving}
-        showViewEntries={canViewReports}
+        showViewEntries={false}
         onRemove={(taskMasterId) => void removeTask(taskMasterId)}
         toolbarExtra={
           <select
@@ -748,7 +713,7 @@ export function ProjectDetailPage() {
                 Add task
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Select a master bid and assign a field person.
+                Select a master bid to add to this project.
                 {showStaWorkLimits
                   ? " Set Begin/End STA work limits for this task."
                   : fieldEntryPreview
@@ -813,36 +778,6 @@ export function ProjectDetailPage() {
                 ) : null}
               </FormField>
 
-              <FormField className="sm:col-span-2">
-                <Label>Field person *</Label>
-                <select
-                  className={selectClass}
-                  value={form.assignedToId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, assignedToId: e.target.value }))
-                  }
-                  required
-                >
-                  <option value="">— Select field person —</option>
-                  {projectFieldLeads.length === 0 ? (
-                    <option value="" disabled>
-                      Add field persons on the project first
-                    </option>
-                  ) : (
-                    projectFieldLeads.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.email})
-                        {u.division
-                          ? ` · ${divisionLabels[u.division] ?? u.division}`
-                          : ""}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  All field persons assigned to this project are listed here.
-                </p>
-              </FormField>
             </FormSection>
 
             {showStaWorkLimits && (

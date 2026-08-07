@@ -68,6 +68,17 @@ export function UserMultiSelect({
     onChange([...value, id]);
   }
 
+  function toggleSelectAll() {
+    if (allSelected) {
+      onChange([]);
+      return;
+    }
+    onChange(options.map((o) => o.id));
+  }
+
+  const allSelected =
+    options.length > 0 && options.every((o) => value.includes(o.id));
+
   const summary =
     value.length === 0
       ? placeholder
@@ -107,7 +118,16 @@ export function UserMultiSelect({
 
       {open && (
         <div className="absolute z-[2100] mt-1 w-full rounded-md border border-border bg-card shadow-lg">
-          <div className="border-b border-border p-2">
+          <div className="space-y-2 border-b border-border p-2">
+            {options.length > 1 && (
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="text-xs font-medium text-sky-800 hover:underline"
+              >
+                {allSelected ? "Clear all" : "Select all"}
+              </button>
+            )}
             <Input
               ref={inputRef}
               value={query}

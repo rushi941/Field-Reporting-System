@@ -113,7 +113,7 @@ export const projectCreateTaskSchema = z
     widthInches: z.number().int().positive().optional().nullable(),
     conversionFactor: z.number().nonnegative().optional(),
     description: z.string().max(500).optional().nullable(),
-    assignedToId: z.string().min(1),
+    assignedToId: z.string().min(1).optional().nullable(),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
   })

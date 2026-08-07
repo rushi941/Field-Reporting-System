@@ -320,9 +320,7 @@ async function assertFieldLead(
   userId: string | null | undefined,
   taskDivision?: Division,
 ) {
-  if (!userId) {
-    throw new AppError("VALIDATION_ERROR", "Field person is required", 400);
-  }
+  if (!userId) return;
   const user = await prisma.user.findFirst({
     where: {
       id: userId,
@@ -910,7 +908,7 @@ async function addProjectTaskInternal(
     },
   });
 
-  if (project.projectManagerId) {
+  if (body.assignedToId && project.projectManagerId) {
     const assignee = await prisma.user.findUnique({
       where: { id: body.assignedToId },
       select: { division: true },

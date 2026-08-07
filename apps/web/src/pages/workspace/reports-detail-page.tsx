@@ -8,7 +8,6 @@ import { workspaceReportsExportPath } from "@/lib/billing-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdminTableSearch } from "@/components/admin-table-search";
-import { BidItemTaskTable } from "@/components/bid-item-task-table";
 import { SortableTh } from "@/components/sortable-table-head";
 import { useAdminTable } from "@/hooks/use-admin-table";
 
@@ -26,24 +25,6 @@ type ProjectInfo = {
   projectAdmin: { name: string; email: string } | null;
   projectManager: { name: string; email: string } | null;
   taskCount: number;
-};
-
-type TaskRow = {
-  id: string;
-  division: string;
-  assignedTo: { name: string; email: string } | null;
-  taskMaster: {
-    code: string;
-    name: string;
-    unit: string;
-    formType: string;
-  };
-  progress: {
-    estimated: number;
-    approved: number;
-    pending: number;
-    approvedPct: number;
-  };
 };
 
 type ReportRow = {
@@ -76,7 +57,6 @@ export function WorkspaceReportsDetailPage({
 }) {
   const { projectId } = useParams();
   const [project, setProject] = useState<ProjectInfo | null>(null);
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [statusCounts, setStatusCounts] = useState({
     draft: 0,
@@ -87,22 +67,6 @@ export function WorkspaceReportsDetailPage({
   });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-
-  const taskSortAccessors = useMemo(
-    () => ({
-      code: (t: TaskRow) => t.taskMaster.code,
-      name: (t: TaskRow) => t.taskMaster.name,
-      unit: (t: TaskRow) => t.taskMaster.unit,
-      planQty: (t: TaskRow) => t.progress.estimated,
-      installed: (t: TaskRow) => t.progress.approved,
-      progress: (t: TaskRow) =>
-        t.progress.estimated > 0
-          ? t.progress.approved / t.progress.estimated
-          : t.progress.approved,
-      lead: (t: TaskRow) => t.assignedTo?.name ?? "",
-    }),
-    [],
-  );
 
   const reportSortAccessors = useMemo(
     () => ({
@@ -115,14 +79,6 @@ export function WorkspaceReportsDetailPage({
     }),
     [],
   );
-
-  const tasksTable = useAdminTable({
-    rows: tasks,
-    getSearchText: (t) =>
-      `${t.taskMaster.code} ${t.taskMaster.name} ${t.assignedTo?.name ?? ""}`,
-    sortAccessors: taskSortAccessors,
-    defaultSort: { key: "code", direction: "asc" },
-  });
 
   const reportsTable = useAdminTable({
     rows: reports,
@@ -139,12 +95,10 @@ export function WorkspaceReportsDetailPage({
       try {
         const data = await apiFetch<{
           project: ProjectInfo;
-          tasks: TaskRow[];
           reports: ReportRow[];
           statusCounts: typeof statusCounts;
         }>(`/api/v1/workspace-reports/projects/${projectId}`);
         setProject(data.project);
-        setTasks(data.tasks);
         setReports(data.reports);
         setStatusCounts(data.statusCounts);
       } catch (err) {
@@ -271,16 +225,6 @@ export function WorkspaceReportsDetailPage({
         <CountCard label="Returned" value={statusCounts.returned} warn />
         <CountCard label="Draft" value={statusCounts.draft} />
       </div>
-
-      <section>
-        <BidItemTaskTable
-          projectId={project.id}
-          base={base}
-          tasks={tasks}
-          totalTasksCount={tasks.length}
-          table={tasksTable}
-        />
-      </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Field reports</h2>
