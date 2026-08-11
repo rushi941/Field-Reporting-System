@@ -494,7 +494,6 @@ export function ProjectDetailPage() {
         });
       const raw = {
         taskMasterId: form.masterBidId,
-        assignedToId: null,
         division: form.division,
         formType: needsSta ? masterFormType : "SINGLE_POINT",
         beginSta: needsSta ? form.beginSta.trim() || null : null,
