@@ -62,6 +62,7 @@ export function WorkspaceReportsRollupPage({
   const {
     searchInput,
     setSearchInput,
+    search,
     sortKey,
     sortDir,
     toggleSort,
@@ -151,13 +152,9 @@ export function WorkspaceReportsRollupPage({
         </FilterChip>
       </div>
 
-      {filteredTotal === 0 ? (
+      {projects.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-          {filter === "attention"
-            ? "No projects with pending or returned reports."
-            : projects.length === 0
-              ? "No active projects in your scope."
-              : "No projects match your search."}
+          No active projects in your scope.
         </p>
       ) : (
         <>
@@ -184,6 +181,20 @@ export function WorkspaceReportsRollupPage({
                   </tr>
                 </thead>
                 <tbody>
+                  {filteredTotal === 0 && (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="px-2 py-6 text-center text-sm text-muted-foreground"
+                      >
+                        {search
+                          ? "No projects match your search."
+                          : filter === "attention"
+                            ? "No projects with pending or returned reports."
+                            : "No projects match your filters."}
+                      </td>
+                    </tr>
+                  )}
                   {paginated.items.map((p) => (
                     <tr key={p.id} className="border-b last:border-0">
                       <td className="px-2 py-1">
@@ -243,30 +254,42 @@ export function WorkspaceReportsRollupPage({
           </div>
 
           <ul className="space-y-2 md:hidden">
-            {paginated.items.map((p) => (
-              <li key={p.id}>
-                <Link
-                  to={`/${base}/reports/${p.id}`}
-                  className="block rounded-lg border bg-card px-4 py-3 shadow-sm"
-                >
-                  <p className="font-semibold">{p.jobNumber}</p>
-                  <p className="text-sm text-muted-foreground">{p.name}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {p.approvedCount} approved · {p.pendingCount} pending ·{" "}
-                    {p.returnedCount} returned
-                  </p>
-                </Link>
+            {filteredTotal === 0 ? (
+              <li className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                {search
+                  ? "No projects match your search."
+                  : filter === "attention"
+                    ? "No projects with pending or returned reports."
+                    : "No projects match your filters."}
               </li>
-            ))}
+            ) : (
+              paginated.items.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/${base}/reports/${p.id}`}
+                    className="block rounded-lg border bg-card px-4 py-3 shadow-sm"
+                  >
+                    <p className="font-semibold">{p.jobNumber}</p>
+                    <p className="text-sm text-muted-foreground">{p.name}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {p.approvedCount} approved · {p.pendingCount} pending ·{" "}
+                      {p.returnedCount} returned
+                    </p>
+                  </Link>
+                </li>
+              ))
+            )}
           </ul>
 
-          <TablePagination
-            page={paginated.page}
-            totalPages={paginated.totalPages}
-            totalItems={filtered.length}
-            pageSize={ADMIN_PAGE_SIZE}
-            onPageChange={setTablePage}
-          />
+          {filteredTotal > 0 && (
+            <TablePagination
+              page={paginated.page}
+              totalPages={paginated.totalPages}
+              totalItems={filtered.length}
+              pageSize={ADMIN_PAGE_SIZE}
+              onPageChange={setTablePage}
+            />
+          )}
         </>
       )}
     </div>

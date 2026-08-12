@@ -230,40 +230,45 @@ export function WorkspaceReportsDetailPage({
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Field reports</h2>
+
+        {reports.length > 0 && (
+          <AdminTableSearch
+            className="max-w-sm"
+            value={reportsTable.searchInput}
+            onChange={reportsTable.setSearchInput}
+            placeholder="Search reports…"
+          />
+        )}
+
         {reports.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
             No field reports on this project yet.
           </p>
         ) : (
-          <>
-            <AdminTableSearch
-              className="max-w-sm"
-              value={reportsTable.searchInput}
-              onChange={reportsTable.setSearchInput}
-              placeholder="Search reports…"
-            />
           <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
+                <SortableTh label="Photos" sortKey="photos" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {reportsTable.total === 0 && (
                 <tr>
-                  <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                  <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                  <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                  <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                  <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                  <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
-                  <SortableTh label="Photos" sortKey="photos" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
+                  <td colSpan={7} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    {reportsTable.search
+                      ? "No reports match your search."
+                      : "No reports match your filters."}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {reportsTable.total === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-2 py-4 text-center text-sm text-muted-foreground">
-                      No reports match your search.
-                    </td>
-                  </tr>
-                )}
-                {reportsTable.paginated.items.map((r) => {
+              )}
+              {reportsTable.paginated.items.map((r) => {
                   const label =
                     frdStatusLabels[
                       r.status as keyof typeof frdStatusLabels
@@ -318,10 +323,9 @@ export function WorkspaceReportsDetailPage({
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
+            </tbody>
+          </table>
           </div>
-          </>
         )}
       </section>
 

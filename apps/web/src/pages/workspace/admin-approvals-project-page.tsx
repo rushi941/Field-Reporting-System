@@ -161,33 +161,43 @@ export function AdminApprovalsProjectPage({ base }: { base: "system" }) {
         ))}
       </div>
 
-      <AdminTableSearch
-        className="max-w-sm"
-        value={reportsTable.searchInput}
-        onChange={reportsTable.setSearchInput}
-        placeholder="Search reports…"
-      />
-
-      {reportsTable.total === 0 ? (
+      {reports.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-          No reports match your filters.
+          No reports on this project yet.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
-              <tr>
-                <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
-                <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
-                <th className="px-2 py-1 font-medium text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reportsTable.paginated.items.map((r) => {
+        <>
+          <AdminTableSearch
+            className="max-w-sm"
+            value={reportsTable.searchInput}
+            onChange={reportsTable.setSearchInput}
+            placeholder="Search reports…"
+          />
+
+          <div className="overflow-hidden rounded-lg border">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
+                  <th className="px-2 py-1 font-medium text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportsTable.total === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-2 py-6 text-center text-sm text-muted-foreground">
+                      {reportsTable.search
+                        ? "No reports match your search."
+                        : "No reports match your filters."}
+                    </td>
+                  </tr>
+                )}
+                {reportsTable.paginated.items.map((r) => {
                 const label =
                   frdStatusLabels[r.status as keyof typeof frdStatusLabels] ??
                   r.status.replaceAll("_", " ");
@@ -237,13 +247,16 @@ export function AdminApprovalsProjectPage({ base }: { base: "system" }) {
               })}
             </tbody>
           </table>
-          <TablePagination
-            page={reportsTable.paginated.page}
-            pageSize={ADMIN_PAGE_SIZE}
-            total={reportsTable.paginated.total}
-            onPageChange={reportsTable.setPage}
-          />
+          {reportsTable.total > 0 && (
+            <TablePagination
+              page={reportsTable.paginated.page}
+              pageSize={ADMIN_PAGE_SIZE}
+              total={reportsTable.paginated.total}
+              onPageChange={reportsTable.setPage}
+            />
+          )}
         </div>
+        </>
       )}
     </div>
   );
