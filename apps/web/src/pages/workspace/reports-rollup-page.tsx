@@ -19,7 +19,6 @@ type RollupProject = {
   division: string;
   clientName: string | null;
   taskCount: number;
-  draftCount: number;
   pendingCount: number;
   returnedCount: number;
   approvedCount: number;
@@ -54,7 +53,6 @@ export function WorkspaceReportsRollupPage({
       approved: (p: RollupProject) => p.approvedCount,
       pending: (p: RollupProject) => p.pendingCount,
       returned: (p: RollupProject) => p.returnedCount,
-      draft: (p: RollupProject) => p.draftCount,
       lastReport: (p: RollupProject) => p.lastReportDate ?? "",
     }),
     [],
@@ -103,11 +101,10 @@ export function WorkspaceReportsRollupPage({
         acc.approved += p.approvedCount;
         acc.pending += p.pendingCount;
         acc.returned += p.returnedCount;
-        acc.draft += p.draftCount;
         if (p.needsAttention) acc.attention += 1;
         return acc;
       },
-      { approved: 0, pending: 0, returned: 0, draft: 0, attention: 0 },
+      { approved: 0, pending: 0, returned: 0, attention: 0 },
     );
   }, [projects]);
 
@@ -133,11 +130,10 @@ export function WorkspaceReportsRollupPage({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Approved" value={String(totals.approved)} />
         <Metric label="Under review" value={String(totals.pending)} highlight />
         <Metric label="Returned" value={String(totals.returned)} />
-        <Metric label="Draft" value={String(totals.draft)} />
         <Metric label="Needs attention" value={String(totals.attention)} />
       </div>
 
@@ -176,7 +172,6 @@ export function WorkspaceReportsRollupPage({
                     <SortableTh label="Approved" sortKey="approved" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
                     <SortableTh label="Pending" sortKey="pending" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
                     <SortableTh label="Returned" sortKey="returned" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableTh label="Draft" sortKey="draft" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
                     <SortableTh label="Last report" sortKey="lastReport" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="px-2 py-1 font-medium text-right">Actions</th>
                   </tr>
@@ -185,7 +180,7 @@ export function WorkspaceReportsRollupPage({
                   {filteredTotal === 0 && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={8}
                         className="px-2 py-6 text-center text-sm text-muted-foreground"
                       >
                         {search
@@ -234,9 +229,6 @@ export function WorkspaceReportsRollupPage({
                         )}
                       >
                         {p.returnedCount}
-                      </td>
-                      <td className="px-2 py-1 text-right tabular-nums">
-                        {p.draftCount}
                       </td>
                       <td className="px-2 py-1 text-xs tabular-nums">
                         {p.lastReportDate ?? "—"}

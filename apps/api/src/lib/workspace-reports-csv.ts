@@ -65,7 +65,7 @@ export async function loadWorkspaceProjectForExport(
 
 export async function loadWorkspaceReportsForExport(projectId: string) {
   return prisma.report.findMany({
-    where: { projectId },
+    where: { projectId, status: { not: "DRAFT" } },
     include: reportExportInclude,
     orderBy: [{ reportDate: "desc" }, { reportNumber: "desc" }],
   });

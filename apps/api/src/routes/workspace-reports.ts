@@ -24,6 +24,9 @@ export const workspaceReportsRouter = Router();
 
 workspaceReportsRouter.use(requireAuth);
 
+/** Workspace admins track submitted workflow only — drafts stay with field leads. */
+const workspaceReportStatusWhere = { not: "DRAFT" as const };
+
 /** System admin sees all active projects; project admin sees assigned jobs only. */
 function workspaceProjectScopeWhere(
   userId: string,
@@ -219,7 +222,7 @@ workspaceReportsRouter.get(
 
     const groups = await prisma.report.groupBy({
       by: ["projectId", "status"],
-      where: { projectId: { in: projectIds } },
+      where: { projectId: { in: projectIds }, status: workspaceReportStatusWhere },
       _count: { _all: true },
       _max: { reportDate: true },
     });
@@ -227,7 +230,6 @@ workspaceReportsRouter.get(
     const byProject = new Map<
       string,
       {
-        draftCount: number;
         pendingCount: number;
         returnedCount: number;
         approvedCount: number;
@@ -238,7 +240,6 @@ workspaceReportsRouter.get(
 
     for (const id of projectIds) {
       byProject.set(id, {
-        draftCount: 0,
         pendingCount: 0,
         returnedCount: 0,
         approvedCount: 0,
@@ -252,8 +253,7 @@ workspaceReportsRouter.get(
       if (!row) continue;
       const count = g._count._all;
       row.totalCount += count;
-      if (g.status === "DRAFT") row.draftCount += count;
-      else if (g.status === "SUBMITTED") row.pendingCount += count;
+      if (g.status === "SUBMITTED") row.pendingCount += count;
       else if (g.status === "RETURNED") row.returnedCount += count;
       else if (g.status === "APPROVED" || g.status === "APPROVED_WITH_NOTES") {
         row.approvedCount += count;
@@ -398,22 +398,20 @@ workspaceReportsRouter.get(
     );
 
     const reports = await prisma.report.findMany({
-      where: { projectId },
+      where: { projectId, status: workspaceReportStatusWhere },
       include: reportListInclude,
       orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
       take: 200,
     });
 
     const statusCounts = {
-      draft: 0,
       pending: 0,
       returned: 0,
       approved: 0,
       total: reports.length,
     };
     for (const r of reports) {
-      if (r.status === "DRAFT") statusCounts.draft += 1;
-      else if (r.status === "SUBMITTED") statusCounts.pending += 1;
+      if (r.status === "SUBMITTED") statusCounts.pending += 1;
       else if (r.status === "RETURNED") statusCounts.returned += 1;
       else if (r.status === "APPROVED" || r.status === "APPROVED_WITH_NOTES") {
         statusCounts.approved += 1;
@@ -589,7 +587,7 @@ workspaceReportsRouter.get(
     const scope = workspaceProjectScopeWhere(req.user!.id, req.user!.roles);
 
     const report = await prisma.report.findFirst({
-      where: { id: reportId, project: scope },
+      where: { id: reportId, project: scope, status: workspaceReportStatusWhere },
       include: reportDetailInclude,
     });
     if (!report) throw new AppError("NOT_FOUND", "Report not found", 404);

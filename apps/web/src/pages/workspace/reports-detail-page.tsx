@@ -63,7 +63,6 @@ export function WorkspaceReportsDetailPage({
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [statusCounts, setStatusCounts] = useState({
-    draft: 0,
     pending: 0,
     returned: 0,
     approved: 0,
@@ -225,12 +224,11 @@ export function WorkspaceReportsDetailPage({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <CountCard label="Total reports" value={statusCounts.total} />
         <CountCard label="Approved" value={statusCounts.approved} />
         <CountCard label="Under review" value={statusCounts.pending} warn />
         <CountCard label="Returned" value={statusCounts.returned} warn />
-        <CountCard label="Draft" value={statusCounts.draft} />
       </div>
 
       <section className="space-y-2">
