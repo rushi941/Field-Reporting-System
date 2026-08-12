@@ -553,6 +553,31 @@ fieldReportsRouter.patch(
   }),
 );
 
+/** Field lead: delete own draft report only */
+fieldReportsRouter.delete(
+  "/:id",
+  requirePermission("reports.edit_draft"),
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const userId = req.user!.id;
+    const report = await prisma.report.findFirst({
+      where: { id, submittedById: userId, status: "DRAFT" },
+    });
+    if (!report) {
+      throw new AppError("NOT_FOUND", "Draft report not found", 404);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.deleteMany({ where: { reportId: id } });
+      await tx.attachment.deleteMany({ where: { reportId: id } });
+      await tx.reportLineItem.deleteMany({ where: { reportId: id } });
+      await tx.report.delete({ where: { id } });
+    });
+
+    res.json({ ok: true });
+  }),
+);
+
 /** Replace all line segments for one project task on this report */
 fieldReportsRouter.put(
   "/:id/tasks/:projectTaskId",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
@@ -74,6 +74,8 @@ export function FieldReportDetailPage() {
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!reportId) return;
@@ -95,6 +97,24 @@ export function FieldReportDetailPage() {
 
   const editable =
     report?.status === "DRAFT" || report?.status === "RETURNED";
+  const canDelete = report?.status === "DRAFT";
+
+  async function deleteReport() {
+    if (!report || !canDelete) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/field/reports/${report.id}`, { method: "DELETE" });
+      toast.success("Draft report deleted", { id: "field-report" });
+      navigate("/field/reports");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed", {
+        id: "field-report",
+      });
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function submitReport() {
     if (!report || !editable) return;
@@ -344,6 +364,56 @@ export function FieldReportDetailPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {canDelete && (
+        <div className="rounded-lg border border-red-200 bg-red-50/40 px-3 py-2">
+          {!confirmDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={deleting || submitting}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="mr-1.5 size-3.5" />
+              Delete draft
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-red-800">
+                Delete this draft report? This cannot be undone.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={deleting}
+                  className="bg-red-700 text-white hover:bg-red-800"
+                  onClick={() => void deleteReport()}
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Deleting…
+                    </>
+                  ) : (
+                    "Yes, delete"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {editable && (
