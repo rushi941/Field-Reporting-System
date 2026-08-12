@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { cn } from "@/lib/utils";
 
 type ModalOverlayProps = {
@@ -16,21 +17,14 @@ export function ModalOverlay({
   className,
   onBackdropClick,
 }: ModalOverlayProps) {
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [open]);
+  useScrollLock(open);
 
   if (!open) return null;
 
   return createPortal(
     <div
       className={cn(
-        "modal-overlay fixed inset-0 z-[4000] overflow-y-auto bg-black/45 p-4 sm:p-6",
+        "modal-overlay fixed inset-0 z-[4000] overflow-hidden overscroll-none bg-black/45 p-4 sm:p-6",
         className,
       )}
       onClick={
@@ -41,7 +35,7 @@ export function ModalOverlay({
           : undefined
       }
     >
-      <div className="flex min-h-full items-center justify-center py-4">
+      <div className="flex h-full items-center justify-center overflow-y-auto overscroll-contain py-4">
         {children}
       </div>
     </div>,

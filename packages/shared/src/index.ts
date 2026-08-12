@@ -1,5 +1,6 @@
 export * from "./form-types.js";
 export * from "./auth.js";
+export * from "./password.js";
 export * from "./permissions.js";
 export * from "./projects.js";
 export * from "./line-codes.js";

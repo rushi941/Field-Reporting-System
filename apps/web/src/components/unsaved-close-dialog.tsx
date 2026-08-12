@@ -1,5 +1,6 @@
 import { Loader2, X } from "lucide-react";
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 
 type UnsavedCloseDialogProps = {
@@ -18,10 +19,12 @@ export function UnsavedCloseDialog({
   onDiscard,
   onSave,
 }: UnsavedCloseDialogProps) {
+  useScrollLock(open);
+
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/45 p-4">
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center overflow-hidden overscroll-none bg-black/45 p-4">
       <div
         role="dialog"
         aria-modal="true"

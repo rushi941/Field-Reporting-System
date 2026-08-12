@@ -4,6 +4,7 @@ import { Loader2, Pencil, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { roles, roleLabels, createUserSchema, updateUserSchema, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,38 @@ function userDisplayName(u: Pick<ManagedUser, "firstName" | "lastName" | "email"
   return name || u.email;
 }
 
+type FieldErrors = Partial<
+  Record<"firstName" | "lastName" | "email" | "password" | "roles", string>
+>;
+
+function zodFieldErrors(error: import("zod").ZodError): FieldErrors {
+  const out: FieldErrors = {};
+  for (const issue of error.issues) {
+    const key = issue.path[0];
+    if (
+      typeof key === "string" &&
+      (key === "firstName" ||
+        key === "lastName" ||
+        key === "email" ||
+        key === "password" ||
+        key === "roles") &&
+      !out[key]
+    ) {
+      out[key] = issue.message;
+    }
+  }
+  return out;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="text-[11px] text-destructive" role="alert">
+      {message}
+    </p>
+  );
+}
+
 export function SystemUsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -54,6 +87,7 @@ export function SystemUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showPassword, setShowPassword] = useState(false);
 
   const userSortAccessors = useMemo(
@@ -107,6 +141,7 @@ export function SystemUsersPage() {
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
+    setFieldErrors({});
     setShowPassword(false);
     setOpen(true);
   }
@@ -122,6 +157,7 @@ export function SystemUsersPage() {
       isActive: user.isActive,
       roles: user.roles as AppRole[],
     });
+    setFieldErrors({});
     setShowPassword(false);
     setOpen(true);
   }
@@ -139,6 +175,7 @@ export function SystemUsersPage() {
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setFieldErrors({});
     try {
       if (editingId) {
         const raw = {
@@ -154,6 +191,7 @@ export function SystemUsersPage() {
         };
         const parsed = updateUserSchema.safeParse(raw);
         if (!parsed.success) {
+          setFieldErrors(zodFieldErrors(parsed.error));
           toast.error(firstZodIssueMessage(parsed.error));
           return;
         }
@@ -176,6 +214,7 @@ export function SystemUsersPage() {
         };
         const parsed = createUserSchema.safeParse(raw);
         if (!parsed.success) {
+          setFieldErrors(zodFieldErrors(parsed.error));
           toast.error(firstZodIssueMessage(parsed.error));
           return;
         }
@@ -423,52 +462,87 @@ export function SystemUsersPage() {
           className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-xl"
         >
             <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Fields marked <span className="text-destructive">*</span> are required.
+            </p>
             <div className="mt-5 grid gap-3.5 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>First name</Label>
+                <Label htmlFor="user-first-name">
+                  First name <span className="text-destructive">*</span>
+                </Label>
                 <Input
+                  id="user-first-name"
                   value={form.firstName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, firstName: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, firstName: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, firstName: undefined }));
+                  }}
+                  aria-invalid={Boolean(fieldErrors.firstName)}
+                  className={cn(fieldErrors.firstName && "border-destructive")}
                   required
                 />
+                <FieldError message={fieldErrors.firstName} />
               </div>
               <div className="space-y-1.5">
-                <Label>Last name</Label>
+                <Label htmlFor="user-last-name">
+                  Last name <span className="text-destructive">*</span>
+                </Label>
                 <Input
+                  id="user-last-name"
                   value={form.lastName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, lastName: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, lastName: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, lastName: undefined }));
+                  }}
+                  aria-invalid={Boolean(fieldErrors.lastName)}
+                  className={cn(fieldErrors.lastName && "border-destructive")}
                   required
                 />
+                <FieldError message={fieldErrors.lastName} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Email</Label>
+                <Label htmlFor="user-email">
+                  Email <span className="text-destructive">*</span>
+                </Label>
                 <Input
+                  id="user-email"
                   type="email"
                   value={form.email}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, email: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, email: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  className={cn(fieldErrors.email && "border-destructive")}
                   required
                 />
+                <FieldError message={fieldErrors.email} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>
-                  Password {editingId ? "(leave blank to keep)" : ""}
+                <Label htmlFor="user-password">
+                  Password{" "}
+                  {editingId ? (
+                    "(leave blank to keep)"
+                  ) : (
+                    <span className="text-destructive">*</span>
+                  )}
                 </Label>
                 <div className="relative">
                   <Input
+                    id="user-password"
                     type={showPassword ? "text" : "password"}
                     value={form.password}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, password: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setForm((f) => ({ ...f, password: e.target.value }));
+                      setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                    }}
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    className={cn(
+                      "pr-10",
+                      fieldErrors.password && "border-destructive",
+                    )}
                     required={!editingId}
                     minLength={editingId && !form.password ? undefined : 8}
-                    className="pr-10"
                     autoComplete={editingId ? "new-password" : "new-password"}
                   />
                   <button
@@ -485,10 +559,24 @@ export function SystemUsersPage() {
                     )}
                   </button>
                 </div>
+                <FieldError message={fieldErrors.password} />
+                {(!editingId || form.password.length > 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    Min 8 characters with uppercase, lowercase, number, and special
+                    character.
+                  </p>
+                )}
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label>Roles</Label>
-                <div className="flex flex-wrap gap-2">
+                <Label>
+                  Roles <span className="text-destructive">*</span>
+                </Label>
+                <div
+                  className={cn(
+                    "flex flex-wrap gap-2 rounded-md border border-transparent p-1",
+                    fieldErrors.roles && "border-destructive",
+                  )}
+                >
                   {roles.map((role) => (
                     <label
                       key={role}
@@ -497,12 +585,16 @@ export function SystemUsersPage() {
                       <input
                         type="checkbox"
                         checked={form.roles.includes(role)}
-                        onChange={() => toggleRole(role)}
+                        onChange={() => {
+                          toggleRole(role);
+                          setFieldErrors((prev) => ({ ...prev, roles: undefined }));
+                        }}
                       />
                       {roleLabels[role]}
                     </label>
                   ))}
                 </div>
+                <FieldError message={fieldErrors.roles} />
               </div>
               <label className="inline-flex items-center gap-2 text-sm sm:col-span-2">
                 <input

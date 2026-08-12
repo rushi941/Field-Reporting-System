@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 
 type ConfirmDialogProps = {
@@ -27,11 +28,13 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
+  useScrollLock(open);
+
   if (!open) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/45 p-4"
+      className="fixed inset-0 z-[4000] flex items-center justify-center overflow-hidden overscroll-none bg-black/45 p-4"
       onClick={busy ? undefined : onCancel}
     >
       <div
