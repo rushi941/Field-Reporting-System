@@ -17,7 +17,6 @@ import {
   physicalLfFromSta,
   quantityFromStaRange,
   reportedLfFromSta,
-  staRangesOverlap,
 } from "./sta.js";
 
 export {
@@ -333,10 +332,9 @@ export function validateReportTaskSegments(
 
 export type StaRangePair = { beginSta: string; endSta: string };
 
-/** Validate STA segments: format, overlap within submission, overlap with completed, bounds. */
+/** Validate STA segments: format and optional task/project bounds. */
 export function validateStaSegmentsCoverage(
   segments: StaRangePair[],
-  completed: StaRangePair[],
   projectBounds?: StaRangePair | null,
 ):
   | { success: true }
@@ -368,25 +366,6 @@ export function validateStaSegmentsCoverage(
     };
   }
 
-  for (let i = 0; i < segments.length; i++) {
-    for (let j = i + 1; j < segments.length; j++) {
-      const a = segments[i]!;
-      const b = segments[j]!;
-      if (
-        staRangesOverlap(a.beginSta, a.endSta, b.beginSta, b.endSta)
-      ) {
-        errors[i] = {
-          ...(errors[i] ?? {}),
-          beginSta: "Overlaps another row in this submission",
-        };
-        errors[j] = {
-          ...(errors[j] ?? {}),
-          beginSta: "Overlaps another row in this submission",
-        };
-      }
-    }
-  }
-
   if (projectBounds?.beginSta && projectBounds?.endSta) {
     const lo = parseStaToDecimal(projectBounds.beginSta);
     const hi = parseStaToDecimal(projectBounds.endSta);
@@ -411,7 +390,7 @@ export function validateStaSegmentsCoverage(
     return {
       success: false,
       errors,
-      message: "Fix station overlap or limits",
+      message: "Fix station limits",
     };
   }
 

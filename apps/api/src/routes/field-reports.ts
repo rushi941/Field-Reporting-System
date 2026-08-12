@@ -22,7 +22,6 @@ import {
   validateAttachmentFile,
   validateStaSegmentsCoverage,
 } from "@frs/shared";
-import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { fieldLeadAccessWhere } from "../lib/field-lead-access.js";
@@ -617,15 +616,6 @@ fieldReportsRouter.put(
     }[] = [];
 
     if (isStaFormType(formType)) {
-      const completedMap = await fetchCompletedStaRanges(
-        [projectTaskId],
-        reportId,
-      );
-      const completed = (completedMap.get(projectTaskId) ?? []).map((r) => ({
-        beginSta: r.beginSta,
-        endSta: r.endSta,
-      }));
-
       const route = await prisma.projectRoute.findUnique({
         where: { projectId: report.projectId },
         select: { beginSta: true, endSta: true },
@@ -664,7 +654,6 @@ fieldReportsRouter.put(
 
       const coverage = validateStaSegmentsCoverage(
         parsedSegments,
-        completed,
         workLimits,
       );
       if (!coverage.success) {
@@ -783,18 +772,9 @@ fieldReportsRouter.post(
           continue;
         }
 
-        const completedMap = await fetchCompletedStaRanges(
-          [projectTaskId],
-          report.id,
-        );
-        const completed = (completedMap.get(projectTaskId) ?? []).map((r) => ({
-          beginSta: r.beginSta,
-          endSta: r.endSta,
-        }));
         const workLimits = resolveStaWorkLimits(projectTask, route);
         const coverage = validateStaSegmentsCoverage(
           segments,
-          completed,
           workLimits,
         );
         if (!coverage.success) {

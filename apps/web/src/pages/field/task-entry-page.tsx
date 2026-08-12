@@ -555,15 +555,10 @@ export function FieldTaskEntryPage() {
 
     if (isSta) {
       const workLimits = resolveStaWorkLimits(task, project?.route ?? null);
-      const completed = (task.completedStaRanges ?? []).map((r) => ({
-        beginSta: r.beginSta,
-        endSta: r.endSta,
-      }));
       const coverage = validateStaSegmentsCoverage(
         (validated.segments as { beginSta: string; endSta: string }[]).map(
           (s) => ({ beginSta: s.beginSta, endSta: s.endSta }),
         ),
-        completed,
         workLimits,
       );
       if (!coverage.success) {
@@ -744,8 +739,8 @@ export function FieldTaskEntryPage() {
             <strong>
               {task.beginSta} → {task.endSta}
             </strong>
-            . Enter segments inside this range — overlapping or duplicate
-            coverage is not allowed.
+            . Enter segments inside this range when possible; your division
+            manager can review and adjust submitted work.
           </p>
         </div>
       ) : null}
