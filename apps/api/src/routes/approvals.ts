@@ -7,6 +7,7 @@ import {
   formatReportAge,
   reportAgeHours,
   returnReportSchema,
+  TEXT_NOTE_MAX_LENGTH,
 } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -687,7 +688,7 @@ approvalsRouter.patch(
 
     const body = z
       .object({
-        notes: z.string().max(2000).optional().nullable(),
+        notes: z.string().max(TEXT_NOTE_MAX_LENGTH).optional().nullable(),
         crewSize: z.number().int().min(1).max(999).optional().nullable(),
       })
       .parse(req.body ?? {});

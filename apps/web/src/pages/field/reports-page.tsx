@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ClipboardList } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
+import { ScrollableText } from "@/components/scrollable-text";
 import { cn } from "@/lib/utils";
 import { ActivityDot } from "@/components/activity-dot";
 import { InitialListLoad, RefreshBar } from "@/components/page-shell";
@@ -120,9 +121,9 @@ export function FieldReportsPage() {
                     </p>
                   )}
                   {r.status === "RETURNED" && r.returnComment && (
-                    <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-950">
+                    <ScrollableText maxHeight="max-h-20" className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-950">
                       {r.returnComment}
-                    </p>
+                    </ScrollableText>
                   )}
                 </Link>
               </li>

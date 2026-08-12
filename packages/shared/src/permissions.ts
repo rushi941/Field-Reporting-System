@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalStrongPasswordSchema, strongPasswordSchema } from "./password.js";
+import { personNameSchema } from "./text-limits.js";
 import type { AppRole } from "./auth.js";
 
 /** FRD §7.2 permission keys — stored in DB, editable via System Admin matrix */
@@ -199,8 +200,8 @@ export function isPermissionGranted(access: PermissionAccessValue): boolean {
 export const createUserSchema = z.object({
   email: z.string().email("Enter a valid email address"),
   password: strongPasswordSchema,
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
+  firstName: personNameSchema,
+  lastName: personNameSchema,
   phone: z.string().optional().nullable(),
   isActive: z.boolean().optional().default(true),
   division: z

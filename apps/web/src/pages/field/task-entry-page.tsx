@@ -14,6 +14,7 @@ import {
   quantityFromStaRange,
   resolveStaWorkLimits,
   updateDraftReportSchema,
+  TEXT_NOTE_MAX_LENGTH,
   validateAttachmentFile,
   validateReportTaskSegments,
   validateStaSegmentsCoverage,
@@ -29,7 +30,9 @@ import { apiFetch, apiUpload } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CharLimitHint } from "@/components/char-limit-hint";
 import { cn } from "@/lib/utils";
+import { noteTextareaClassName } from "@/lib/text-field-styles";
 import { notifyPendingQueueRefresh } from "@/lib/activity-seen";
 
 type LineTypeOption = {
@@ -1063,6 +1066,7 @@ export function FieldTaskEntryPage() {
                   <Input
                     disabled={!editable || busy}
                     value={seg.notes}
+                    maxLength={TEXT_NOTE_MAX_LENGTH}
                     onChange={(e) =>
                       setQtySegs((rows) =>
                         rows.map((r, idx) =>
@@ -1378,17 +1382,19 @@ export function FieldTaskEntryPage() {
             disabled={!editable || busy}
             aria-invalid={Boolean(notesError)}
             className={cn(
-              "min-h-16 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+              noteTextareaClassName,
+              "rounded-lg disabled:opacity-50",
               notesError && "border-destructive",
             )}
             placeholder="Conditions, partial work, issues…"
-            maxLength={2000}
+            maxLength={TEXT_NOTE_MAX_LENGTH}
             value={notes}
             onChange={(e) => {
               setNotes(e.target.value);
               setNotesError(undefined);
             }}
           />
+          <CharLimitHint value={notes} max={TEXT_NOTE_MAX_LENGTH} />
           <FieldError message={notesError} />
         </div>
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TEXT_NAME_MAX_LENGTH, TEXT_NOTE_MAX_LENGTH } from "./text-limits.js";
 import { bidItemFormTypeEnum, isStaFormType } from "./form-types.js";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
 import { normalizeSta, physicalLfFromSta } from "./sta.js";
@@ -69,7 +70,10 @@ const projectBaseSchema = z.object({
     .min(1, "Job number is required")
     .max(40)
     .transform((v) => v.toUpperCase()),
-  name: z.string().min(1).max(200),
+  name: z
+    .string()
+    .min(1)
+    .max(TEXT_NAME_MAX_LENGTH, `Project name must be ${TEXT_NAME_MAX_LENGTH} characters or less`),
   division: divisionEnum,
   /// Extra divisions on this job (tasks can span multiple)
   divisions: z.array(divisionEnum).optional().default([]),
@@ -89,7 +93,11 @@ const projectBaseSchema = z.object({
   contractAmount: z.number().nonnegative().optional().nullable(),
   startDate: optionalDate,
   endDate: optionalDate,
-  notes: z.string().max(2000).optional().nullable(),
+  notes: z
+    .string()
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`)
+    .optional()
+    .nullable(),
   status: projectStatusEnum.optional().default("ACTIVE"),
   /// Selected master + sub-task IDs
   taskIds: z.array(z.string()).optional().default([]),

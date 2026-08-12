@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
+import { ScrollableText } from "@/components/scrollable-text";
 import { useAdminTable } from "@/hooks/use-admin-table";
 
 type ProjectInfo = {
@@ -164,7 +165,9 @@ export function WorkspaceReportsDetailPage({
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
             {project.jobNumber}
           </h1>
-          <p className="text-sm text-muted-foreground">{project.name}</p>
+          <ScrollableText maxHeight="max-h-16" className="text-sm text-muted-foreground">
+            {project.name}
+          </ScrollableText>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
@@ -344,14 +347,14 @@ export function WorkspaceReportsDetailPage({
                     {r.reportNumber} · {r.reportDate}
                   </p>
                   {r.returnComment && (
-                    <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                    <ScrollableText maxHeight="max-h-24" className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
                       Return: {r.returnComment}
-                    </p>
+                    </ScrollableText>
                   )}
                   {r.approvalNotes && (
-                    <p className="mt-1 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-900">
+                    <ScrollableText maxHeight="max-h-24" className="mt-1 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-900">
                       Approval: {r.approvalNotes}
-                    </p>
+                    </ScrollableText>
                   )}
                 </li>
               ))}

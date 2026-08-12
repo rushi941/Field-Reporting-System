@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Check, CornerDownLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScrollableText } from "@/components/scrollable-text";
 
 export type ReportHistoryCardData = {
   id: string;
@@ -17,12 +18,6 @@ export type ReportHistoryCardData = {
   };
 };
 
-function shortPersonName(full: string): string {
-  const parts = full.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return full;
-  if (parts.length === 1) return parts[0]!;
-  return `${parts[0]![0]}. ${parts[parts.length - 1]}`;
-}
 
 function formatHistoryDate(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
@@ -90,14 +85,16 @@ export function ReportHistoryCard({
       </div>
 
       {showProject && report.project && (
-        <p className="mt-1 break-words text-xs font-medium leading-snug text-foreground">
+        <ScrollableText maxHeight="max-h-12" className="mt-1 text-xs font-medium leading-snug text-foreground">
           {report.project.jobNumber} — {report.project.name}
-        </p>
+        </ScrollableText>
       )}
 
       <p className="mt-1.5 break-words text-sm text-foreground">
         <span className="text-muted-foreground">Lead:</span>{" "}
-        {shortPersonName(report.submittedBy.name)}
+        <ScrollableText maxHeight="max-h-10" className="inline-block max-w-full align-top">
+          {report.submittedBy.name}
+        </ScrollableText>
         <span className="text-muted-foreground"> · </span>
         {formatHistoryDate(report.reportDate)}
         <span className="text-muted-foreground"> · </span>
@@ -105,15 +102,18 @@ export function ReportHistoryCard({
       </p>
 
       {approved && report.approvedBy && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Approved by {shortPersonName(report.approvedBy.name)}
-        </p>
+        <ScrollableText maxHeight="max-h-10" className="mt-1 text-xs text-muted-foreground">
+          Approved by {report.approvedBy.name}
+        </ScrollableText>
       )}
 
       {returned && report.returnComment && (
-        <p className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-900">
+        <ScrollableText
+          maxHeight="max-h-24"
+          className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-900"
+        >
           {report.returnComment}
-        </p>
+        </ScrollableText>
       )}
     </div>
   );

@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollableText } from "@/components/scrollable-text";
 import { cn } from "@/lib/utils";
 import {
   BidItemTaskTable,
@@ -615,9 +616,12 @@ export function ProjectDetailPage() {
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {project.jobNumber}
           </span>
-          <h1 className="min-w-0 truncate text-base font-semibold tracking-tight sm:text-lg">
+          <ScrollableText
+            maxHeight="max-h-16"
+            className="min-w-0 flex-1 text-base font-semibold tracking-tight sm:text-lg"
+          >
             {project.name}
-          </h1>
+          </ScrollableText>
           <ProjectStatusBadge status={project.status} />
           {projectMeta ? (
             <span

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { TablePagination } from "@/components/table-pagination";
 import { AdminTableSearch } from "@/components/admin-table-search";
+import { ScrollableText } from "@/components/scrollable-text";
 import { SortableTh } from "@/components/sortable-table-head";
 import { ADMIN_PAGE_SIZE } from "@/lib/admin-table";
 import { useAdminTable } from "@/hooks/use-admin-table";
@@ -204,7 +205,9 @@ export function WorkspaceReportsRollupPage({
                         >
                           {p.jobNumber}
                         </Link>
-                        <p className="text-xs text-muted-foreground">{p.name}</p>
+                        <ScrollableText maxHeight="max-h-12" className="text-xs text-muted-foreground">
+                          {p.name}
+                        </ScrollableText>
                       </td>
                       <td className="px-2 py-1 text-xs text-muted-foreground">
                         {[p.clientName, p.location].filter(Boolean).join(" · ") ||

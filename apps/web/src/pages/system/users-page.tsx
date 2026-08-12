@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2, Eye, EyeOff } from "lucide-react";
-import { roles, roleLabels, createUserSchema, updateUserSchema, type AppRole } from "@frs/shared";
+import { roles, roleLabels, createUserSchema, updateUserSchema, TEXT_NAME_MAX_LENGTH, type AppRole } from "@frs/shared";
 import { apiFetch, type ManagedUser } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
+import { CharLimitHint } from "@/components/char-limit-hint";
+import { ScrollableText } from "@/components/scrollable-text";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/auth-context";
 import { Button } from "@/components/ui/button";
@@ -344,9 +346,9 @@ export function SystemUsersPage() {
                     className="border-b border-border/80 last:border-0 hover:bg-muted/30"
                   >
                     <td className="px-2 py-1.5">
-                      <div className="font-medium text-foreground">
+                      <ScrollableText maxHeight="max-h-12" className="font-medium text-foreground">
                         {userDisplayName(u)}
-                      </div>
+                      </ScrollableText>
                       <div className="text-xs text-muted-foreground">{u.email}</div>
                     </td>
                     <td className="px-2 py-1.5 text-xs text-foreground/80">
@@ -480,7 +482,9 @@ export function SystemUsersPage() {
                   aria-invalid={Boolean(fieldErrors.firstName)}
                   className={cn(fieldErrors.firstName && "border-destructive")}
                   required
+                  maxLength={TEXT_NAME_MAX_LENGTH}
                 />
+                <CharLimitHint value={form.firstName} max={TEXT_NAME_MAX_LENGTH} />
                 <FieldError message={fieldErrors.firstName} />
               </div>
               <div className="space-y-1.5">
@@ -497,7 +501,9 @@ export function SystemUsersPage() {
                   aria-invalid={Boolean(fieldErrors.lastName)}
                   className={cn(fieldErrors.lastName && "border-destructive")}
                   required
+                  maxLength={TEXT_NAME_MAX_LENGTH}
                 />
+                <CharLimitHint value={form.lastName} max={TEXT_NAME_MAX_LENGTH} />
                 <FieldError message={fieldErrors.lastName} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">

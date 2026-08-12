@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { projectSchema, splitProjectDivisions } from "@frs/shared";
+import { projectSchema, splitProjectDivisions, TEXT_NAME_MAX_LENGTH, TEXT_NOTE_MAX_LENGTH } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import { isProjectNew, markProjectsKnown, getKnownProjectIds } from "@/lib/activ
 import { useActivitySeenRevision } from "@/hooks/use-activity-seen-revision";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CharLimitHint } from "@/components/char-limit-hint";
+import { ScrollableText } from "@/components/scrollable-text";
 import { cn } from "@/lib/utils";
+import { noteTextareaClassName } from "@/lib/text-field-styles";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
 import { AdminTableSearch } from "@/components/admin-table-search";
@@ -602,7 +605,9 @@ export function ProjectsPage() {
                       </div>
                     </td>
                     <td className="px-2 py-1.5">
-                      <div className="font-medium text-foreground">{p.name}</div>
+                      <ScrollableText maxHeight="max-h-12" className="font-medium text-foreground">
+                        {p.name}
+                      </ScrollableText>
                       {p.location && (
                         <div className="text-xs text-muted-foreground">{p.location}</div>
                       )}
@@ -763,8 +768,10 @@ export function ProjectsPage() {
                     className={inputClass}
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    maxLength={TEXT_NAME_MAX_LENGTH}
                     required
                   />
+                  <CharLimitHint value={form.name} max={TEXT_NAME_MAX_LENGTH} />
                 </FormField>
                 <FormField>
                   <Label>Project type</Label>
@@ -975,12 +982,14 @@ export function ProjectsPage() {
                 <FormField className="sm:col-span-2">
                   <Label>Notes</Label>
                   <textarea
-                    className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={noteTextareaClassName}
                     value={form.notes}
+                    maxLength={TEXT_NOTE_MAX_LENGTH}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, notes: e.target.value }))
                     }
                   />
+                  <CharLimitHint value={form.notes} max={TEXT_NOTE_MAX_LENGTH} />
                 </FormField>
               </FormSection>
           </div>

@@ -14,12 +14,16 @@ import {
   approveReportSchema,
   approveWithNotesSchema,
   returnReportSchema,
+  TEXT_NOTE_MAX_LENGTH,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { ActivityDot } from "@/components/activity-dot";
+import { CharLimitHint } from "@/components/char-limit-hint";
+import { ScrollableText } from "@/components/scrollable-text";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { noteTextareaClassName } from "@/lib/text-field-styles";
 
 export type PendingReportSummary = {
   id: string;
@@ -384,7 +388,7 @@ export function PendingApprovalCard({
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Field notes
                   </p>
-                  <p className="mt-1">{detail.notes}</p>
+                  <ScrollableText className="mt-1 text-sm">{detail.notes}</ScrollableText>
                 </div>
               )}
 
@@ -508,11 +512,13 @@ export function PendingApprovalCard({
                     <Label htmlFor={`edit-notes-${report.id}`}>Field notes</Label>
                     <textarea
                       id={`edit-notes-${report.id}`}
-                      className="min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className={noteTextareaClassName}
                       value={editNotes}
+                      maxLength={TEXT_NOTE_MAX_LENGTH}
                       onChange={(e) => setEditNotes(e.target.value)}
                       placeholder="Optional notes…"
                     />
+                    <CharLimitHint value={editNotes} max={TEXT_NOTE_MAX_LENGTH} />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`edit-crew-${report.id}`}>Crew size</Label>
@@ -608,16 +614,18 @@ export function PendingApprovalCard({
                       <textarea
                         id={`return-${report.id}`}
                         className={cn(
-                          "min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          noteTextareaClassName,
                           fieldError && "border-destructive",
                         )}
                         value={returnComment}
+                        maxLength={TEXT_NOTE_MAX_LENGTH}
                         onChange={(e) => {
                           setReturnComment(e.target.value);
                           setFieldError(undefined);
                         }}
                         placeholder="What needs to be corrected…"
                       />
+                      <CharLimitHint value={returnComment} max={TEXT_NOTE_MAX_LENGTH} />
                       {fieldError && (
                         <p className="text-[11px] text-destructive" role="alert">
                           {fieldError}
@@ -656,16 +664,18 @@ export function PendingApprovalCard({
                       <textarea
                         id={`notes-${report.id}`}
                         className={cn(
-                          "min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          noteTextareaClassName,
                           fieldError && "border-destructive",
                         )}
                         value={notes}
+                        maxLength={TEXT_NOTE_MAX_LENGTH}
                         onChange={(e) => {
                           setNotes(e.target.value);
                           setFieldError(undefined);
                         }}
                         placeholder="Required notes for this approval…"
                       />
+                      <CharLimitHint value={notes} max={TEXT_NOTE_MAX_LENGTH} />
                       {fieldError && (
                         <p className="text-[11px] text-destructive" role="alert">
                           {fieldError}

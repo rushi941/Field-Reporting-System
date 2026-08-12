@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
 import { markFieldReportSeen, notifyPendingQueueRefresh } from "@/lib/activity-seen";
 import { Button } from "@/components/ui/button";
+import { ScrollableText } from "@/components/scrollable-text";
 import { cn } from "@/lib/utils";
 
 type ReportDetail = {
@@ -211,7 +212,9 @@ export function FieldReportDetailPage() {
             Returned for correction
             {report.returnedBy ? ` by ${report.returnedBy.name}` : ""}
           </p>
-          <p className="mt-1 text-xs">{report.returnComment}</p>
+          <ScrollableText maxHeight="max-h-24" className="mt-1 text-xs">
+            {report.returnComment}
+          </ScrollableText>
         </div>
       )}
 
@@ -228,7 +231,9 @@ export function FieldReportDetailPage() {
               </p>
             )}
             {report.approvalNotes && (
-              <p className="mt-1 text-xs">{report.approvalNotes}</p>
+              <ScrollableText maxHeight="max-h-24" className="mt-1 text-xs">
+                {report.approvalNotes}
+              </ScrollableText>
             )}
           </div>
         )}
@@ -240,7 +245,9 @@ export function FieldReportDetailPage() {
           <p className="text-xs font-semibold text-muted-foreground">
             Approval notes
           </p>
-          <p className="mt-1">{report.approvalNotes}</p>
+          <ScrollableText maxHeight="max-h-24" className="mt-1">
+            {report.approvalNotes}
+          </ScrollableText>
         </div>
       )}
 
@@ -249,7 +256,9 @@ export function FieldReportDetailPage() {
           <p className="text-xs font-semibold text-muted-foreground">
             Field notes
           </p>
-          <p className="mt-1">{report.notes}</p>
+          <ScrollableText maxHeight="max-h-24" className="mt-1">
+            {report.notes}
+          </ScrollableText>
         </div>
       )}
 

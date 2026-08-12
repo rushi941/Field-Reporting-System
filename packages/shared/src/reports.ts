@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { divisionEnum } from "./projects.js";
+import { TEXT_NOTE_MAX_LENGTH } from "./text-limits.js";
 import {
   isQuantityOnlyFormType,
   isSinglePointFormType,
@@ -67,11 +68,20 @@ export const APPROVED_REPORT_STATUSES = [
 ] as const;
 
 export const approveReportSchema = z.object({
-  notes: z.string().trim().max(2000).optional().nullable(),
+  notes: z
+    .string()
+    .trim()
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`)
+    .optional()
+    .nullable(),
 });
 
 export const approveWithNotesSchema = z.object({
-  notes: z.string().trim().min(1, "Approval notes are required").max(2000),
+  notes: z
+    .string()
+    .trim()
+    .min(1, "Approval notes are required")
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`),
 });
 
 /** BR-004 — return comment is mandatory */
@@ -80,7 +90,7 @@ export const returnReportSchema = z.object({
     .string()
     .trim()
     .min(1, "Return comment is required")
-    .max(2000),
+    .max(TEXT_NOTE_MAX_LENGTH, `Comment must be ${TEXT_NOTE_MAX_LENGTH} characters or less`),
 });
 
 export type ApproveReportInput = z.infer<typeof approveReportSchema>;
@@ -146,7 +156,11 @@ export const staRangeSegmentSchema = z
 
 export const quantityOnlySegmentSchema = z.object({
   quantity: z.number().positive(),
-  notes: z.string().max(500).optional().nullable(),
+  notes: z
+    .string()
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`)
+    .optional()
+    .nullable(),
 });
 
 export const singleLocationSegmentSchema = z.object({
@@ -165,7 +179,11 @@ export const upsertDraftReportSchema = z.object({
   projectId: z.string().min(1),
   reportDate: z.string().min(1),
   crewSize: z.number().int().positive().optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
+  notes: z
+    .string()
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`)
+    .optional()
+    .nullable(),
   /** Division manager for approval routing; must be assigned to the project */
   divisionManagerId: z.string().min(1).optional().nullable(),
 });
@@ -173,7 +191,11 @@ export const upsertDraftReportSchema = z.object({
 export const updateDraftReportSchema = z.object({
   reportDate: z.string().min(1).optional(),
   crewSize: z.number().int().positive().optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
+  notes: z
+    .string()
+    .max(TEXT_NOTE_MAX_LENGTH, `Notes must be ${TEXT_NOTE_MAX_LENGTH} characters or less`)
+    .optional()
+    .nullable(),
   divisionManagerId: z.string().min(1).optional().nullable(),
 });
 

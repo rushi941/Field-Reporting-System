@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { ScrollableText } from "@/components/scrollable-text";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -151,7 +152,9 @@ export function WorkspaceReportViewPage({
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900">
             Approval notes
           </p>
-          <p className="mt-1 text-emerald-950">{report.approvalNotes}</p>
+          <ScrollableText maxHeight="max-h-24" className="mt-1 text-emerald-950">
+            {report.approvalNotes}
+          </ScrollableText>
         </div>
       )}
 
@@ -160,7 +163,9 @@ export function WorkspaceReportViewPage({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Field notes
           </p>
-          <p className="mt-1">{report.notes}</p>
+          <ScrollableText maxHeight="max-h-24" className="mt-1">
+            {report.notes}
+          </ScrollableText>
         </div>
       )}
 
