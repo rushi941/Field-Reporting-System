@@ -16,7 +16,6 @@ import { prefetchHomeForRoles } from "@/lib/route-prefetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PasswordRequirements } from "@/components/password-requirements";
 
 export function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -29,8 +28,6 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
-
-  const passwordValue = form.watch("password");
 
   if (loading) {
     return (
@@ -142,14 +139,6 @@ export function LoginPage() {
                 <p className="text-sm text-destructive">
                   {form.formState.errors.password.message}
                 </p>
-              )}
-              {passwordValue.length > 0 && (
-                <div className="space-y-1.5 pt-1">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Password format
-                  </p>
-                  <PasswordRequirements password={passwordValue} />
-                </div>
               )}
             </div>
 
