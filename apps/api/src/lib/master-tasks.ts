@@ -212,6 +212,7 @@ export function groupFieldTasksByMaster(
   progressMap: Map<string, { estimated: number; approved: number; pending: number; approvedPct: number }>,
   lineTypesByMaster: Map<string, LineTypeOption[]>,
   symbolTypesByMaster: Map<string, SymbolTypeOption[]>,
+  canWorkAllProjectTasks = false,
 ): GroupedFieldTask[] {
   const groups = new Map<string, GroupedFieldTask & { _projectTaskIds: string[] }>();
 
@@ -235,7 +236,7 @@ export function groupFieldTasksByMaster(
               email: t.assignedTo.email,
             }
           : null,
-        isMine: t.assignedToId === userId,
+        isMine: canWorkAllProjectTasks || t.assignedToId === userId,
         beginSta: t.beginSta,
         endSta: t.endSta,
         completedStaRanges: completedMap.get(t.id) ?? [],
@@ -288,7 +289,7 @@ export function groupFieldTasksByMaster(
               email: t.assignedTo.email,
             }
           : null;
-        group.isMine = t.assignedToId === userId;
+        group.isMine = canWorkAllProjectTasks || t.assignedToId === userId;
       }
       group.completedStaRanges.push(...(completedMap.get(t.id) ?? []));
     }

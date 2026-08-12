@@ -105,9 +105,9 @@ export const staRangeSegmentSchema = z
   .object({
     beginSta: z.string().min(1),
     endSta: z.string().min(1),
-    conversionFactor: z.number().nonnegative(),
+    conversionFactor: z.number().positive("Conversion factor must be greater than 0"),
     useManualLf: z.boolean().optional().default(false),
-    manualLf: z.number().nonnegative().optional().nullable(),
+    manualLf: z.number().positive("Manual LF must be greater than 0").optional().nullable(),
     lineTypeCode: z.string().max(40).optional().nullable(),
     side: lineSideEnum.optional().nullable(),
   })
@@ -124,7 +124,7 @@ export const staRangeSegmentSchema = z
       return;
     }
     if (val.useManualLf) {
-      if (val.manualLf == null || val.manualLf <= 0) {
+      if (val.manualLf == null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Manual LF is required",
@@ -365,26 +365,6 @@ export function validateStaSegmentsCoverage(
     }
   }
 
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]!;
-    for (const done of completed) {
-      if (
-        staRangesOverlap(
-          seg.beginSta,
-          seg.endSta,
-          done.beginSta,
-          done.endSta,
-        )
-      ) {
-        errors[i] = {
-          ...(errors[i] ?? {}),
-          beginSta: "Overlaps a station range already submitted on this task",
-        };
-        break;
-      }
-    }
-  }
-
   if (projectBounds?.beginSta && projectBounds?.endSta) {
     const lo = parseStaToDecimal(projectBounds.beginSta);
     const hi = parseStaToDecimal(projectBounds.endSta);
@@ -452,6 +432,9 @@ export function resolveStaSegment(
   }
   const cf = segment.conversionFactor;
   const finalQuantity = quantityFromStaRange(unit, beginSta, endSta, cf);
+  if (finalQuantity <= 0) {
+    throw new Error("Calculated quantity must be greater than 0");
+  }
   const calculatedLf =
     unit.trim().toUpperCase() === "LF"
       ? finalQuantity

@@ -10,7 +10,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { taskMasterSchema, updateTaskMasterSchema } from "@frs/shared";
+import { taskMasterSchema, updateTaskMasterSchema, blockNegativeNumberKeys, sanitizeNonNegativeDecimalInput } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -859,8 +859,14 @@ export function TasksPage() {
                       type="number"
                       min={1}
                       value={form.widthInches}
+                      onKeyDown={blockNegativeNumberKeys}
                       onChange={(e) =>
-                        setForm((f) => ({ ...f, widthInches: e.target.value }))
+                        setForm((f) => ({
+                          ...f,
+                          widthInches: sanitizeNonNegativeDecimalInput(
+                            e.target.value,
+                          ),
+                        }))
                       }
                       placeholder="4, 6, 10, 24"
                     />
@@ -872,10 +878,13 @@ export function TasksPage() {
                       min={0}
                       step="0.01"
                       value={form.conversionFactor}
+                      onKeyDown={blockNegativeNumberKeys}
                       onChange={(e) =>
                         setForm((f) => ({
                           ...f,
-                          conversionFactor: e.target.value,
+                          conversionFactor: sanitizeNonNegativeDecimalInput(
+                            e.target.value,
+                          ),
                         }))
                       }
                       placeholder="1.00"

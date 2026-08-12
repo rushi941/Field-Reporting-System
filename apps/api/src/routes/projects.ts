@@ -316,10 +316,7 @@ async function resolveJobNumber(
   return jobNumber;
 }
 
-async function assertFieldLead(
-  userId: string | null | undefined,
-  taskDivision?: Division,
-) {
+async function assertFieldLead(userId: string | null | undefined) {
   if (!userId) return;
   const user = await prisma.user.findFirst({
     where: {
@@ -327,19 +324,12 @@ async function assertFieldLead(
       isActive: true,
       roles: { some: { role: "FIELD_LEAD" } },
     },
-    select: { id: true, division: true },
+    select: { id: true },
   });
   if (!user) {
     throw new AppError(
       "VALIDATION_ERROR",
       "Field person must be an active field lead",
-      400,
-    );
-  }
-  if (taskDivision && user.division && user.division !== taskDivision) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      "Field person must belong to the task division",
       400,
     );
   }
@@ -801,7 +791,7 @@ async function addProjectTaskInternal(
     );
   }
 
-  await assertFieldLead(body.assignedToId, taskDivision);
+  await assertFieldLead(body.assignedToId);
 
   let master: Awaited<ReturnType<typeof prisma.taskMaster.findUnique>>;
 

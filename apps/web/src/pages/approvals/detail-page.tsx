@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, Pencil, Trash2 } from "lucide-react";
 import {
   approveReportSchema,
   approveWithNotesSchema,
@@ -60,10 +60,13 @@ export function ApprovalsDetailPage({
   const [report, setReport] = useState<ApprovalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [mode, setMode] = useState<"idle" | "notes" | "return">("idle");
+  const [mode, setMode] = useState<"idle" | "notes" | "return" | "edit">("idle");
   const [notes, setNotes] = useState("");
   const [returnComment, setReturnComment] = useState("");
   const [fieldError, setFieldError] = useState<string | undefined>();
+  const [editNotes, setEditNotes] = useState("");
+  const [editCrewSize, setEditCrewSize] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!reportId) return;
@@ -157,6 +160,44 @@ export function ApprovalsDetailPage({
       });
     } finally {
       setActing(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!report) return;
+    setActing(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (editNotes.trim() !== (report.notes ?? "")) body.notes = editNotes.trim() || null;
+      const crewNum = editCrewSize ? parseInt(editCrewSize, 10) : null;
+      if (crewNum !== report.crewSize) body.crewSize = crewNum;
+      await apiFetch(`/api/v1/approvals/${report.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      toast.success("Report updated");
+      setMode("idle");
+      // Reload
+      const data = await apiFetch<{ report: ApprovalDetail }>(`/api/v1/approvals/${report.id}`);
+      setReport(data.report);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function deleteReport() {
+    if (!report) return;
+    setActing(true);
+    try {
+      await apiFetch(`/api/v1/approvals/${report.id}`, { method: "DELETE" });
+      toast.success("Report deleted");
+      navigate(listPath);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+      setActing(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -281,6 +322,101 @@ export function ApprovalsDetailPage({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {pending && can("reports.edit_submitted") && mode === "idle" && (
+        <div className="flex gap-2 border-t border-border pt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={acting}
+            onClick={() => {
+              setEditNotes(report.notes ?? "");
+              setEditCrewSize(report.crewSize != null ? String(report.crewSize) : "");
+              setMode("edit");
+            }}
+          >
+            <Pencil className="mr-1.5 size-3.5" />
+            Edit
+          </Button>
+          {!confirmDelete ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={acting}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="mr-1.5 size-3.5" />
+              Delete
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-red-700">Delete this report?</span>
+              <Button
+                size="sm"
+                disabled={acting}
+                className="bg-red-700 text-white hover:bg-red-800"
+                onClick={() => void deleteReport()}
+              >
+                {acting ? <Loader2 className="size-4 animate-spin" /> : "Yes, delete"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={acting}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {pending && mode === "edit" && (
+        <div className="space-y-3 rounded-lg border p-3 border-t border-border">
+          <p className="text-sm font-semibold">Edit report</p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="edit-notes">
+              Field notes
+            </label>
+            <textarea
+              id="edit-notes"
+              className="min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="Optional notes…"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="edit-crew">
+              Crew size
+            </label>
+            <input
+              id="edit-crew"
+              type="number"
+              min={1}
+              max={999}
+              className="w-32 rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={editCrewSize}
+              onChange={(e) => setEditCrewSize(e.target.value)}
+              placeholder="e.g. 4"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={acting} onClick={() => setMode("idle")}>
+              Cancel
+            </Button>
+            <Button
+              disabled={acting}
+              className="bg-sky-700 text-white hover:bg-sky-800"
+              onClick={() => void saveEdit()}
+            >
+              {acting ? <Loader2 className="size-4 animate-spin" /> : "Save changes"}
+            </Button>
+          </div>
         </div>
       )}
 

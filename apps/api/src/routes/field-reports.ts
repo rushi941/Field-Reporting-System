@@ -25,6 +25,7 @@ import {
 import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
+import { fieldLeadAccessWhere } from "../lib/field-lead-access.js";
 import { routeParam } from "../lib/route-param.js";
 import { storeUpload } from "../lib/storage.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -408,7 +409,7 @@ fieldReportsRouter.post(
       where: {
         id: body.projectId,
         status: "ACTIVE",
-        tasks: { some: { isActive: true, assignedToId: userId } },
+        ...fieldLeadAccessWhere(userId),
       },
       include: {
         divisionManagers: { select: { userId: true } },
@@ -574,7 +575,10 @@ fieldReportsRouter.put(
         id: projectTaskId,
         projectId: report.projectId,
         isActive: true,
-        assignedToId: userId,
+        OR: [
+          { assignedToId: userId },
+          { project: { fieldLeads: { some: { userId } } } },
+        ],
       },
       include: { taskMaster: true },
     });
@@ -756,15 +760,46 @@ fieldReportsRouter.post(
       );
     }
 
-    const staSegments: { beginSta: string; endSta: string }[] = [];
+    const staByTask = new Map<string, { beginSta: string; endSta: string }[]>();
     for (const li of report.lineItems) {
       if (!li.beginSta || !li.endSta) continue;
-      staSegments.push({ beginSta: li.beginSta, endSta: li.endSta });
+      const list = staByTask.get(li.projectTaskId) ?? [];
+      list.push({ beginSta: li.beginSta, endSta: li.endSta });
+      staByTask.set(li.projectTaskId, list);
     }
-    if (staSegments.length) {
-      const coverage = validateStaSegmentsCoverage(staSegments, [], null);
-      if (!coverage.success) {
-        throw new AppError("VALIDATION_ERROR", coverage.message, 400);
+
+    if (staByTask.size > 0) {
+      const route = await prisma.projectRoute.findUnique({
+        where: { projectId: report.projectId },
+        select: { beginSta: true, endSta: true },
+      });
+
+      for (const [projectTaskId, segments] of staByTask) {
+        const projectTask = await prisma.projectTask.findUnique({
+          where: { id: projectTaskId },
+          include: { taskMaster: true },
+        });
+        if (!projectTask || !isStaFormType(projectTask.taskMaster.formType)) {
+          continue;
+        }
+
+        const completedMap = await fetchCompletedStaRanges(
+          [projectTaskId],
+          report.id,
+        );
+        const completed = (completedMap.get(projectTaskId) ?? []).map((r) => ({
+          beginSta: r.beginSta,
+          endSta: r.endSta,
+        }));
+        const workLimits = resolveStaWorkLimits(projectTask, route);
+        const coverage = validateStaSegmentsCoverage(
+          segments,
+          completed,
+          workLimits,
+        );
+        if (!coverage.success) {
+          throw new AppError("VALIDATION_ERROR", coverage.message, 400);
+        }
       }
     }
 

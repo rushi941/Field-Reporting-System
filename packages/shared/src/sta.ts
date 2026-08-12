@@ -50,6 +50,16 @@ export function physicalLfFromSta(beginSta: string, endSta: string): number {
   return spanFeet;
 }
 
+/** Canonical decimal bounds for a STA range (direction-independent). */
+export function canonicalStaDecimals(
+  beginSta: string,
+  endSta: string,
+): { lo: number; hi: number } {
+  const a = parseStaToDecimal(beginSta);
+  const b = parseStaToDecimal(endSta);
+  return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
 /** True when two STA ranges share any station (touching endpoints are OK). */
 export function staRangesOverlap(
   aBegin: string,
@@ -57,11 +67,55 @@ export function staRangesOverlap(
   bBegin: string,
   bEnd: string,
 ): boolean {
-  const a0 = parseStaToDecimal(aBegin);
-  const a1 = parseStaToDecimal(aEnd);
-  const b0 = parseStaToDecimal(bBegin);
-  const b1 = parseStaToDecimal(bEnd);
-  return b0 < a1 && a0 < b1;
+  const a = canonicalStaDecimals(aBegin, aEnd);
+  const b = canonicalStaDecimals(bBegin, bEnd);
+  return b.lo < a.hi && a.lo < b.hi;
+}
+
+/** Total non-overlapping STA span across ranges (decimal stations, e.g. 1+00→4+00 = 3). */
+export function unionStaSpanDecimal(
+  ranges: { beginSta: string; endSta: string }[],
+): number {
+  const intervals = ranges
+    .map((r) => canonicalStaDecimals(r.beginSta, r.endSta))
+    .filter((i) => i.hi > i.lo)
+    .sort((a, b) => a.lo - b.lo);
+  if (!intervals.length) return 0;
+
+  let total = 0;
+  let curLo = intervals[0]!.lo;
+  let curHi = intervals[0]!.hi;
+
+  for (let i = 1; i < intervals.length; i++) {
+    const { lo, hi } = intervals[i]!;
+    if (lo <= curHi) {
+      curHi = Math.max(curHi, hi);
+    } else {
+      total += curHi - curLo;
+      curLo = lo;
+      curHi = hi;
+    }
+  }
+  total += curHi - curLo;
+  return total;
+}
+
+/** Billable quantity from merged STA coverage (no double-count on overlaps). */
+export function quantityFromUnionStaRanges(
+  unit: string,
+  ranges: { beginSta: string; endSta: string }[],
+  conversionFactor = 1,
+): number {
+  const spanSta = unionStaSpanDecimal(ranges);
+  if (spanSta <= 0) return 0;
+  const u = unit.trim().toUpperCase();
+  if (u === "STA") return spanSta;
+  const physicalLf = spanSta * 100;
+  if (u === "LF") {
+    if (conversionFactor <= 0) return 0;
+    return physicalLf * conversionFactor;
+  }
+  return physicalLf;
 }
 
 /** Billable quantity from a STA range — unit-aware (STA stations vs LF). */
@@ -114,6 +168,9 @@ export function reportedLfFromSta(
   endSta: string,
   conversionFactor: number,
 ): number {
+  if (conversionFactor <= 0) {
+    throw new Error("Conversion factor must be greater than 0");
+  }
   return physicalLfFromSta(beginSta, endSta) * conversionFactor;
 }
 

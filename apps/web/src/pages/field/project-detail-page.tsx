@@ -17,6 +17,8 @@ type FieldTask = {
   assignedToId: string | null;
   assignedTo: { id: string; name: string; email: string } | null;
   isMine: boolean;
+  beginSta: string | null;
+  endSta: string | null;
   completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
   usesSymbolEntry?: boolean;
   progress: {
@@ -328,6 +330,11 @@ export function FieldProjectDetailPage() {
                   estimated={progress.estimated}
                   approved={progress.approved}
                   pending={progress.pending}
+                  workLimits={
+                    t.beginSta && t.endSta
+                      ? { beginSta: t.beginSta, endSta: t.endSta }
+                      : null
+                  }
                 />
               </button>
             </li>

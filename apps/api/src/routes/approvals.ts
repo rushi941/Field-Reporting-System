@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { prisma, type Prisma } from "@frs/db";
 import {
   approveReportSchema,
@@ -669,6 +670,72 @@ approvalsRouter.post(
     });
 
     res.json({ report: mapDetail(updated) });
+  }),
+);
+
+/** Division Manager: edit notes / crew size on a submitted report */
+approvalsRouter.patch(
+  "/:id",
+  requirePermission("reports.edit_submitted"),
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const scope = await managerScopeWhere(req.user!.id, req.user!.roles);
+    const report = await prisma.report.findFirst({
+      where: { id, ...scope },
+    });
+    if (!report) throw new AppError("NOT_FOUND", "Report not found", 404);
+
+    const body = z
+      .object({
+        notes: z.string().max(2000).optional().nullable(),
+        crewSize: z.number().int().min(1).max(999).optional().nullable(),
+      })
+      .parse(req.body ?? {});
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.report.update({
+        where: { id },
+        data: {
+          ...(body.notes !== undefined ? { notes: body.notes } : {}),
+          ...(body.crewSize !== undefined ? { crewSize: body.crewSize } : {}),
+        },
+        include: detailInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          reportId: id,
+          userId: req.user!.id,
+          action: "UPDATED",
+          comment: "Report edited by division manager",
+        },
+      });
+      return next;
+    });
+
+    res.json({ report: mapDetail(updated) });
+  }),
+);
+
+/** Division Manager: delete a submitted report */
+approvalsRouter.delete(
+  "/:id",
+  requirePermission("reports.edit_submitted"),
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const scope = await managerScopeWhere(req.user!.id, req.user!.roles);
+    const report = await prisma.report.findFirst({
+      where: { id, status: "SUBMITTED", ...scope },
+    });
+    if (!report) throw new AppError("NOT_FOUND", "Submitted report not found", 404);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.deleteMany({ where: { reportId: id } });
+      await tx.attachment.deleteMany({ where: { reportId: id } });
+      await tx.reportLineItem.deleteMany({ where: { reportId: id } });
+      await tx.report.delete({ where: { id } });
+    });
+
+    res.json({ ok: true });
   }),
 );
 

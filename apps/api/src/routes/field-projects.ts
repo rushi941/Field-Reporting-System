@@ -3,6 +3,11 @@ import { prisma } from "@frs/db";
 import { projectDivisions } from "@frs/shared";
 import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
+import {
+  fieldLeadAccessWhere,
+  isOnProjectFieldLeadRoster,
+  visibleTasksForFieldLead,
+} from "../lib/field-lead-access.js";
 import { routeParam } from "../lib/route-param.js";
 import { fetchCompletedStaRanges } from "../lib/sta-coverage.js";
 import { fetchTaskProgressMap } from "../lib/task-progress.js";
@@ -72,23 +77,8 @@ const fieldProjectInclude = {
     orderBy: { sortOrder: "asc" as const },
   },
   projectType: { select: { code: true, name: true } },
+  fieldLeads: { select: { userId: true } },
 } as const;
-
-function fieldLeadAccessWhere(userId: string) {
-  return {
-    OR: [
-      { fieldLeads: { some: { userId } } },
-      {
-        tasks: {
-          some: {
-            isActive: true,
-            assignedToId: userId,
-          },
-        },
-      },
-    ],
-  };
-}
 
 type FieldProjectRow = Awaited<
   ReturnType<
@@ -101,12 +91,13 @@ async function buildFieldProjectPayload(
   userId: string,
   isFieldLead: boolean,
 ) {
-  const taskIds = projects.flatMap((p) =>
-    (isFieldLead
-      ? p.tasks.filter((t) => t.assignedToId === userId)
-      : p.tasks
-    ).map((t) => t.id),
-  );
+  const taskIds = projects.flatMap((p) => {
+    const onRoster = isOnProjectFieldLeadRoster(p.fieldLeads, userId);
+    const visible = isFieldLead
+      ? visibleTasksForFieldLead(p.tasks, userId, onRoster)
+      : p.tasks;
+    return visible.map((t) => t.id);
+  });
   const completedMap = await fetchCompletedStaRanges(taskIds);
 
   const projectIdForTask = new Map<string, string>();
@@ -126,8 +117,9 @@ async function buildFieldProjectPayload(
       beginSta: p.route?.beginSta ?? null,
       endSta: p.route?.endSta ?? null,
     });
+    const onRoster = isOnProjectFieldLeadRoster(p.fieldLeads, userId);
     const visibleTasks = isFieldLead
-      ? p.tasks.filter((t) => t.assignedToId === userId)
+      ? visibleTasksForFieldLead(p.tasks, userId, onRoster)
       : p.tasks;
     for (const t of visibleTasks) {
       projectIdForTask.set(t.id, p.id);
@@ -160,8 +152,9 @@ async function buildFieldProjectPayload(
     { code: string; name: string; division: string; unit: string; formType: string }
   >();
   for (const p of projects) {
+    const onRoster = isOnProjectFieldLeadRoster(p.fieldLeads, userId);
     const visible = isFieldLead
-      ? p.tasks.filter((t) => t.assignedToId === userId)
+      ? visibleTasksForFieldLead(p.tasks, userId, onRoster)
       : p.tasks;
     for (const t of visible) {
       const mid = resolveMasterId(t.taskMaster);
@@ -185,8 +178,9 @@ async function buildFieldProjectPayload(
   );
 
   return projects.map((p) => {
+    const onRoster = isOnProjectFieldLeadRoster(p.fieldLeads, userId);
     const visibleTasks = isFieldLead
-      ? p.tasks.filter((t) => t.assignedToId === userId)
+      ? visibleTasksForFieldLead(p.tasks, userId, onRoster)
       : p.tasks;
 
     return {
@@ -212,6 +206,7 @@ async function buildFieldProjectPayload(
         progressMap,
         lineTypesByMaster,
         symbolTypesByMaster,
+        onRoster,
       ),
       route: p.route
         ? {

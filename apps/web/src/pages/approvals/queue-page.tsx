@@ -90,6 +90,7 @@ export function ApprovalsQueuePage() {
                 expanded={expandedId === r.id}
                 unread={isUnread(r)}
                 canApprove={can("reports.approve")}
+                canEditSubmitted={can("reports.edit_submitted")}
                 onToggle={() => toggleReport(r.id)}
                 onSeen={() => handleSeen(r)}
                 onActionComplete={handleActionComplete}

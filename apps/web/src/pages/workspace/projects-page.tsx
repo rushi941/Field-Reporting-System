@@ -486,9 +486,10 @@ export function ProjectsPage() {
       }
       const payload = parsed.data;
       if (editingId) {
+        const { taskIds: _taskIds, ...updatePayload } = payload;
         await apiFetch(`/api/v1/projects/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(updatePayload),
         });
         toast.success("Project updated", { id: "project-form" });
       } else {
@@ -888,9 +889,6 @@ export function ProjectsPage() {
                     options={fieldLeads.map((m) => ({
                       id: m.id,
                       name: m.name,
-                      hint: m.division
-                        ? divisionLabels[m.division] ?? m.division
-                        : undefined,
                     }))}
                     placeholder="Select field persons"
                     minSelected={1}
@@ -945,7 +943,10 @@ export function ProjectsPage() {
                     step="0.01"
                     value={form.contractAmount}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, contractAmount: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        contractAmount: e.target.value.replace(/-/g, ""),
+                      }))
                     }
                   />
                 </FormField>

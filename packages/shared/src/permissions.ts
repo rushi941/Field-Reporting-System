@@ -101,7 +101,7 @@ export const defaultPermissionMatrix: Record<
   },
   "reports.edit_submitted": {
     FIELD_LEAD: "NO",
-    DIVISION_MANAGER: "NO",
+    DIVISION_MANAGER: "YES",
     PROJECT_ADMIN: "NO",
     SYSTEM_ADMIN: "NO",
   },

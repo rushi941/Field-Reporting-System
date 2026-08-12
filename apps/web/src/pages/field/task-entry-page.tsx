@@ -21,6 +21,9 @@ import {
   matchSymbolTypeCode,
   symbolTypeLabelForCode,
   isLocationOnlyFieldEntry,
+  sanitizeNonNegativeDecimalInput,
+  sanitizeStaInput,
+  blockNegativeNumberKeys,
 } from "@frs/shared";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -214,13 +217,16 @@ function calcPreview(seg: StaSeg, unit: string): string {
   }
   try {
     const cf = Number(seg.conversionFactor);
-    if (!seg.beginSta || !seg.endSta || Number.isNaN(cf)) return "—";
-    return quantityFromStaRange(
+    if (!seg.beginSta || !seg.endSta || Number.isNaN(cf) || cf <= 0) return "—";
+    const qty = quantityFromStaRange(
       unit,
       normalizeSta(seg.beginSta),
       normalizeSta(seg.endSta),
       cf,
-    ).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    );
+    return qty > 0
+      ? qty.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : "—";
   } catch {
     return "—";
   }
@@ -727,6 +733,20 @@ export function FieldTaskEntryPage() {
         </p>
       )}
 
+      {isSta && task.beginSta && task.endSta ? (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          <p className="font-semibold">Task work limits</p>
+          <p className="mt-0.5">
+            Report only between{" "}
+            <strong>
+              {task.beginSta} → {task.endSta}
+            </strong>
+            . Enter segments inside this range — overlapping or duplicate
+            coverage is not allowed.
+          </p>
+        </div>
+      ) : null}
+
       {isSta ? (
         <div className="space-y-2">
           {(task.completedStaRanges?.length ?? 0) > 0 && (
@@ -813,7 +833,11 @@ export function FieldTaskEntryPage() {
                       className={cn(inputClass, err.beginSta && "border-destructive")}
                       value={seg.beginSta}
                       onChange={(e) =>
-                        updateSta(i, { beginSta: e.target.value }, "beginSta")
+                        updateSta(
+                          i,
+                          { beginSta: sanitizeStaInput(e.target.value) },
+                          "beginSta",
+                        )
                       }
                     />
                     <FieldError message={err.beginSta} />
@@ -830,7 +854,11 @@ export function FieldTaskEntryPage() {
                       className={cn(inputClass, err.endSta && "border-destructive")}
                       value={seg.endSta}
                       onChange={(e) =>
-                        updateSta(i, { endSta: e.target.value }, "endSta")
+                        updateSta(
+                          i,
+                          { endSta: sanitizeStaInput(e.target.value) },
+                          "endSta",
+                        )
                       }
                     />
                     <FieldError message={err.endSta} />
@@ -894,8 +922,13 @@ export function FieldTaskEntryPage() {
                       disabled={!editable || busy}
                       className={cn(inputClass, err.manualLf && "border-destructive")}
                       value={seg.manualLf}
+                      onKeyDown={blockNegativeNumberKeys}
                       onChange={(e) =>
-                        updateSta(i, { manualLf: e.target.value }, "manualLf")
+                        updateSta(
+                          i,
+                          { manualLf: sanitizeNonNegativeDecimalInput(e.target.value) },
+                          "manualLf",
+                        )
                       }
                     />
                     <FieldError message={err.manualLf} />
@@ -921,10 +954,15 @@ export function FieldTaskEntryPage() {
                         err.conversionFactor && "border-destructive",
                       )}
                       value={seg.conversionFactor}
+                      onKeyDown={blockNegativeNumberKeys}
                       onChange={(e) =>
                         updateSta(
                           i,
-                          { conversionFactor: e.target.value },
+                          {
+                            conversionFactor: sanitizeNonNegativeDecimalInput(
+                              e.target.value,
+                            ),
+                          },
                           "conversionFactor",
                         )
                       }
@@ -1001,10 +1039,18 @@ export function FieldTaskEntryPage() {
                     disabled={!editable || busy}
                     className={cn(inputClass, err.quantity && "border-destructive")}
                     value={seg.quantity}
+                    onKeyDown={blockNegativeNumberKeys}
                     onChange={(e) => {
                       setQtySegs((rows) =>
                         rows.map((r, idx) =>
-                          idx === i ? { ...r, quantity: e.target.value } : r,
+                          idx === i
+                            ? {
+                                ...r,
+                                quantity: sanitizeNonNegativeDecimalInput(
+                                  e.target.value,
+                                ),
+                              }
+                            : r,
                         ),
                       );
                       clearSegField(i, "quantity");
@@ -1157,8 +1203,15 @@ export function FieldTaskEntryPage() {
                       err.quantity && "border-destructive",
                     )}
                     value={seg.quantity}
+                    onKeyDown={blockNegativeNumberKeys}
                     onChange={(e) =>
-                      updateLoc(i, { quantity: e.target.value }, "quantity")
+                      updateLoc(
+                        i,
+                        {
+                          quantity: sanitizeNonNegativeDecimalInput(e.target.value),
+                        },
+                        "quantity",
+                      )
                     }
                   />
                   <FieldError message={err.quantity} />
@@ -1248,8 +1301,17 @@ export function FieldTaskEntryPage() {
                       aria-invalid={Boolean(err.quantity)}
                       className={cn(inputClass, err.quantity && "border-destructive")}
                       value={seg.quantity}
+                      onKeyDown={blockNegativeNumberKeys}
                       onChange={(e) =>
-                        updateLoc(i, { quantity: e.target.value }, "quantity")
+                        updateLoc(
+                          i,
+                          {
+                            quantity: sanitizeNonNegativeDecimalInput(
+                              e.target.value,
+                            ),
+                          },
+                          "quantity",
+                        )
                       }
                     />
                     <FieldError message={err.quantity} />

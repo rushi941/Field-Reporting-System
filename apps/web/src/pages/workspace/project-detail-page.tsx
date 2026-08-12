@@ -18,6 +18,7 @@ import {
   PROJECT_TASK_IMPORT_HEADERS,
   physicalLfFromSta,
   stationSpanDecimal,
+  sanitizeStaInput,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
@@ -311,10 +312,12 @@ export function ProjectDetailPage() {
       unit: (row: BidItemTaskRow) => row.taskMaster.unit,
       planQty: (row: BidItemTaskRow) => row.progress.estimated,
       installed: (row: BidItemTaskRow) => row.progress.approved,
-      progress: (row: BidItemTaskRow) =>
-        row.progress.estimated > 0
-          ? row.progress.approved / row.progress.estimated
-          : row.progress.approved,
+      progress: (row: BidItemTaskRow) => {
+        const { estimated, approved, pending } = row.progress;
+        const reported = approved + pending;
+        if (estimated > 0) return reported / estimated;
+        return reported;
+      },
       lead: (row: BidItemTaskRow) => row.assignedTo?.name ?? "",
     }),
     [],
@@ -787,7 +790,10 @@ export function ProjectDetailPage() {
                     value={form.beginSta}
                     required
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, beginSta: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        beginSta: sanitizeStaInput(e.target.value),
+                      }))
                     }
                     placeholder="11+00"
                   />
@@ -798,7 +804,10 @@ export function ProjectDetailPage() {
                     value={form.endSta}
                     required
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, endSta: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        endSta: sanitizeStaInput(e.target.value),
+                      }))
                     }
                     placeholder="23+00"
                   />

@@ -6,6 +6,13 @@ import { SortableTh } from "@/components/sortable-table-head";
 import { Button } from "@/components/ui/button";
 import type { useAdminTable } from "@/hooks/use-admin-table";
 import { workspaceHref } from "@/lib/workspace-path";
+import {
+  computeProgressShares,
+  formatProgressDetail,
+  formatProgressPercent,
+  formatQty,
+  progressBarWidthPct,
+} from "@/lib/task-progress-display";
 
 export type BidItemTaskRow = {
   id: string;
@@ -24,15 +31,6 @@ export type BidItemTaskRow = {
     approvedPct: number;
   };
 };
-
-function formatQty(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function progressPct(estimated: number, approved: number): number {
-  if (estimated <= 0) return approved > 0 ? 100 : 0;
-  return Math.min(100, Math.round((approved / estimated) * 100));
-}
 
 type BidItemTaskTableProps = {
   projectId: string;
@@ -175,9 +173,20 @@ export function BidItemTaskTable({
               </tr>
             )}
             {table.paginated.items.map((t) => {
-              const { estimated, approved } = t.progress;
+              const { estimated, approved, pending } = t.progress;
               const unit = t.taskMaster.unit;
-              const pct = progressPct(estimated, approved);
+              const { approvedPct, pendingPct, totalPct } = computeProgressShares(
+                estimated,
+                approved,
+                pending,
+              );
+              const pctLabel = formatProgressPercent(totalPct);
+              const progressDetail = formatProgressDetail(
+                estimated,
+                approved,
+                pending,
+                unit,
+              );
 
               return (
                 <tr key={t.id} className="border-b last:border-0 hover:bg-muted/10">
@@ -195,29 +204,46 @@ export function BidItemTaskTable({
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">
                     {formatQty(approved)}
+                    {pending > 0 && (
+                      <p className="text-[10px] text-amber-700">
+                        +{formatQty(pending)} pend
+                      </p>
+                    )}
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-sky-800">
-                        {pct}%
+                      <span className="w-12 shrink-0 text-right text-xs font-semibold tabular-nums text-sky-800">
+                        {pctLabel}
                       </span>
                       <div
-                        className="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-muted"
+                        className="flex h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-muted"
                         role="progressbar"
-                        aria-valuenow={pct}
+                        aria-valuenow={Math.round(totalPct * 10) / 10}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-label={`${pct}% installed`}
+                        aria-label={`${pctLabel} reported`}
                       >
-                        <div
-                          className="h-full bg-sky-600"
-                          style={{ width: `${pct}%` }}
-                        />
+                        {approvedPct > 0 && (
+                          <div
+                            className="h-full bg-emerald-600"
+                            style={{
+                              width: `${progressBarWidthPct(approvedPct, approved > 0)}%`,
+                            }}
+                          />
+                        )}
+                        {pendingPct > 0 && (
+                          <div
+                            className="h-full bg-amber-500"
+                            style={{
+                              width: `${progressBarWidthPct(pendingPct, pending > 0)}%`,
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
-                    {estimated > 0 && (
-                      <p className="mt-0.5 pl-11 text-[11px] tabular-nums text-muted-foreground">
-                        {formatQty(approved)} / {formatQty(estimated)} {unit}
+                    {progressDetail && (
+                      <p className="mt-0.5 pl-14 text-[11px] tabular-nums text-muted-foreground">
+                        {progressDetail}
                       </p>
                     )}
                   </td>

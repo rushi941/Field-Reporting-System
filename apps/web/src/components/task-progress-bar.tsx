@@ -1,4 +1,9 @@
 import { cn } from "@/lib/utils";
+import {
+  computeProgressShares,
+  formatProgressPercent,
+  progressBarWidthPct,
+} from "@/lib/task-progress-display";
 
 type TaskProgressBarProps = {
   code: string;
@@ -8,34 +13,9 @@ type TaskProgressBarProps = {
   estimated: number;
   approved: number;
   pending: number;
+  workLimits?: { beginSta: string; endSta: string } | null;
   className?: string;
 };
-
-function progressShares(
-  estimated: number,
-  approved: number,
-  pending: number,
-): { approvedPct: number; pendingPct: number; totalPct: number } {
-  if (estimated <= 0) {
-    const reported = approved + pending;
-    if (reported <= 0) return { approvedPct: 0, pendingPct: 0, totalPct: 0 };
-    const approvedPct =
-      reported > 0 ? Math.round((approved / reported) * 100) : 0;
-    return {
-      approvedPct,
-      pendingPct: 100 - approvedPct,
-      totalPct: 100,
-    };
-  }
-
-  const approvedPct = Math.min(100, (approved / estimated) * 100);
-  const pendingPct = Math.min(100 - approvedPct, (pending / estimated) * 100);
-  return {
-    approvedPct,
-    pendingPct,
-    totalPct: Math.min(100, approvedPct + pendingPct),
-  };
-}
 
 export function TaskProgressBar({
   code,
@@ -45,14 +25,16 @@ export function TaskProgressBar({
   estimated,
   approved,
   pending,
+  workLimits,
   className,
 }: TaskProgressBarProps) {
-  const { approvedPct, pendingPct, totalPct } = progressShares(
+  const { approvedPct, pendingPct, totalPct } = computeProgressShares(
     estimated,
     approved,
     pending,
   );
   const reported = approved + pending;
+  const pctLabel = formatProgressPercent(totalPct);
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -63,6 +45,14 @@ export function TaskProgressBar({
         </span>
       </div>
       <p className="text-sm font-semibold leading-snug">{name}</p>
+      {workLimits ? (
+        <p className="text-[11px] text-muted-foreground">
+          Work limits:{" "}
+          <span className="font-medium text-foreground">
+            {workLimits.beginSta} → {workLimits.endSta}
+          </span>
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>
           Est:{" "}
@@ -86,31 +76,35 @@ export function TaskProgressBar({
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(totalPct)}
-        aria-label={`${Math.round(totalPct)}% reported`}
+        aria-valuenow={Math.round(totalPct * 10) / 10}
+        aria-label={`${pctLabel} reported`}
       >
         {approvedPct > 0 && (
           <div
             className="h-full bg-emerald-600 transition-[width] duration-300 ease-out"
-            style={{ width: `${approvedPct}%` }}
+            style={{
+              width: `${progressBarWidthPct(approvedPct, approved > 0)}%`,
+            }}
           />
         )}
         {pendingPct > 0 && (
           <div
             className="h-full bg-amber-500 transition-[width] duration-300 ease-out"
-            style={{ width: `${pendingPct}%` }}
+            style={{
+              width: `${progressBarWidthPct(pendingPct, pending > 0)}%`,
+            }}
           />
         )}
       </div>
       {reported > 0 && (
         <p className="text-[11px] text-muted-foreground">
           {approvedPct > 0 && pendingPct > 0
-            ? `${Math.round(approvedPct)}% approved · ${Math.round(pendingPct)}% under review`
+            ? `${formatProgressPercent(approvedPct)} approved · ${formatProgressPercent(pendingPct)} under review`
             : approvedPct > 0
-              ? `${Math.round(approvedPct)}% approved`
+              ? `${formatProgressPercent(approvedPct)} approved`
               : pendingPct > 0
-                ? `${Math.round(pendingPct)}% under review`
-                : `${Math.round(totalPct)}% reported`}
+                ? `${formatProgressPercent(pendingPct)} under review`
+                : `${pctLabel} reported`}
         </p>
       )}
     </div>
