@@ -13,7 +13,6 @@ import {
 } from "./form-types.js";
 import {
   normalizeSta,
-  parseStaToDecimal,
   physicalLfFromSta,
   quantityFromStaRange,
   reportedLfFromSta,
@@ -332,10 +331,9 @@ export function validateReportTaskSegments(
 
 export type StaRangePair = { beginSta: string; endSta: string };
 
-/** Validate STA segments: format and optional task/project bounds. */
+/** Validate STA segments: format only (field leads are not blocked by task limits). */
 export function validateStaSegmentsCoverage(
   segments: StaRangePair[],
-  projectBounds?: StaRangePair | null,
 ):
   | { success: true }
   | { success: false; errors: SegmentFieldErrors; message: string } {
@@ -363,34 +361,6 @@ export function validateStaSegmentsCoverage(
       success: false,
       errors,
       message: "Fix the highlighted station fields",
-    };
-  }
-
-  if (projectBounds?.beginSta && projectBounds?.endSta) {
-    const lo = parseStaToDecimal(projectBounds.beginSta);
-    const hi = parseStaToDecimal(projectBounds.endSta);
-    const minB = Math.min(lo, hi);
-    const maxB = Math.max(lo, hi);
-
-    segments.forEach((seg, i) => {
-      const b0 = parseStaToDecimal(seg.beginSta);
-      const b1 = parseStaToDecimal(seg.endSta);
-      const segLo = Math.min(b0, b1);
-      const segHi = Math.max(b0, b1);
-      if (segLo < minB || segHi > maxB) {
-        errors[i] = {
-          ...(errors[i] ?? {}),
-          endSta: `Must stay within ${projectBounds.beginSta} – ${projectBounds.endSta}`,
-        };
-      }
-    });
-  }
-
-  if (Object.keys(errors).length) {
-    return {
-      success: false,
-      errors,
-      message: "Fix station limits",
     };
   }
 

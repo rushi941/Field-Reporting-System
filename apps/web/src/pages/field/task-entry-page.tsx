@@ -12,7 +12,6 @@ import {
   isStaWithCf,
   normalizeSta,
   quantityFromStaRange,
-  resolveStaWorkLimits,
   updateDraftReportSchema,
   TEXT_NOTE_MAX_LENGTH,
   validateAttachmentFile,
@@ -554,12 +553,10 @@ export function FieldTaskEntryPage() {
     }
 
     if (isSta) {
-      const workLimits = resolveStaWorkLimits(task, project?.route ?? null);
       const coverage = validateStaSegmentsCoverage(
         (validated.segments as { beginSta: string; endSta: string }[]).map(
           (s) => ({ beginSta: s.beginSta, endSta: s.endSta }),
         ),
-        workLimits,
       );
       if (!coverage.success) {
         setSegErrors(coverage.errors);
@@ -733,14 +730,14 @@ export function FieldTaskEntryPage() {
 
       {isSta && task.beginSta && task.endSta ? (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
-          <p className="font-semibold">Task work limits</p>
+          <p className="font-semibold">Task reference range</p>
           <p className="mt-0.5">
-            Report only between{" "}
+            Planned corridor{" "}
             <strong>
               {task.beginSta} → {task.endSta}
             </strong>
-            . Enter segments inside this range when possible; your division
-            manager can review and adjust submitted work.
+            . You may report any valid stations; your division manager can
+            review and adjust submitted work.
           </p>
         </div>
       ) : null}

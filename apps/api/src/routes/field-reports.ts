@@ -13,7 +13,6 @@ import {
   isStaFormType,
   quantityOnlySegmentSchema,
   resolveStaSegment,
-  resolveStaWorkLimits,
   singleLocationSegmentSchema,
   staRangeSegmentSchema,
   submitReportSchema,
@@ -616,12 +615,6 @@ fieldReportsRouter.put(
     }[] = [];
 
     if (isStaFormType(formType)) {
-      const route = await prisma.projectRoute.findUnique({
-        where: { projectId: report.projectId },
-        select: { beginSta: true, endSta: true },
-      });
-      const workLimits = resolveStaWorkLimits(projectTask, route);
-
       const parsedSegments: { beginSta: string; endSta: string }[] = [];
       rawSegments.forEach((seg: unknown, i: number) => {
         const parsed = staRangeSegmentSchema.parse(seg);
@@ -652,10 +645,7 @@ fieldReportsRouter.put(
         });
       });
 
-      const coverage = validateStaSegmentsCoverage(
-        parsedSegments,
-        workLimits,
-      );
+      const coverage = validateStaSegmentsCoverage(parsedSegments);
       if (!coverage.success) {
         throw new AppError("VALIDATION_ERROR", coverage.message, 400);
       }
@@ -758,11 +748,6 @@ fieldReportsRouter.post(
     }
 
     if (staByTask.size > 0) {
-      const route = await prisma.projectRoute.findUnique({
-        where: { projectId: report.projectId },
-        select: { beginSta: true, endSta: true },
-      });
-
       for (const [projectTaskId, segments] of staByTask) {
         const projectTask = await prisma.projectTask.findUnique({
           where: { id: projectTaskId },
@@ -772,11 +757,7 @@ fieldReportsRouter.post(
           continue;
         }
 
-        const workLimits = resolveStaWorkLimits(projectTask, route);
-        const coverage = validateStaSegmentsCoverage(
-          segments,
-          workLimits,
-        );
+        const coverage = validateStaSegmentsCoverage(segments);
         if (!coverage.success) {
           throw new AppError("VALIDATION_ERROR", coverage.message, 400);
         }
