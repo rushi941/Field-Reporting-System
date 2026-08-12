@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, Loader2 } from "lucide-react";
-import { formTypeLabel, updateDraftReportSchema } from "@frs/shared";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { formTypeLabel } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/auth/auth-context";
 import { markFieldTasksKnown } from "@/lib/activity-seen";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { TaskProgressBar } from "@/components/task-progress-bar";
 import { cn } from "@/lib/utils";
 
@@ -82,24 +80,7 @@ export function FieldProjectDetailPage() {
   const { user } = useAuth();
   const [project, setProject] = useState<FieldProject | null>(null);
   const [report, setReport] = useState<FieldReport | null>(null);
-  const [reportDate, setReportDate] = useState(todayIso());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [dateError, setDateError] = useState<string | undefined>();
-
-  function parseMeta(nextDate = reportDate) {
-    const parsed = updateDraftReportSchema.safeParse({
-      reportDate: nextDate.trim(),
-      crewSize: null,
-    });
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
-      setDateError(fieldErrors.reportDate?.[0]);
-      return null;
-    }
-    setDateError(undefined);
-    return parsed.data;
-  }
 
   async function load() {
     if (!projectId) return;
@@ -135,12 +116,11 @@ export function FieldProjectDetailPage() {
           method: "POST",
           body: JSON.stringify({
             projectId,
-            reportDate,
+            reportDate: todayIso(),
           }),
         },
       );
       setReport(draft.report);
-      setReportDate(draft.report.reportDate);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -157,37 +137,6 @@ export function FieldProjectDetailPage() {
     () => project?.tasks.filter((t) => t.isMine) ?? [],
     [project],
   );
-
-  const busy = saving;
-
-  async function onDateChange(next: string) {
-    setReportDate(next);
-    setDateError(undefined);
-    if (!projectId) return;
-    const meta = parseMeta(next);
-    if (!meta?.reportDate) {
-      toast.error("Enter a valid report date", { id: "field-report" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const draft = await apiFetch<{ report: FieldReport }>(
-        "/api/v1/field/reports/draft",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            projectId,
-            reportDate: meta.reportDate,
-          }),
-        },
-      );
-      setReport(draft.report);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load draft");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -255,36 +204,6 @@ export function FieldProjectDetailPage() {
         </div>
       )}
 
-      <div className="max-w-xs space-y-1">
-        <Label className="text-xs" htmlFor="report-date">
-          Report date
-        </Label>
-        <div className="relative">
-          <Calendar className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="report-date"
-            type="date"
-            className={cn("h-10 pl-9 text-sm", dateError && "border-destructive")}
-            value={reportDate}
-            disabled={!editable || busy}
-            aria-invalid={Boolean(dateError)}
-            onChange={(e) => void onDateChange(e.target.value)}
-          />
-        </div>
-        {dateError && (
-          <p className="text-[11px] text-destructive" role="alert">
-            {dateError}
-          </p>
-        )}
-      </div>
-
-      {saving && (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
-          Saving…
-        </p>
-      )}
-
       <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
         {myTasks.length === 0
           ? "No tasks assigned to you on this project yet."
@@ -294,7 +213,7 @@ export function FieldProjectDetailPage() {
       <ul className="space-y-2">
         {myTasks.map((t) => {
           const formLabel = taskFormLabel(t);
-          const canOpen = editable && !busy;
+          const canOpen = editable;
           const progress = t.progress ?? {
             estimated: 0,
             approved: 0,
@@ -319,7 +238,6 @@ export function FieldProjectDetailPage() {
                   canOpen
                     ? "active:scale-[0.99] hover:border-sky-300 hover:bg-sky-50/40"
                     : "opacity-70",
-                  busy && canOpen && "opacity-60",
                 )}
               >
                 <TaskProgressBar
