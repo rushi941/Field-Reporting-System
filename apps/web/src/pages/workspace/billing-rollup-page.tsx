@@ -52,6 +52,7 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
   const {
     searchInput,
     setSearchInput,
+    search,
     sortKey,
     sortDir,
     toggleSort,
@@ -140,11 +141,9 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
         </ol>
       </div>
 
-      {filteredTotal === 0 ? (
+      {projects.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-          {projects.length === 0
-            ? "No active projects."
-            : "No projects match your search."}
+          No active projects.
         </p>
       ) : (
         <>
@@ -169,6 +168,18 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                 </tr>
               </thead>
               <tbody>
+                {filteredTotal === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-2 py-6 text-center text-sm text-muted-foreground"
+                    >
+                      {search
+                        ? "No projects match your search."
+                        : "No projects match your filters."}
+                    </td>
+                  </tr>
+                )}
                 {paginatedProjects.items.map((p) => {
                   const unread = isUnread(p);
                   return (
@@ -247,7 +258,14 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
           </div>
 
           <ul className="space-y-2 md:hidden">
-            {paginatedProjects.items.map((p) => {
+            {filteredTotal === 0 ? (
+              <li className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                {search
+                  ? "No projects match your search."
+                  : "No projects match your filters."}
+              </li>
+            ) : (
+              paginatedProjects.items.map((p) => {
               const unread = isUnread(p);
               return (
               <li
@@ -332,16 +350,19 @@ export function BillingRollupPage({ base }: { base: "office" | "system" }) {
                 </div>
               </li>
               );
-            })}
+            })
+            )}
           </ul>
+          {filteredTotal > 0 && (
           <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
             <TablePagination
               page={paginatedProjects.page}
               pageSize={ADMIN_PAGE_SIZE}
-              total={paginatedProjects.total}
+              total={filteredTotal}
               onPageChange={setTablePage}
             />
           </div>
+          )}
         </>
       )}
     </div>

@@ -291,7 +291,7 @@ export function AdminApprovalsPage({ base }: { base: "system" }) {
           placeholder="Search projects…"
         />
 
-        {projectsTable.total === 0 ? (
+        {filteredProjects.length === 0 ? (
           <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
             No projects match your filters.
           </p>
@@ -312,6 +312,18 @@ export function AdminApprovalsPage({ base }: { base: "system" }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {projectsTable.total === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-2 py-6 text-center text-sm text-muted-foreground"
+                      >
+                        {projectsTable.search
+                          ? "No projects match your search."
+                          : "No projects match your filters."}
+                      </td>
+                    </tr>
+                  )}
                   {projectsTable.paginated.items.map((p) => (
                     <tr key={p.id} className="border-b last:border-0">
                       <td className="px-2 py-1">
@@ -367,12 +379,14 @@ export function AdminApprovalsPage({ base }: { base: "system" }) {
                 </tbody>
               </table>
             </div>
+            {projectsTable.total > 0 && (
             <TablePagination
               page={projectsTable.paginated.page}
               pageSize={ADMIN_PAGE_SIZE}
               total={projectsTable.paginated.total}
               onPageChange={projectsTable.setPage}
             />
+            )}
           </div>
         )}
       </section>

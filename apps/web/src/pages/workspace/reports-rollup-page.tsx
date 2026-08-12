@@ -287,9 +287,8 @@ export function WorkspaceReportsRollupPage({
           {filteredTotal > 0 && (
             <TablePagination
               page={paginated.page}
-              totalPages={paginated.totalPages}
-              totalItems={filtered.length}
               pageSize={ADMIN_PAGE_SIZE}
+              total={filteredTotal}
               onPageChange={setTablePage}
             />
           )}
