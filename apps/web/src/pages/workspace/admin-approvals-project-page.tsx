@@ -31,6 +31,7 @@ type HistoryReport = {
   approvalNotes: string | null;
   submittedBy: { name: string };
   approvedBy: { name: string } | null;
+  approvedAt?: string | null;
 };
 
 const statusStyles: Record<string, string> = {
@@ -83,6 +84,7 @@ export function AdminApprovalsProjectPage({ base }: { base: "system" }) {
       reportNumber: (r: HistoryReport) => r.reportNumber,
       date: (r: HistoryReport) => r.reportDate,
       submittedBy: (r: HistoryReport) => r.submittedBy.name,
+      approvedBy: (r: HistoryReport) => r.approvedBy?.name ?? "",
       status: (r: HistoryReport) => r.status,
       lines: (r: HistoryReport) => r.lineCount,
     }),
@@ -178,6 +180,7 @@ export function AdminApprovalsProjectPage({ base }: { base: "system" }) {
                 <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                 <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                 <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                 <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                 <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
                 <th className="px-2 py-1 font-medium text-right">Action</th>
@@ -193,6 +196,20 @@ export function AdminApprovalsProjectPage({ base }: { base: "system" }) {
                     <td className="px-2 py-1 font-mono text-xs">{r.reportNumber}</td>
                     <td className="px-2 py-1 tabular-nums text-xs">{r.reportDate}</td>
                     <td className="px-2 py-1 text-xs">{r.submittedBy.name}</td>
+                    <td className="px-2 py-1 text-xs">
+                      {r.approvedBy?.name ? (
+                        <div>
+                          <p>{r.approvedBy.name}</p>
+                          {r.approvedAt && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {r.approvedAt.slice(0, 10)}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-2 py-1">
                       <span
                         className={cn(

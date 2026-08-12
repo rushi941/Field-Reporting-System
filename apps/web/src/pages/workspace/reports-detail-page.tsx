@@ -39,6 +39,7 @@ type ReportRow = {
   approvalNotes: string | null;
   submittedBy: { name: string; email: string };
   approvedBy: { name: string } | null;
+  approvedAt: string | null;
   ageLabel: string;
 };
 
@@ -73,6 +74,7 @@ export function WorkspaceReportsDetailPage({
       reportNumber: (r: ReportRow) => r.reportNumber,
       date: (r: ReportRow) => r.reportDate,
       submittedBy: (r: ReportRow) => r.submittedBy.name,
+      approvedBy: (r: ReportRow) => r.approvedBy?.name ?? "",
       status: (r: ReportRow) => r.status,
       lines: (r: ReportRow) => r.lineCount,
       photos: (r: ReportRow) => r.attachmentCount,
@@ -247,6 +249,7 @@ export function WorkspaceReportsDetailPage({
                   <SortableTh label="Report #" sortKey="reportNumber" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                   <SortableTh label="Date" sortKey="date" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                   <SortableTh label="Submitted by" sortKey="submittedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
+                  <SortableTh label="Approved by" sortKey="approvedBy" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                   <SortableTh label="Status" sortKey="status" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} />
                   <SortableTh label="Lines" sortKey="lines" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
                   <SortableTh label="Photos" sortKey="photos" activeSortKey={reportsTable.sortKey} sortDir={reportsTable.sortDir} onSort={reportsTable.toggleSort} align="right" />
@@ -255,7 +258,7 @@ export function WorkspaceReportsDetailPage({
               <tbody>
                 {reportsTable.total === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-2 py-4 text-center text-sm text-muted-foreground">
                       No reports match your search.
                     </td>
                   </tr>
@@ -277,6 +280,20 @@ export function WorkspaceReportsDetailPage({
                       </td>
                       <td className="px-2 py-1 tabular-nums">{r.reportDate}</td>
                       <td className="px-2 py-1 text-xs">{r.submittedBy.name}</td>
+                      <td className="px-2 py-1 text-xs">
+                        {r.approvedBy?.name ? (
+                          <div>
+                            <p>{r.approvedBy.name}</p>
+                            {r.approvedAt && (
+                              <p className="text-[10px] text-muted-foreground">
+                                {r.approvedAt.slice(0, 10)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
                       <td className="px-2 py-1">
                         <span
                           className={cn(

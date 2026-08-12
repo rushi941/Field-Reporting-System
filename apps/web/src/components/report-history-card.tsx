@@ -106,7 +106,7 @@ export function ReportHistoryCard({
 
       {approved && report.approvedBy && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Reviewed by {shortPersonName(report.approvedBy.name)}
+          Approved by {shortPersonName(report.approvedBy.name)}
         </p>
       )}
 
