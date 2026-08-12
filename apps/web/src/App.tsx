@@ -247,13 +247,13 @@ function projectRoutes(base: "system" | "office") {
       <Route
         path="billing"
         element={
-          <RequirePermission permission="reports.view_approved"> <BillingRollupPage base={base} /> </RequirePermission>
+          <RequirePermission permission="billing.export"> <BillingRollupPage base={base} /> </RequirePermission>
         }
       />
       <Route
         path="billing/:projectId"
         element={
-          <RequirePermission permission="reports.view_approved"> <BillingDrilldownPage base={base} /> </RequirePermission>
+          <RequirePermission permission="billing.export"> <BillingDrilldownPage base={base} /> </RequirePermission>
         }
       />
     </>

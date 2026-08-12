@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { frdStatusLabels } from "@frs/shared";
+import { useAuth } from "@/auth/auth-context";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { workspaceReportsExportPath } from "@/lib/billing-export";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ export function WorkspaceReportsDetailPage({
   base: "office" | "system";
 }) {
   const { projectId } = useParams();
+  const { can } = useAuth();
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [statusCounts, setStatusCounts] = useState({
@@ -188,7 +190,7 @@ export function WorkspaceReportsDetailPage({
               Download CSV
             </Button>
           )}
-          {statusCounts.approved > 0 && (
+          {statusCounts.approved > 0 && can("billing.export") && (
             <Button asChild size="sm">
               <Link to={`/${base}/billing/${project.id}`}>Billing drilldown</Link>
             </Button>

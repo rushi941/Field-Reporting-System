@@ -33,7 +33,7 @@ async function auditBillingExport(
 /** Nav badge: total pending approvals across active projects */
 billingRouter.get(
   "/summary",
-  requirePermission("reports.view_approved"),
+  requirePermission("billing.export"),
   asyncHandler(async (_req, res) => {
     const pendingCount = await prisma.report.count({
       where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
@@ -57,7 +57,7 @@ billingRouter.get(
 /** Project rollup for Project Admin billing dashboard (FRD §8.6) */
 billingRouter.get(
   "/rollup",
-  requirePermission("reports.view_approved"),
+  requirePermission("billing.export"),
   asyncHandler(async (_req, res) => {
     const projects = await prisma.project.findMany({
       where: { status: "ACTIVE" },
@@ -166,7 +166,7 @@ billingRouter.get(
 /** Approved-only project drilldown */
 billingRouter.get(
   "/projects/:projectId",
-  requirePermission("reports.view_approved"),
+  requirePermission("billing.export"),
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.projectId);
     const { project, reports, pendingCount, billingReady } =

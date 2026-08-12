@@ -36,10 +36,10 @@ export function WorkspaceOverviewPage({
   const { can, user } = useAuth();
   const base = kind === "system" ? "/system" : "/office";
   const [rollup, setRollup] = useState<RollupProject[]>([]);
-  const [loadingRollup, setLoadingRollup] = useState(can("reports.view_approved"));
+  const [loadingRollup, setLoadingRollup] = useState(can("billing.export"));
 
   useEffect(() => {
-    if (!can("reports.view_approved")) return;
+    if (!can("billing.export")) return;
     void (async () => {
       try {
         const data = await apiFetch<{ projects: RollupProject[] }>(
@@ -102,7 +102,7 @@ export function WorkspaceOverviewPage({
       title: "Billing",
       body: "Approved report rollup, drilldown, and CSV backup export.",
       icon: FileSpreadsheet,
-      permission: "reports.view_approved",
+      permission: "billing.export",
     },
     {
       to: `${base}/project-types`,
@@ -166,14 +166,14 @@ export function WorkspaceOverviewPage({
       </h1>
       <p className="mt-2 max-w-xl text-sm text-muted-foreground">
         Welcome{user?.firstName ? `, ${user.firstName}` : ""}.
-        {can("reports.view_approved")
+        {can("billing.export")
           ? " Approved-only detail · summary pending counts · billing readiness."
           : kind === "system"
             ? " Manage projects, users, and settings."
             : " Manage projects and master data."}
       </p>
 
-      {can("reports.view_approved") && (
+      {can("billing.export") && (
         <div className="mt-6 space-y-3">
           {loadingRollup ? (
             <DataPageLoader label="Loading dashboard…" className="min-h-[8rem]" />

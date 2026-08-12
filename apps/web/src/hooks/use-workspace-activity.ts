@@ -18,7 +18,7 @@ type ProjectsSummary = {
 export function useWorkspaceActivity() {
   const { can, user } = useAuth();
   const { unreadCount: billingPending } = useBillingActivity(
-    can("reports.view_approved") ? user?.id : undefined,
+    can("billing.export") ? user?.id : undefined,
   );
   const [recentProjects, setRecentProjects] = useState<ProjectActivity[]>([]);
   const [approvalsPending, setApprovalsPending] = useState(0);
