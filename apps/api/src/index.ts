@@ -68,7 +68,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "2mb" }));
+/** JSON bodies. Multipart field attachments use multer (5 MB) on report routes. */
+app.use(express.json({ limit: "8mb" }));
+app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
 /** Local attachment files (STORAGE_DRIVER=local) */
 app.use(

@@ -1,3 +1,5 @@
+import { attachmentUploadMeta } from "@frs/shared";
+
 const TOKEN_KEY = "frs_auth_token";
 
 export type AuthUser = {
@@ -25,11 +27,25 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+const FILE_TOO_LARGE_MESSAGE = `File must be ${attachmentUploadMeta.maxLabel} or smaller`;
+
+function isAbortError(err: unknown, signal?: AbortSignal | null) {
+  return (
+    signal?.aborted ||
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 async function parseError(res: Response) {
+  if (res.status === 413) return FILE_TOO_LARGE_MESSAGE;
   try {
     const body = (await res.json()) as ApiErrorBody;
     return body.error?.message ?? res.statusText;
   } catch {
+    if (/too large|entity too large|payload/i.test(res.statusText)) {
+      return FILE_TOO_LARGE_MESSAGE;
+    }
     return res.statusText || "Request failed";
   }
 }
@@ -48,7 +64,20 @@ export async function apiFetch<T>(
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(path, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers });
+  } catch (err) {
+    if (isAbortError(err, init.signal)) throw err;
+    if (isFormData) {
+      throw new Error(
+        `Upload failed. ${FILE_TOO_LARGE_MESSAGE}. If the file is smaller, try again.`,
+      );
+    }
+    throw new Error(
+      err instanceof Error && err.message ? err.message : "Network error",
+    );
+  }
   if (!res.ok) {
     throw new Error(await parseError(res));
   }
