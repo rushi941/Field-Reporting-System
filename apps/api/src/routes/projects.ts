@@ -544,7 +544,7 @@ async function syncProjectRoute(
 projectsRouter.get(
   "/activity-summary",
   requirePermission("projects.manage"),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const projects = await prisma.project.findMany({
       where: {

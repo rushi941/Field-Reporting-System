@@ -71,7 +71,7 @@ export async function apiFetch<T>(
     if (isAbortError(err, init.signal)) throw err;
     if (isFormData) {
       throw new Error(
-        `Upload failed. ${FILE_TOO_LARGE_MESSAGE}. If the file is smaller, try again.`,
+        "Upload failed. Use a photo or PDF up to 5 MB and try again.",
       );
     }
     throw new Error(

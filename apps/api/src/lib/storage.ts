@@ -1,6 +1,7 @@
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 export type StoredFile = {
   /** Public URL path or absolute S3 URL */
@@ -33,10 +34,11 @@ function driver(): StorageDriver {
 }
 
 function uploadRoot() {
-  return (
-    process.env.UPLOAD_DIR ??
-    path.resolve(process.cwd(), "uploads")
-  );
+  const envDir = process.env.UPLOAD_DIR;
+  if (envDir && path.isAbsolute(envDir)) return envDir;
+  const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  if (envDir) return path.resolve(apiRoot, envDir);
+  return path.join(apiRoot, "uploads");
 }
 
 function publicBaseUrl() {

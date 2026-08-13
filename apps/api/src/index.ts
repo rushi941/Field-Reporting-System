@@ -133,6 +133,12 @@ if (webDist) {
 
 app.use(errorHandler);
 
+try {
+  fs.mkdirSync(getUploadRoot(), { recursive: true });
+} catch (err) {
+  console.error("Could not create uploads directory:", err);
+}
+
 app.listen(port, () => {
   console.log(`FRS API listening on http://localhost:${port}`);
   console.log(`Swagger UI: http://localhost:${port}/api/docs`);

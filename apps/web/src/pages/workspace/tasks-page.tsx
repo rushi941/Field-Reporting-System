@@ -10,7 +10,15 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { taskMasterSchema, updateTaskMasterSchema, blockNegativeNumberKeys, sanitizeNonNegativeDecimalInput } from "@frs/shared";
+import {
+  bidItemFormTypeEnum,
+  blockNegativeNumberKeys,
+  FORM_TYPE_LABELS,
+  normalizeFormType,
+  sanitizeNonNegativeDecimalInput,
+  taskMasterSchema,
+  updateTaskMasterSchema,
+} from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
@@ -79,7 +87,7 @@ const emptyForm = {
   code: "",
   name: "",
   unit: "LF",
-  formType: "STA_RANGE",
+  formType: "STA_WITH_CF",
   projectTypeId: "",
   parentId: "",
   division: "PAVEMENT_MARKING",
@@ -259,7 +267,7 @@ export function TasksPage() {
       division: parent.division ?? "PAVEMENT_MARKING",
       projectTypeId: parent.projectType?.id ?? "",
       unit: parent.unit || defaultUnitCode,
-      formType: parent.formType || "STA_RANGE",
+      formType: normalizeFormType(parent.formType || "STA_WITH_CF"),
       conversionFactor: "1.00",
     };
     setForm(next);
@@ -275,7 +283,7 @@ export function TasksPage() {
       code: bid.code,
       name: bid.name,
       unit: bid.unit,
-      formType: bid.formType,
+      formType: normalizeFormType(bid.formType),
       projectTypeId: bid.projectType?.id ?? "",
       parentId: bid.parentId ?? "",
       division: bid.division ?? "PAVEMENT_MARKING",
@@ -318,7 +326,7 @@ export function TasksPage() {
         code,
         name: form.name.trim(),
         unit: form.unit.trim(),
-        formType: form.formType,
+        formType: normalizeFormType(form.formType),
         projectTypeId: form.projectTypeId || null,
         parentId: mode === "sub" ? form.parentId || null : null,
         division: form.division || null,
@@ -837,8 +845,11 @@ export function TasksPage() {
                     setForm((f) => ({ ...f, formType: e.target.value }))
                   }
                 >
-                  <option value="STA_RANGE">STA Range</option>
-                  <option value="SINGLE_LOCATION">Single Location</option>
+                  {bidItemFormTypeEnum.options.map((value) => (
+                    <option key={value} value={value}>
+                      {FORM_TYPE_LABELS[value]}
+                    </option>
+                  ))}
                 </select>
               </div>
               {mode === "sub" && (

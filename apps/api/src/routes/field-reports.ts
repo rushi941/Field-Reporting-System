@@ -906,9 +906,12 @@ fieldReportsRouter.post(
         folder: `reports/${id}`,
       });
     } catch (err) {
+      const raw = err instanceof Error ? err.message : "Upload failed";
       throw new AppError(
         "INTERNAL",
-        err instanceof Error ? err.message : "Upload failed",
+        /enoent|eacces|eperm|enospc|not defined/i.test(raw)
+          ? "Could not save the file on the server. Try again or contact an administrator."
+          : raw,
         500,
       );
     }

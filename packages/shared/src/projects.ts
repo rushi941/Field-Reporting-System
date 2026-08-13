@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TEXT_NAME_MAX_LENGTH, TEXT_NOTE_MAX_LENGTH } from "./text-limits.js";
-import { bidItemFormTypeEnum, isStaFormType } from "./form-types.js";
+import {
+  bidItemFormTypeEnum,
+  isStaFormType,
+  normalizeFormType,
+} from "./form-types.js";
 import { buildPavementMarkingBidCatalog } from "./line-codes.js";
 import { normalizeSta, physicalLfFromSta } from "./sta.js";
 
@@ -31,7 +35,10 @@ export const taskMasterSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(500).optional().nullable(),
   unit: z.string().min(1).max(20),
-  formType: formTypeEnum.optional().default("STA_WITH_CF"),
+  formType: z.preprocess(
+    (val) => (typeof val === "string" ? normalizeFormType(val) : val),
+    formTypeEnum.optional().default("STA_WITH_CF"),
+  ),
   projectTypeId: z.string().optional().nullable(),
   parentId: z.string().optional().nullable(),
   division: divisionEnum.optional().nullable(),
@@ -115,7 +122,10 @@ export const projectCreateTaskSchema = z
     name: z.string().min(1).max(200).optional(),
     code: z.string().min(1).max(40).optional(),
     unit: z.string().min(1).max(20).optional().default("LF"),
-    formType: formTypeEnum.optional().default("STA_WITH_CF"),
+    formType: z.preprocess(
+      (val) => (typeof val === "string" ? normalizeFormType(val) : val),
+      formTypeEnum.optional().default("STA_WITH_CF"),
+    ),
     division: divisionEnum.optional(),
     color: z.string().max(40).optional().nullable(),
     widthInches: z.number().int().positive().optional().nullable(),
@@ -185,7 +195,10 @@ export const projectUpdateTaskSchema = z
   .object({
     taskMasterId: z.string().min(1),
     division: divisionEnum.optional(),
-    formType: formTypeEnum.optional(),
+    formType: z.preprocess(
+      (val) => (typeof val === "string" ? normalizeFormType(val) : val),
+      formTypeEnum.optional(),
+    ),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
     description: z.string().max(500).optional().nullable(),
@@ -237,7 +250,10 @@ export const taskImportRowSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   unit: z.string().min(1),
-  formType: formTypeEnum.optional().default("STA_WITH_CF"),
+  formType: z.preprocess(
+    (val) => (typeof val === "string" ? normalizeFormType(val) : val),
+    formTypeEnum.optional().default("STA_WITH_CF"),
+  ),
   projectTypeCode: z.string().optional().nullable(),
   parentCode: z.string().optional().nullable(),
   division: divisionEnum.optional().nullable(),
