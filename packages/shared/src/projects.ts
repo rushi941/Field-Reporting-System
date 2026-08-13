@@ -180,49 +180,18 @@ export function splitProjectDivisions(
 
 export type ProjectCreateTaskInput = z.infer<typeof projectCreateTaskSchema>;
 
-/** CSV / Excel row for bulk import onto a project */
-export const projectTaskImportRowSchema = z
+/** Update an existing project task (master bid, division, work limits). */
+export const projectUpdateTaskSchema = z
   .object({
-    masterBidCode: z.string().trim().max(40).optional(),
-    subBidCode: z.string().trim().max(40).optional(),
-    code: z.string().trim().max(40).optional(),
-    name: z.string().trim().max(200).optional(),
-    unit: z.string().trim().min(1).max(20).optional().default("LF"),
-    formType: formTypeEnum.optional().default("STA_WITH_CF"),
+    taskMasterId: z.string().min(1),
     division: divisionEnum.optional(),
-    color: z.string().trim().max(40).optional().nullable(),
-    widthInches: z.number().int().positive().optional().nullable(),
-    conversionFactor: z.number().nonnegative().optional(),
-    fieldPersonEmail: z.string().trim().email(),
+    formType: formTypeEnum.optional(),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
-    description: z.string().trim().max(500).optional().nullable(),
+    description: z.string().max(500).optional().nullable(),
   })
   .superRefine((val, ctx) => {
-    if (!val.subBidCode?.trim() && !val.code?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "subBidCode (or code) is required",
-        path: ["subBidCode"],
-      });
-    }
-    if (!val.subBidCode?.trim()) {
-      if (!val.name?.trim()) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "name is required when subBidCode is omitted",
-          path: ["name"],
-        });
-      }
-      if (val.conversionFactor == null || Number.isNaN(val.conversionFactor)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "conversionFactor is required when subBidCode is omitted",
-          path: ["conversionFactor"],
-        });
-      }
-    }
-    if (!isStaFormType(val.formType)) return;
+    if (!val.formType || !isStaFormType(val.formType)) return;
     if (!val.beginSta?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -239,83 +208,7 @@ export const projectTaskImportRowSchema = z
     }
   });
 
-export type ProjectTaskImportRow = z.infer<typeof projectTaskImportRowSchema>;
-
-export const PROJECT_TASK_IMPORT_HEADERS = [
-  "masterBidCode",
-  "subBidCode",
-  "division",
-  "fieldPersonEmail",
-  "beginSta",
-  "endSta",
-  "description",
-] as const;
-
-export const PROJECT_TASK_IMPORT_SAMPLE_ROWS: string[][] = [
-  [
-    "BI-0035",
-    "WB-ELW4",
-    "PAVEMENT_MARKING",
-    "lead@frs.local",
-    "100+00",
-    "105+00",
-    "Edge line right white",
-  ],
-  [
-    "BI-0035",
-    "WB-SLW2-4",
-    "PAVEMENT_MARKING",
-    "lead@frs.local",
-    "105+00",
-    "106+00",
-    "Stop line",
-  ],
-];
-
-/** Normalize spreadsheet row keys → import schema input */
-export function normalizeProjectTaskImportRow(
-  raw: Record<string, unknown>,
-): Record<string, unknown> {
-  const pick = (...keys: string[]) => {
-    for (const key of keys) {
-      const hit = Object.entries(raw).find(
-        ([k]) => k.replace(/^\uFEFF/, "").trim().toLowerCase() === key.toLowerCase(),
-      );
-      if (hit && String(hit[1] ?? "").trim() !== "") {
-        return String(hit[1]).trim();
-      }
-    }
-    return "";
-  };
-
-  const widthRaw = pick("widthInches", "width_inches", "width");
-  const cfRaw = pick("conversionFactor", "conversion_factor", "cf");
-  const division = pick("division");
-  const formType = (pick("formType", "form_type") || "STA_WITH_CF").toUpperCase();
-
-  return {
-    masterBidCode: pick("masterBidCode", "master_bid_code", "masterCode", "master_code"),
-    subBidCode: pick("subBidCode", "sub_bid_code", "subCode", "sub_code", "code"),
-    code: pick("code", "lineCode", "line_code"),
-    name: pick("name"),
-    unit: pick("unit") || "LF",
-    formType,
-    division: division || undefined,
-    color: pick("color") || null,
-    widthInches: widthRaw && !Number.isNaN(Number(widthRaw)) ? Number(widthRaw) : null,
-    conversionFactor:
-      cfRaw && !Number.isNaN(Number(cfRaw)) ? Number(cfRaw) : undefined,
-    fieldPersonEmail: pick(
-      "fieldPersonEmail",
-      "field_person_email",
-      "assignedToEmail",
-      "assigned_to_email",
-    ),
-    beginSta: pick("beginSta", "begin_sta") || null,
-    endSta: pick("endSta", "end_sta") || null,
-    description: pick("description") || null,
-  };
-}
+export type ProjectUpdateTaskInput = z.infer<typeof projectUpdateTaskSchema>;
 
 export const projectUpdateTaskLimitsSchema = z
   .object({

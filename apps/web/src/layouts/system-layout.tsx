@@ -234,13 +234,13 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
             <BrandLogo
               variant="compact"
               className="min-w-0 shrink lg:hidden"
-              imgClassName="h-7 max-w-[11rem] sm:max-w-[13rem]"
+              imgClassName="h-7 max-w-[6.5rem] sm:max-w-[13rem]"
             />
             <p className="hidden truncate text-sm font-semibold text-foreground lg:block">
               Field Reporting System
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
             {userName ? (
               <UserHeaderIdentity name={userName} role={workspaceRole} compact />
             ) : null}
@@ -253,8 +253,8 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
               disabled={loggingOut}
             >
               <LogOut className="size-4" />
-              <span className="sr-only sm:not-sr-only">
-                {loggingOut ? "…" : "Log out"}
+              <span className="whitespace-nowrap">
+                {loggingOut ? "Signing out…" : "Log out"}
               </span>
             </Button>
           </div>

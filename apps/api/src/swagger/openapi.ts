@@ -485,11 +485,22 @@ export const openApiSpec = {
     "/api/v1/projects/{id}/tasks": {
       post: {
         tags: ["Projects"],
-        summary: "Create project task (assign field person)",
+        summary: "Create project task",
         parameters: [
           { name: "id", in: "path", required: true, schema: { type: "string" } },
         ],
         responses: { "201": { description: "Task created" } },
+      },
+    },
+    "/api/v1/projects/{projectId}/tasks/{taskId}": {
+      patch: {
+        tags: ["Projects"],
+        summary: "Update project task",
+        parameters: [
+          { name: "projectId", in: "path", required: true, schema: { type: "string" } },
+          { name: "taskId", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": { description: "Task updated" } },
       },
     },
     "/api/v1/tasks": {

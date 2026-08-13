@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   getHomePathForRoles,
+  loginRedirectPath,
   loginSchema,
   type LoginInput,
 } from "@frs/shared";
@@ -48,11 +49,8 @@ export function LoginPage() {
       const signedIn = await login(values.email, values.password);
       prefetchHomeForRoles(signedIn.roles);
       toast.success("Signed in successfully");
-      const home = getHomePathForRoles(signedIn.roles);
       const from = (location.state as { from?: string } | null)?.from;
-      const allowedFrom =
-        from && from !== "/login" && !from.startsWith("/login") ? from : null;
-      navigate(allowedFrom ?? home, { replace: true });
+      navigate(loginRedirectPath(signedIn.roles, from), { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {

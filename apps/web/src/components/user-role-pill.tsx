@@ -67,7 +67,7 @@ export function UserHeaderIdentity({
 }: UserHeaderIdentityProps) {
   return (
     <div className={cn("min-w-0", className)}>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         <p
           className={cn(
             "truncate",
@@ -75,13 +75,16 @@ export function UserHeaderIdentity({
               ? "text-[11px] text-muted-foreground"
               : cn(
                   "font-semibold text-foreground",
-                  compact ? "text-sm" : "text-sm lg:text-base",
+                  compact ? "hidden text-sm sm:block" : "text-sm lg:text-base",
                 ),
           )}
         >
           {name}
         </p>
-        <UserRolePill role={role} />
+        <UserRolePill
+          role={role}
+          className={compact ? "max-w-[5.5rem] shrink sm:max-w-none" : undefined}
+        />
       </div>
     </div>
   );

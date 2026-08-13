@@ -10,7 +10,7 @@ import {
   projectSchema,
   updateProjectSchema,
   projectCreateTaskSchema,
-  projectTaskImportRowSchema,
+  projectUpdateTaskSchema,
   projectUpdateTaskLimitsSchema,
   projectDivisions,
   normalizeSta,
@@ -23,6 +23,10 @@ import { ensureClientMasters } from "../lib/ensure-client-masters.js";
 import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import {
+  assertCanManageProject,
+  projectManageScopeWhere,
+} from "../lib/project-scope.js";
 
 export const projectsRouter = Router();
 
@@ -543,7 +547,10 @@ projectsRouter.get(
   asyncHandler(async (_req, res) => {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const projects = await prisma.project.findMany({
-      where: { createdAt: { gte: since } },
+      where: {
+        createdAt: { gte: since },
+        ...projectManageScopeWhere(req.user!.id, req.user!.roles),
+      },
       select: { id: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     });
@@ -695,7 +702,10 @@ projectsRouter.get(
     const status =
       typeof req.query.status === "string" ? req.query.status : undefined;
     const projects = await prisma.project.findMany({
-      where: status ? { status: status as ProjectStatus } : undefined,
+      where: {
+        ...(status ? { status: status as ProjectStatus } : {}),
+        ...projectManageScopeWhere(req.user!.id, req.user!.roles),
+      },
       include: projectInclude,
       orderBy: { jobNumber: "asc" },
     });
@@ -708,8 +718,11 @@ projectsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = routeParam(req.params.id);
-    const project = await prisma.project.findUnique({
-      where: { id },
+    const project = await prisma.project.findFirst({
+      where: {
+        id,
+        ...projectManageScopeWhere(req.user!.id, req.user!.roles),
+      },
       include: projectInclude,
     });
     if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
@@ -734,6 +747,10 @@ projectsRouter.post(
     await assertDivisionManagers(body.divisionManagerIds);
     await assertFieldLeads(body.fieldLeadIds);
 
+    const projectAdminId = req.user!.roles.includes("SYSTEM_ADMIN")
+      ? body.projectAdminId
+      : req.user!.id;
+
     await ensureClientMasters([body.clientName, body.generalContractor]);
 
     const project = await prisma.project.create({
@@ -746,7 +763,7 @@ projectsRouter.post(
           body.divisions as Division[] | undefined,
         ),
         projectTypeId: body.projectTypeId ?? null,
-        projectAdminId: body.projectAdminId ?? null,
+        projectAdminId: projectAdminId ?? null,
         projectManagerId: body.divisionManagerIds[0] ?? null,
         clientName: body.clientName ?? null,
         generalContractor: body.generalContractor ?? null,
@@ -915,18 +932,17 @@ async function addProjectTaskInternal(
   }
 }
 
-function zImportRows(value: unknown): unknown[] {
-  if (!Array.isArray(value)) {
-    throw new AppError("VALIDATION_ERROR", "Body must include rows: []", 400);
-  }
-  return value;
-}
-
 /** Create a work task (line code + CF) and attach it to the project */
 projectsRouter.post(
   "/:id/tasks",
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.id);
+    const owned = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { projectAdminId: true },
+    });
+    if (!owned) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(owned.projectAdminId, req.user!.id, req.user!.roles);
     const body = projectCreateTaskSchema.parse(req.body);
     await addProjectTaskInternal(projectId, body);
 
@@ -938,111 +954,122 @@ projectsRouter.post(
   }),
 );
 
-/** Bulk import project tasks from CSV / Excel rows */
-projectsRouter.post(
-  "/:id/tasks/import",
+/** Update master bid, division, and work limits on an existing project task */
+projectsRouter.patch(
+  "/:projectId/tasks/:taskId",
   asyncHandler(async (req, res) => {
-    const projectId = routeParam(req.params.id);
-    const rows = zImportRows(req.body?.rows);
+    const projectId = routeParam(req.params.projectId);
+    const taskId = routeParam(req.params.taskId);
+    const body = projectUpdateTaskSchema.parse(req.body);
 
-    let created = 0;
-    const errors: { row: number; message: string }[] = [];
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(
+      project.projectAdminId,
+      req.user!.id,
+      req.user!.roles,
+    );
 
-    for (let i = 0; i < rows.length; i++) {
-      const parsed = projectTaskImportRowSchema.safeParse(rows[i]);
-      if (!parsed.success) {
-        errors.push({
-          row: i + 1,
-          message: parsed.error.issues[0]?.message ?? "Invalid row",
-        });
-        continue;
-      }
-      const row = parsed.data;
+    const task = await prisma.projectTask.findFirst({
+      where: { id: taskId, projectId, isActive: true },
+      include: { taskMaster: true },
+    });
+    if (!task) throw new AppError("NOT_FOUND", "Task not found", 404);
 
-      const user = await prisma.user.findFirst({
-        where: {
-          email: { equals: row.fieldPersonEmail, mode: "insensitive" },
-          isActive: true,
-          roles: { some: { role: "FIELD_LEAD" } },
-        },
-        select: { id: true },
+    const allowedDivisions = projectDivisions(
+      project.division,
+      project.extraDivisions,
+    );
+    const taskDivision = (body.division ?? task.division) as Division;
+    if (!allowedDivisions.includes(taskDivision)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Task division must be on the project",
+        400,
+      );
+    }
+
+    let nextMasterId = task.taskMasterId;
+    let masterFormType = task.taskMaster.formType as BidItemFormType;
+
+    if (body.taskMasterId) {
+      let master = await prisma.taskMaster.findUnique({
+        where: { id: body.taskMasterId },
       });
-      if (!user) {
-        errors.push({
-          row: i + 1,
-          message: `Unknown field person email: ${row.fieldPersonEmail}`,
-        });
-        continue;
+      if (!master || !master.isActive) {
+        throw new AppError("NOT_FOUND", "Sub-bid not found in bid master", 404);
       }
-
-      try {
-        let taskMasterId: string | undefined;
-        const subCode = (row.subBidCode ?? row.code)?.trim().toUpperCase();
-        if (subCode) {
-          const sub = await prisma.taskMaster.findUnique({
-            where: { code: subCode },
-            include: { parent: { select: { code: true } } },
-          });
-          if (!sub) {
-            errors.push({
-              row: i + 1,
-              message: `Unknown sub-bid code: ${subCode}`,
-            });
-            continue;
-          }
-          if (row.masterBidCode?.trim()) {
-            const masterCode = row.masterBidCode.trim().toUpperCase();
-            const parentCode = sub.parent?.code?.toUpperCase();
-            if (parentCode && parentCode !== masterCode) {
-              errors.push({
-                row: i + 1,
-                message: `Sub-bid ${subCode} belongs to master ${parentCode}, not ${masterCode}`,
-              });
-              continue;
-            }
-          }
-          taskMasterId = sub.id;
+      if (master.parentId) {
+        const parent = await prisma.taskMaster.findUnique({
+          where: { id: master.parentId },
+        });
+        if (parent?.division === "PAVEMENT_MARKING") {
+          master = parent;
         }
+      }
+      nextMasterId = master.id;
+      masterFormType = master.formType as BidItemFormType;
 
-        await addProjectTaskInternal(projectId, {
-          taskMasterId,
-          code: row.code,
-          name: row.name,
-          unit: row.unit,
-          formType: row.formType,
-          division: row.division,
-          color: row.color,
-          widthInches: row.widthInches,
-          conversionFactor: row.conversionFactor,
-          description: row.description,
-          assignedToId: user.id,
-          beginSta: row.beginSta,
-          endSta: row.endSta,
+      if (nextMasterId !== task.taskMasterId) {
+        const existing = await prisma.projectTask.findUnique({
+          where: {
+            projectId_taskMasterId: {
+              projectId,
+              taskMasterId: nextMasterId,
+            },
+          },
         });
-        created += 1;
-      } catch (err) {
-        errors.push({
-          row: i + 1,
-          message:
-            err instanceof AppError
-              ? err.message
-              : err instanceof Error
-                ? err.message
-                : "Import failed",
-        });
+        if (existing && existing.id !== taskId) {
+          throw new AppError(
+            "CONFLICT",
+            "This task is already on the project",
+            409,
+          );
+        }
       }
     }
+
+    const formType =
+      (body.formType as BidItemFormType) ?? masterFormType;
+
+    let beginSta: string | null = null;
+    let endSta: string | null = null;
+    if (
+      formType === "STA_WITH_CF" ||
+      formType === "STA_NO_CF" ||
+      body.beginSta ||
+      body.endSta
+    ) {
+      try {
+        if (body.beginSta?.trim()) beginSta = normalizeSta(body.beginSta);
+        if (body.endSta?.trim()) endSta = normalizeSta(body.endSta);
+        if (beginSta && endSta) {
+          physicalLfFromSta(beginSta, endSta);
+        }
+      } catch (err) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          err instanceof Error ? err.message : "Invalid begin/end STA",
+          400,
+        );
+      }
+    }
+
+    await prisma.projectTask.update({
+      where: { id: taskId },
+      data: {
+        taskMasterId: nextMasterId,
+        division: taskDivision,
+        beginSta,
+        endSta,
+      },
+    });
 
     const full = await prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       include: projectInclude,
     });
-    res.json({
-      created,
-      errorCount: errors.length,
-      errors,
-      project: mapProject(full),
-    });
+    res.json({ project: mapProject(full) });
   }),
 );
 
@@ -1053,6 +1080,13 @@ projectsRouter.patch(
     const projectId = routeParam(req.params.projectId);
     const taskId = routeParam(req.params.taskId);
     const body = projectUpdateTaskLimitsSchema.parse(req.body);
+
+    const owned = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { projectAdminId: true },
+    });
+    if (!owned) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(owned.projectAdminId, req.user!.id, req.user!.roles);
 
     const task = await prisma.projectTask.findFirst({
       where: { id: taskId, projectId, isActive: true },
@@ -1095,6 +1129,18 @@ projectsRouter.patch(
       where: { id },
     });
     if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(
+      existing.projectAdminId,
+      req.user!.id,
+      req.user!.roles,
+    );
+
+    if (
+      body.projectAdminId !== undefined &&
+      !req.user!.roles.includes("SYSTEM_ADMIN")
+    ) {
+      body.projectAdminId = req.user!.id;
+    }
 
     let resolvedJobNumber: string | undefined;
     if (body.jobNumber !== undefined) {
@@ -1220,8 +1266,11 @@ projectsRouter.delete(
     const id = routeParam(req.params.id);
     const existing = await prisma.project.findUnique({ where: { id } });
     if (!existing) throw new AppError("NOT_FOUND", "Project not found", 404);
-
-    await prisma.$transaction((tx) => deleteProjectCascade(id, tx));
+    assertCanManageProject(
+      existing.projectAdminId,
+      req.user!.id,
+      req.user!.roles,
+    );
 
     res.json({ ok: true });
   }),

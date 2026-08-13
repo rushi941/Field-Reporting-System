@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { AdminTableSearch } from "@/components/admin-table-search";
 import { SortableTh } from "@/components/sortable-table-head";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import {
 export type BidItemTaskRow = {
   id: string;
   taskMasterId?: string;
-  assignedTo: { name: string; email: string } | null;
   taskMaster: {
     code: string;
     name: string;
@@ -38,6 +37,7 @@ type BidItemTaskTableProps = {
   tasks: BidItemTaskRow[];
   table: ReturnType<typeof useAdminTable<BidItemTaskRow>>;
   toolbarExtra?: ReactNode;
+  onEdit?: (row: BidItemTaskRow) => void;
   onRemove?: (taskMasterId: string) => void;
   saving?: boolean;
   showViewEntries?: boolean;
@@ -52,6 +52,7 @@ export function BidItemTaskTable({
   tasks,
   table,
   toolbarExtra,
+  onEdit,
   onRemove,
   saving = false,
   showViewEntries = true,
@@ -60,7 +61,6 @@ export function BidItemTaskTable({
   totalTasksCount,
 }: BidItemTaskTableProps) {
   const projectHasNoTasks = (totalTasksCount ?? tasks.length) === 0;
-  const showFieldColumn = Boolean(onRemove);
 
   if (projectHasNoTasks) {
     return (
@@ -75,7 +75,7 @@ export function BidItemTaskTable({
     );
   }
 
-  const colSpan = showFieldColumn ? 8 : 7;
+  const colSpan = 7;
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
@@ -148,17 +148,7 @@ export function BidItemTaskTable({
                 onSort={table.toggleSort}
                 className="min-w-[140px]"
               />
-              {showFieldColumn && (
-                <SortableTh
-                  label="Field person"
-                  sortKey="lead"
-                  activeSortKey={table.sortKey}
-                  sortDir={table.sortDir}
-                  onSort={table.toggleSort}
-                  className="w-32"
-                />
-              )}
-              <th className="w-28 px-2 py-1 text-right">Actions</th>
+              <th className="w-32 px-2 py-1 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -247,11 +237,6 @@ export function BidItemTaskTable({
                       </p>
                     )}
                   </td>
-                  {showFieldColumn && (
-                    <td className="px-2 py-2 text-xs">
-                      {t.assignedTo?.name ?? "—"}
-                    </td>
-                  )}
                   <td className="px-2 py-2 text-right">
                     <div className="inline-flex items-center justify-end gap-2">
                       {showViewEntries && (
@@ -264,6 +249,18 @@ export function BidItemTaskTable({
                         >
                           View entries &gt;
                         </Link>
+                      )}
+                      {onEdit && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="iconSm"
+                          disabled={saving}
+                          title="Edit task"
+                          onClick={() => onEdit(t)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
                       )}
                       {onRemove && t.taskMasterId && (
                         <Button

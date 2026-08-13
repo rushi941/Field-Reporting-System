@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
@@ -274,6 +274,10 @@ export function FieldTaskEntryPage() {
   const [qtySegs, setQtySegs] = useState<QtySeg[]>([{ quantity: "", notes: "" }]);
   const [segErrors, setSegErrors] = useState<SegmentFieldErrors>({});
   const [uploading, setUploading] = useState(false);
+  const [removingAttachmentId, setRemovingAttachmentId] = useState<string | null>(
+    null,
+  );
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const [attachCategory, setAttachCategory] = useState("PHOTO");
   const [attachError, setAttachError] = useState<string | undefined>();
   /** Editable defaults prefilled from the project task */
@@ -651,23 +655,66 @@ export function FieldTaskEntryPage() {
       return;
     }
     setAttachError(undefined);
+    uploadAbortRef.current?.abort();
+    const abort = new AbortController();
+    uploadAbortRef.current = abort;
     setUploading(true);
     try {
       const form = new FormData();
       form.append("file", file);
       form.append("category", attachCategory);
-      await apiUpload(`/api/v1/field/reports/${report.id}/attachments`, form);
+      await apiUpload(
+        `/api/v1/field/reports/${report.id}/attachments`,
+        form,
+        { signal: abort.signal },
+      );
       const refreshed = await apiFetch<{ report: FieldReport }>(
         `/api/v1/field/reports/${report.id}`,
       );
       setReport(refreshed.report);
       toast.success("Attachment uploaded", { id: "field-attach" });
     } catch (err) {
+      if (abort.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+        toast.message("Upload canceled", { id: "field-attach" });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Upload failed", {
         id: "field-attach",
       });
     } finally {
+      if (uploadAbortRef.current === abort) {
+        uploadAbortRef.current = null;
+      }
       setUploading(false);
+    }
+  }
+
+  function cancelUpload() {
+    uploadAbortRef.current?.abort();
+  }
+
+  async function onRemoveAttachment(attachmentId: string) {
+    if (!report || !editable) return;
+    setRemovingAttachmentId(attachmentId);
+    try {
+      await apiFetch(`/api/v1/field/reports/${report.id}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      });
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              attachments: prev.attachments.filter((a) => a.id !== attachmentId),
+            }
+          : prev,
+      );
+      toast.success("Attachment removed", { id: "field-attach" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not remove file", {
+        id: "field-attach",
+      });
+    } finally {
+      setRemovingAttachmentId(null);
     }
   }
 
@@ -1426,6 +1473,18 @@ export function FieldTaskEntryPage() {
                           View
                         </a>
                       )}
+                      {editable && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 shrink-0 px-2 text-xs text-destructive"
+                          disabled={busy || removingAttachmentId === a.id}
+                          onClick={() => void onRemoveAttachment(a.id)}
+                        >
+                          {removingAttachmentId === a.id ? "Removing…" : "Cancel"}
+                        </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -1448,7 +1507,8 @@ export function FieldTaskEntryPage() {
                 <label
                   className={cn(
                     "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-xs text-muted-foreground hover:bg-muted/40",
-                    busy && "pointer-events-none opacity-50",
+                    busy && !uploading && "pointer-events-none opacity-50",
+                    uploading && "pointer-events-none",
                     attachError && "border-destructive",
                   )}
                 >
@@ -1459,7 +1519,7 @@ export function FieldTaskEntryPage() {
                   )}
                   {uploading
                     ? "Uploading…"
-                    : "Tap to attach material tickets or photos"}
+                    : `Tap to attach material tickets or photos (max ${attachmentUploadMeta.maxLabel})`}
                   <input
                     type="file"
                     accept={attachmentUploadMeta.accept}
@@ -1471,6 +1531,17 @@ export function FieldTaskEntryPage() {
                     }}
                   />
                 </label>
+                {uploading && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={cancelUpload}
+                  >
+                    Cancel upload
+                  </Button>
+                )}
                 <FieldError message={attachError} />
               </div>
             )}

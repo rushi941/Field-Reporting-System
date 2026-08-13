@@ -4,6 +4,7 @@ import { getHomePathForRoles } from "@frs/shared";
 import { AppBootScreen } from "@/components/page-shell";
 import { ProtectedRoute } from "@/auth/protected-route";
 import { RequirePermission } from "@/auth/require-permission";
+import { RequireWorkspace } from "@/auth/require-workspace";
 import { useAuth } from "@/auth/auth-context";
 import { WorkspaceLayout } from "@/layouts/system-layout";
 import { FieldLayout } from "@/layouts/field-layout";
@@ -265,7 +266,14 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/field" element={<FieldLayout />}>
+        <Route
+          path="/field"
+          element={
+            <RequireWorkspace roles={["FIELD_LEAD"]}>
+              <FieldLayout />
+            </RequireWorkspace>
+          }
+        >
           <Route index element={<Navigate to="projects" replace />} />
           <Route
             path="projects"
@@ -303,7 +311,14 @@ export function App() {
           element={<Navigate to="/field/projects" replace />}
         />
 
-        <Route path="/approvals" element={<ApprovalsLayout />}>
+        <Route
+          path="/approvals"
+          element={
+            <RequireWorkspace roles={["DIVISION_MANAGER"]}>
+              <ApprovalsLayout />
+            </RequireWorkspace>
+          }
+        >
           <Route
             index
             element={
@@ -324,11 +339,25 @@ export function App() {
           />
         </Route>
 
-        <Route path="/office" element={<WorkspaceLayout kind="office" />}>
+        <Route
+          path="/office"
+          element={
+            <RequireWorkspace roles={["PROJECT_ADMIN"]}>
+              <WorkspaceLayout kind="office" />
+            </RequireWorkspace>
+          }
+        >
           {projectRoutes("office")}
         </Route>
 
-        <Route path="/system" element={<WorkspaceLayout kind="system" />}>
+        <Route
+          path="/system"
+          element={
+            <RequireWorkspace roles={["SYSTEM_ADMIN"]}>
+              <WorkspaceLayout kind="system" />
+            </RequireWorkspace>
+          }
+        >
           {projectRoutes("system")}
           <Route
             path="users"

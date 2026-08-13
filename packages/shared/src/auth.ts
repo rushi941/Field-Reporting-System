@@ -78,6 +78,50 @@ export function getHomePathForRoles(userRoles: string[]): string {
   }
 }
 
+/** True when `pathname` belongs to a workspace the user actually has a role for. */
+export function workspacePathAllowedForRoles(
+  pathname: string,
+  userRoles: string[],
+): boolean {
+  if (pathname.startsWith("/field")) return userRoles.includes("FIELD_LEAD");
+  if (pathname.startsWith("/approvals")) {
+    return userRoles.includes("DIVISION_MANAGER");
+  }
+  if (pathname.startsWith("/office")) {
+    return userRoles.includes("PROJECT_ADMIN");
+  }
+  if (pathname.startsWith("/system")) return userRoles.includes("SYSTEM_ADMIN");
+  return false;
+}
+
+function workspaceRoot(pathname: string): string | null {
+  if (pathname.startsWith("/field")) return "/field";
+  if (pathname.startsWith("/approvals")) return "/approvals";
+  if (pathname.startsWith("/office")) return "/office";
+  if (pathname.startsWith("/system")) return "/system";
+  return null;
+}
+
+/** After login, only restore a deep link inside the user's primary workspace. */
+export function loginRedirectPath(
+  userRoles: string[],
+  from?: string | null,
+): string {
+  const home = getHomePathForRoles(userRoles);
+  if (
+    !from ||
+    from === "/login" ||
+    from.startsWith("/login") ||
+    !workspacePathAllowedForRoles(from, userRoles)
+  ) {
+    return home;
+  }
+  const fromRoot = workspaceRoot(from);
+  const homeRoot = workspaceRoot(home);
+  if (fromRoot && fromRoot === homeRoot) return from;
+  return home;
+}
+
 export const adminRoles = ["SYSTEM_ADMIN", "PROJECT_ADMIN"] as const;
 export type AdminRole = (typeof adminRoles)[number];
 

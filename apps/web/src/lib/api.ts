@@ -61,8 +61,9 @@ export async function apiFetch<T>(
 export async function apiUpload<T>(
   path: string,
   formData: FormData,
+  init: RequestInit = {},
 ): Promise<T> {
-  return apiFetch<T>(path, { method: "POST", body: formData });
+  return apiFetch<T>(path, { method: "POST", body: formData, ...init });
 }
 
 /** Download file (CSV export, etc.) with auth header */

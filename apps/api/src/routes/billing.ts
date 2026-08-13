@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { prisma } from "@frs/db";
+import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { routeParam } from "../lib/route-param.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import { projectManageScopeWhere, assertCanManageProject } from "../lib/project-scope.js";
 import {
   assertBillingExportReady,
   loadApprovedBillingExport,
@@ -34,13 +36,17 @@ async function auditBillingExport(
 billingRouter.get(
   "/summary",
   requirePermission("billing.export"),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const projectScope = {
+      status: "ACTIVE" as const,
+      ...projectManageScopeWhere(req.user!.id, req.user!.roles),
+    };
     const pendingCount = await prisma.report.count({
-      where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
+      where: { status: "SUBMITTED", project: projectScope },
     });
     const pendingGroups = await prisma.report.groupBy({
       by: ["projectId"],
-      where: { status: "SUBMITTED", project: { status: "ACTIVE" } },
+      where: { status: "SUBMITTED", project: projectScope },
       _count: { _all: true },
     });
     res.json({
@@ -58,9 +64,12 @@ billingRouter.get(
 billingRouter.get(
   "/rollup",
   requirePermission("billing.export"),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const projects = await prisma.project.findMany({
-      where: { status: "ACTIVE" },
+      where: {
+        status: "ACTIVE",
+        ...projectManageScopeWhere(req.user!.id, req.user!.roles),
+      },
       select: {
         id: true,
         jobNumber: true,
@@ -169,6 +178,16 @@ billingRouter.get(
   requirePermission("billing.export"),
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.projectId);
+    const owned = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { projectAdminId: true },
+    });
+    if (!owned) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(
+      owned.projectAdminId,
+      req.user!.id,
+      req.user!.roles,
+    );
     const { project, reports, pendingCount, billingReady } =
       await loadApprovedBillingExport(projectId);
 
@@ -257,6 +276,16 @@ billingRouter.get(
   requirePermission("billing.export"),
   asyncHandler(async (req, res) => {
     const projectId = routeParam(req.params.projectId);
+    const owned = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { projectAdminId: true },
+    });
+    if (!owned) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(
+      owned.projectAdminId,
+      req.user!.id,
+      req.user!.roles,
+    );
     const { project, reports, pendingCount, approvedCount } =
       await loadApprovedBillingExport(projectId);
     assertBillingExportReady(pendingCount, approvedCount);

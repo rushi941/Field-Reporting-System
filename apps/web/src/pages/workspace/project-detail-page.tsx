@@ -3,19 +3,15 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Download,
   Loader2,
   Plus,
-  Upload,
 } from "lucide-react";
 import {
   adminFieldEntryPreview,
   adminNeedsStaWorkLimits,
   FORM_TYPE_LABELS,
-  formTypeLabel,
-  isStaFormType,
   projectCreateTaskSchema,
-  PROJECT_TASK_IMPORT_HEADERS,
+  projectUpdateTaskSchema,
   physicalLfFromSta,
   stationSpanDecimal,
   sanitizeStaInput,
@@ -23,11 +19,6 @@ import {
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { useAuth } from "@/auth/auth-context";
-import {
-  downloadProjectTaskSampleCsv,
-  downloadProjectTaskSampleExcel,
-  parseProjectTaskSpreadsheet,
-} from "@/lib/project-task-spreadsheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,7 +106,6 @@ type TableRow = {
   division: string;
   unit: string;
   formType: string;
-  fieldPerson: string;
   beginSta: string | null;
   endSta: string | null;
 };
@@ -188,9 +178,8 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
       code: master.code,
       name: master.name,
       division: t.division,
-      unit: master.unit,
-      formType: master.formType,
-      fieldPerson: t.assignedTo?.name ?? "—",
+      unit: t.taskMaster.unit,
+      formType: t.taskMaster.formType,
       beginSta: t.beginSta,
       endSta: t.endSta,
     });
@@ -214,9 +203,7 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyTaskForm);
   const [formBaseline, setFormBaseline] = useState("");
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
@@ -287,10 +274,6 @@ export function ProjectDetailPage() {
     return filtered.map((row) => ({
       id: row.id,
       taskMasterId: row.taskMasterId,
-      assignedTo:
-        row.fieldPerson !== "—"
-          ? { name: row.fieldPerson, email: "" }
-          : null,
       taskMaster: {
         code: row.code,
         name: row.name,
@@ -319,7 +302,6 @@ export function ProjectDetailPage() {
         if (estimated > 0) return reported / estimated;
         return reported;
       },
-      lead: (row: BidItemTaskRow) => row.assignedTo?.name ?? "",
     }),
     [],
   );
@@ -327,7 +309,7 @@ export function ProjectDetailPage() {
   const tasksTable = useAdminTable({
     rows: bidItemRows,
     getSearchText: (row) =>
-      `${row.taskMaster.code} ${row.taskMaster.name} ${row.assignedTo?.name ?? ""}`,
+      `${row.taskMaster.code} ${row.taskMaster.name}`,
     sortAccessors: taskSortAccessors,
     defaultSort: { key: "code", direction: "asc" },
   });
@@ -401,6 +383,25 @@ export function ProjectDetailPage() {
   function openCreate() {
     const defaultDivision = projectDivisions[0] ?? "PAVEMENT_MARKING";
     const next = { ...emptyTaskForm, division: defaultDivision };
+    setEditingTaskId(null);
+    setForm(next);
+    setFormBaseline(snapshotForm(next));
+    setUnsavedPrompt(false);
+    setAddOpen(true);
+  }
+
+  function openEdit(row: BidItemTaskRow) {
+    const source = project?.tasks.find((t) => t.id === row.id);
+    const master = source?.taskMaster.parent ?? source?.taskMaster;
+    const next = {
+      division: source?.division ?? "",
+      masterBidId: master?.id ?? row.taskMasterId ?? "",
+      formType: source?.taskMaster.formType ?? row.taskMaster.formType,
+      beginSta: source?.beginSta ?? "",
+      endSta: source?.endSta ?? "",
+      description: "",
+    };
+    setEditingTaskId(row.id);
     setForm(next);
     setFormBaseline(snapshotForm(next));
     setUnsavedPrompt(false);
@@ -409,6 +410,7 @@ export function ProjectDetailPage() {
 
   function closeTaskForm() {
     setAddOpen(false);
+    setEditingTaskId(null);
     setUnsavedPrompt(false);
     setFormBaseline("");
     setForm(emptyTaskForm);
@@ -477,7 +479,7 @@ export function ProjectDetailPage() {
     await saveTaskIds(project.taskIds.filter((id) => !drop.has(id)));
   }
 
-  async function onCreateTask(e: React.FormEvent) {
+  async function onSaveTask(e: React.FormEvent) {
     e.preventDefault();
     if (!projectId) return;
     if (!form.masterBidId) {
@@ -504,77 +506,48 @@ export function ProjectDetailPage() {
         endSta: needsSta ? form.endSta.trim() || null : null,
         description: form.description.trim() || null,
       };
-      const parsed = projectCreateTaskSchema.safeParse(raw);
+      const schema = editingTaskId
+        ? projectUpdateTaskSchema
+        : projectCreateTaskSchema;
+      const parsed = schema.safeParse(raw);
       if (!parsed.success) {
         toast.error(firstZodIssueMessage(parsed.error), { id: "project-tasks" });
         return;
       }
-      const data = await apiFetch<{ project: ProjectDetail }>(
-        `/api/v1/projects/${projectId}/tasks`,
-        {
-          method: "POST",
-          body: JSON.stringify(parsed.data),
-        },
-      );
+      const data = editingTaskId
+        ? await apiFetch<{ project: ProjectDetail }>(
+            `/api/v1/projects/${projectId}/tasks/${editingTaskId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify(parsed.data),
+            },
+          )
+        : await apiFetch<{ project: ProjectDetail }>(
+            `/api/v1/projects/${projectId}/tasks`,
+            {
+              method: "POST",
+              body: JSON.stringify(parsed.data),
+            },
+          );
+      const wasEdit = Boolean(editingTaskId);
       setProject(data.project);
       closeTaskForm();
-      toast.success("Task created", { id: "project-tasks" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Create failed", {
+      toast.success(wasEdit ? "Task updated" : "Task created", {
         id: "project-tasks",
       });
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : editingTaskId
+            ? "Update failed"
+            : "Create failed",
+        {
+          id: "project-tasks",
+        },
+      );
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onImportTasks() {
-    if (!projectId || !importFile) {
-      toast.error("Choose a CSV or Excel file", { id: "project-import" });
-      return;
-    }
-    setImporting(true);
-    try {
-      const rows = await parseProjectTaskSpreadsheet(importFile);
-      if (!rows.length) {
-        toast.error(
-          "No valid task rows found. Download the sample file and match the column headers exactly.",
-          { id: "project-import" },
-        );
-        return;
-      }
-      const result = await apiFetch<{
-        created: number;
-        errorCount: number;
-        errors: { row: number; message: string }[];
-        project: ProjectDetail;
-      }>(`/api/v1/projects/${projectId}/tasks/import`, {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      });
-      setProject(result.project);
-      setImportOpen(false);
-      setImportFile(null);
-      if (result.errorCount > 0) {
-        const detail = result.errors
-          .slice(0, 3)
-          .map((e) => `Row ${e.row}: ${e.message}`)
-          .join(" · ");
-        toast.warning(
-          `Imported ${result.created} task(s), ${result.errorCount} error(s). ${detail}`,
-          { id: "project-import", duration: 8000 },
-        );
-      } else {
-        toast.success(`Imported ${result.created} task(s)`, {
-          id: "project-import",
-        });
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Import failed", {
-        id: "project-import",
-      });
-    } finally {
-      setImporting(false);
     }
   }
 
@@ -641,9 +614,6 @@ export function ProjectDetailPage() {
               </Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="size-4" /> Import tasks
-          </Button>
           <Button
             size="sm"
             className="bg-asphalt-mid text-white hover:bg-asphalt"
@@ -662,6 +632,7 @@ export function ProjectDetailPage() {
         table={tasksTable}
         saving={saving}
         showViewEntries={false}
+        onEdit={openEdit}
         onRemove={(taskMasterId) => void removeTask(taskMasterId)}
         toolbarExtra={
           <select
@@ -682,8 +653,7 @@ export function ProjectDetailPage() {
         }
         emptyMessage={
           <>
-            No tasks yet. Click <strong>Add task</strong> or{" "}
-            <strong>Import tasks</strong> to add work scope.
+            No tasks yet. Click <strong>Add task</strong> to add work scope.
           </>
         }
         filteredEmptyMessage="No tasks match your search or filter."
@@ -709,17 +679,19 @@ export function ProjectDetailPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="project-task-form-title"
-          onSubmit={onCreateTask}
+          onSubmit={onSaveTask}
           onClick={(e) => e.stopPropagation()}
           className="relative z-[2001] flex max-h-[min(94dvh,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:max-h-[90vh]"
         >
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
             <div className="min-w-0">
               <h2 id="project-task-form-title" className="text-xl font-semibold">
-                Add task
+                {editingTaskId ? "Edit task" : "Add task"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Select a master bid to add to this project.
+                {editingTaskId
+                  ? "Update this task on the project."
+                  : "Select a master bid to add to this project."}
                 {showStaWorkLimits
                   ? " Set Begin/End STA work limits for this task."
                   : fieldEntryPreview
@@ -893,97 +865,10 @@ export function ProjectDetailPage() {
               className="bg-asphalt-mid text-white hover:bg-asphalt"
               disabled={saving}
             >
-              {saving ? "Saving…" : "Add task"}
+              {saving ? "Saving…" : editingTaskId ? "Save changes" : "Add task"}
             </Button>
           </div>
         </form>
-      </ModalOverlay>
-
-      <ModalOverlay
-        open={importOpen}
-        onBackdropClick={() => {
-          setImportOpen(false);
-          setImportFile(null);
-        }}
-      >
-          <div
-            className="relative z-[2001] w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold">Import project tasks</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Upload a CSV or Excel file with task rows for this project.
-            </p>
-            <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
-              {PROJECT_TASK_IMPORT_HEADERS.join(", ")}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => downloadProjectTaskSampleCsv()}
-              >
-                <Download className="size-4" /> Sample CSV
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => downloadProjectTaskSampleExcel()}
-              >
-                <Download className="size-4" /> Sample Excel
-              </Button>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="project-task-import-file">File</Label>
-              <Input
-                id="project-task-import-file"
-                type="file"
-                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                onChange={(e) =>
-                  setImportFile(e.target.files?.[0] ?? null)
-                }
-              />
-              {importFile ? (
-                <p className="text-xs text-muted-foreground">
-                  Selected: {importFile.name}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={importing}
-                onClick={() => {
-                  setImportOpen(false);
-                  setImportFile(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-asphalt-mid text-white hover:bg-asphalt"
-                disabled={importing || !importFile}
-                onClick={() => void onImportTasks()}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Importing…
-                  </>
-                ) : (
-                  <>
-                    <Upload className="size-4" /> Import
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
       </ModalOverlay>
     </div>
   );

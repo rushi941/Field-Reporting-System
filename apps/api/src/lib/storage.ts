@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -92,4 +92,15 @@ export async function storeUpload(input: UploadInput): Promise<StoredFile> {
 
 export function getUploadRoot() {
   return uploadRoot();
+}
+
+/** Best-effort delete of a locally stored upload. No-op for S3 or unknown URLs. */
+export async function deleteStoredFile(storageUrl: string) {
+  if (driver() !== "local") return;
+  const base = publicBaseUrl();
+  if (!storageUrl.startsWith(`${base}/`)) return;
+  const key = storageUrl.slice(base.length + 1);
+  if (!key || key.includes("..") || path.isAbsolute(key)) return;
+  const abs = path.join(uploadRoot(), key);
+  await unlink(abs).catch(() => undefined);
 }

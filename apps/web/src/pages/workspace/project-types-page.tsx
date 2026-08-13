@@ -7,6 +7,9 @@ import { firstZodIssueMessage } from "@/lib/zod-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CharLimitHint } from "@/components/char-limit-hint";
+import { ScrollableText } from "@/components/scrollable-text";
+import { noteTextareaClassName } from "@/lib/text-field-styles";
 import { showFullPageLoader } from "@/lib/page-load";
 import { TablePagination } from "@/components/table-pagination";
 import { AdminTableSearch } from "@/components/admin-table-search";
@@ -225,11 +228,21 @@ export function ProjectTypesPage() {
               {paginatedRows.items.map((r) => (
                 <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-2 py-1 font-medium">{r.code}</td>
-                  <td className="px-2 py-1">
-                    <div>{r.name}</div>
-                    {r.description && (
-                      <div className="text-xs text-muted-foreground">{r.description}</div>
-                    )}
+                  <td className="max-w-sm px-2 py-1.5">
+                    <ScrollableText
+                      maxHeight="max-h-12"
+                      className="font-medium text-foreground"
+                    >
+                      {r.name}
+                    </ScrollableText>
+                    {r.description ? (
+                      <ScrollableText
+                        maxHeight="max-h-12"
+                        className="text-xs text-muted-foreground"
+                      >
+                        {r.description}
+                      </ScrollableText>
+                    ) : null}
                   </td>
                   <td className="px-2 py-1 text-xs">{r.division ?? "—"}</td>
                   <td className="px-2 py-1 text-xs">
@@ -297,12 +310,16 @@ export function ProjectTypesPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Description</Label>
-                <Input
+                <textarea
+                  className={noteTextareaClassName}
                   value={form.description}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, description: e.target.value }))
                   }
+                  maxLength={500}
+                  rows={3}
                 />
+                <CharLimitHint value={form.description} max={500} />
               </div>
               <div className="space-y-1.5">
                 <Label>Division</Label>

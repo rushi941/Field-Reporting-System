@@ -25,13 +25,14 @@ import { AppError } from "../lib/app-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { fieldLeadAccessWhere } from "../lib/field-lead-access.js";
 import { routeParam } from "../lib/route-param.js";
-import { storeUpload } from "../lib/storage.js";
+import { storeUpload, deleteStoredFile } from "../lib/storage.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import { requireRole } from "../middleware/require-role.js";
 
 export const fieldReportsRouter = Router();
 
-fieldReportsRouter.use(requireAuth);
+fieldReportsRouter.use(requireAuth, requireRole("FIELD_LEAD"));
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -935,5 +936,33 @@ fieldReportsRouter.post(
         uploadedAt: attachment.uploadedAt,
       },
     });
+  }),
+);
+
+/** Remove an uploaded photo / ticket / receipt from a draft or returned report */
+fieldReportsRouter.delete(
+  "/:id/attachments/:attachmentId",
+  requirePermission("reports.edit_draft"),
+  asyncHandler(async (req, res) => {
+    const id = routeParam(req.params.id);
+    const attachmentId = routeParam(req.params.attachmentId, "attachmentId");
+    const userId = req.user!.id;
+    const report = await prisma.report.findUnique({ where: { id } });
+    if (!report || report.submittedById !== userId) {
+      throw new AppError("NOT_FOUND", "Report not found", 404);
+    }
+    assertEditable(report.status);
+
+    const attachment = await prisma.attachment.findFirst({
+      where: { id: attachmentId, reportId: id },
+    });
+    if (!attachment) {
+      throw new AppError("NOT_FOUND", "Attachment not found", 404);
+    }
+
+    await prisma.attachment.delete({ where: { id: attachment.id } });
+    await deleteStoredFile(attachment.storageUrl);
+
+    res.json({ ok: true });
   }),
 );

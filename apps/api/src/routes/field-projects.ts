@@ -19,10 +19,15 @@ import {
 } from "../lib/master-tasks.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import { requireRole } from "../middleware/require-role.js";
 
 export const fieldProjectsRouter = Router();
 
-fieldProjectsRouter.use(requireAuth, requirePermission("projects.search"));
+fieldProjectsRouter.use(
+  requireAuth,
+  requireRole("FIELD_LEAD"),
+  requirePermission("projects.search"),
+);
 
 const fieldProjectInclude = {
   route: true,
@@ -260,12 +265,11 @@ fieldProjectsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const isFieldLead = req.user!.roles.includes("FIELD_LEAD");
 
     const projects = await prisma.project.findMany({
       where: {
         status: "ACTIVE",
-        ...(isFieldLead ? fieldLeadAccessWhere(userId) : {}),
+        ...fieldLeadAccessWhere(userId),
       },
       select: {
         id: true,
@@ -310,14 +314,13 @@ fieldProjectsRouter.get(
   "/:projectId",
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const isFieldLead = req.user!.roles.includes("FIELD_LEAD");
     const projectId = routeParam(req.params.projectId, "projectId");
 
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
         status: "ACTIVE",
-        ...(isFieldLead ? fieldLeadAccessWhere(userId) : {}),
+        ...fieldLeadAccessWhere(userId),
       },
       include: fieldProjectInclude,
     });
@@ -329,7 +332,7 @@ fieldProjectsRouter.get(
     const [payload] = await buildFieldProjectPayload(
       [project],
       userId,
-      isFieldLead,
+      true,
     );
     res.json({ project: payload });
   }),

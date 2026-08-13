@@ -211,7 +211,7 @@ export type UpsertDraftReportInput = z.infer<typeof upsertDraftReportSchema>;
 /** Per-row field errors keyed by segment index → field name → message */
 export type SegmentFieldErrors = Record<number, Record<string, string>>;
 
-const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const ATTACHMENT_MIME_ALLOW = [
   "image/jpeg",
   "image/png",
@@ -223,7 +223,7 @@ const ATTACHMENT_MIME_ALLOW = [
 
 export const attachmentUploadMeta = {
   maxBytes: MAX_ATTACHMENT_BYTES,
-  maxLabel: "15 MB",
+  maxLabel: "5 MB",
   accept: "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,.jpg,.jpeg,.png,.webp,.heic,.pdf",
   allowedMime: ATTACHMENT_MIME_ALLOW,
 } as const;
