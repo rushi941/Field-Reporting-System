@@ -27,6 +27,19 @@ export function normalizeFormType(formType: string): BidItemFormType {
   }
 }
 
+export function coerceFormType(val: unknown): BidItemFormType {
+  if (typeof val !== "string" || !val.trim()) return "STA_WITH_CF";
+  return normalizeFormType(val.trim());
+}
+
+/** Accepts current values and legacy STA_RANGE / SINGLE_LOCATION. Never enum-rejects input. */
+export const formTypeInputSchema = z.unknown().transform((val) => coerceFormType(val));
+
+export const optionalFormTypeInputSchema = z.unknown().transform((val) => {
+  if (val === undefined || val === null || val === "") return undefined;
+  return coerceFormType(val);
+});
+
 export function isStaWithCf(formType: string): boolean {
   return normalizeFormType(formType) === "STA_WITH_CF";
 }

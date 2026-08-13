@@ -840,9 +840,12 @@ export function TasksPage() {
                 <Label>Form type</Label>
                 <select
                   className={selectClass}
-                  value={form.formType}
+                  value={normalizeFormType(form.formType)}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, formType: e.target.value }))
+                    setForm((f) => ({
+                      ...f,
+                      formType: normalizeFormType(e.target.value),
+                    }))
                   }
                 >
                   {bidItemFormTypeEnum.options.map((value) => (

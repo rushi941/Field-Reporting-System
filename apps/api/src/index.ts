@@ -121,6 +121,7 @@ if (webDist) {
       next();
       return;
     }
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
     res.sendFile(path.join(webDist, "index.html"), (err) => {
       if (err) next(err);
     });
