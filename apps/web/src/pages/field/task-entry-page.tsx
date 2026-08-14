@@ -12,6 +12,7 @@ import {
   isStaWithCf,
   normalizeSta,
   quantityFromStaRange,
+  staBillingUnit,
   updateDraftReportSchema,
   TEXT_NOTE_MAX_LENGTH,
   validateAttachmentFile,
@@ -212,7 +213,11 @@ function emptyLoc(defaultSymbol = "", symbolTypes: SymbolTypeOption[] = []): Loc
   };
 }
 
-function calcPreview(seg: StaSeg, unit: string): string {
+function calcPreview(
+  seg: StaSeg,
+  masterUnit: string,
+  lineTypeCode?: string | null,
+): string {
   if (seg.useManualLf) {
     const n = Number(seg.manualLf);
     return Number.isFinite(n) && n > 0 ? n.toLocaleString() : "—";
@@ -220,8 +225,9 @@ function calcPreview(seg: StaSeg, unit: string): string {
   try {
     const cf = Number(seg.conversionFactor);
     if (!seg.beginSta || !seg.endSta || Number.isNaN(cf) || cf <= 0) return "—";
+    const billingUnit = staBillingUnit(masterUnit, lineTypeCode ?? seg.lineTypeCode);
     const qty = quantityFromStaRange(
-      unit,
+      billingUnit,
       normalizeSta(seg.beginSta),
       normalizeSta(seg.endSta),
       cf,
@@ -327,7 +333,11 @@ export function FieldTaskEntryPage() {
   const reportTotal = useMemo(() => {
     if (isSta) {
       return staSegs.reduce((sum, s) => {
-        const preview = calcPreview(s, task?.taskMaster.unit ?? "LF");
+        const preview = calcPreview(
+          s,
+          task?.taskMaster.unit ?? "LF",
+          s.lineTypeCode,
+        );
         const n = Number(String(preview).replace(/,/g, ""));
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
@@ -775,20 +785,6 @@ export function FieldTaskEntryPage() {
         </p>
       )}
 
-      {isSta && task.beginSta && task.endSta ? (
-        <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
-          <p className="font-semibold">Task reference range</p>
-          <p className="mt-0.5">
-            Planned corridor{" "}
-            <strong>
-              {task.beginSta} → {task.endSta}
-            </strong>
-            . You may report any valid stations; your division manager can
-            review and adjust submitted work.
-          </p>
-        </div>
-      ) : null}
-
       {isSta ? (
         <div className="space-y-2">
           {(task.completedStaRanges?.length ?? 0) > 0 && (
@@ -945,7 +941,7 @@ export function FieldTaskEntryPage() {
                             )
                           }
                         />
-                        Manual LF
+                        Manual STA
                       </label>
                     </div>
                   )}
@@ -954,7 +950,7 @@ export function FieldTaskEntryPage() {
                 {seg.useManualLf && (
                   <div className="space-y-1">
                     <Label className={fieldLabelClass} htmlFor={`mlf-${i}`}>
-                      Manual LF
+                      Manual STA
                     </Label>
                     <Input
                       id={`mlf-${i}`}

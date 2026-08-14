@@ -150,6 +150,7 @@ type RawFieldTask = {
   } | null;
   beginSta: string | null;
   endSta: string | null;
+  estimatedQuantity?: number | null;
   taskMaster: {
     id: string;
     code: string;
@@ -180,6 +181,7 @@ export type GroupedFieldTask = {
   isMine: boolean;
   beginSta: string | null;
   endSta: string | null;
+  estimatedQuantity?: number | null;
   completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
   progress: {
     estimated: number;
@@ -239,6 +241,8 @@ export function groupFieldTasksByMaster(
         isMine: canWorkAllProjectTasks || t.assignedToId === userId,
         beginSta: t.beginSta,
         endSta: t.endSta,
+        estimatedQuantity:
+          t.estimatedQuantity != null ? Number(t.estimatedQuantity) : null,
         completedStaRanges: completedMap.get(t.id) ?? [],
         progress: { estimated: 0, approved: 0, pending: 0, approvedPct: 0 },
         taskMaster: {
@@ -281,6 +285,8 @@ export function groupFieldTasksByMaster(
         group.id = t.id;
         group.beginSta = t.beginSta;
         group.endSta = t.endSta;
+        group.estimatedQuantity =
+          t.estimatedQuantity != null ? Number(t.estimatedQuantity) : null;
         group.assignedToId = t.assignedToId;
         group.assignedTo = t.assignedTo
           ? {
@@ -308,6 +314,7 @@ export function groupFieldTasksByMaster(
       unit: rest.taskMaster.unit,
       formType: rest.taskMaster.formType,
       conversionFactor: rest.taskMaster.conversionFactor,
+      estimatedQuantity: rest.estimatedQuantity,
       beginSta: rest.beginSta,
       endSta: rest.endSta,
       reportedApproved: rest.progress.approved,

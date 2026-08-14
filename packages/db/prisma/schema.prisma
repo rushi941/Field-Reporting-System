@@ -365,6 +365,8 @@ model ProjectTask {
   /// Work limits for field reporting (e.g. 11+00 → 23+00)
   beginSta     String?
   endSta       String?
+  /// Admin-entered plan quantity (used when STA range is not set)
+  estimatedQuantity Decimal? @db.Decimal(14, 4)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

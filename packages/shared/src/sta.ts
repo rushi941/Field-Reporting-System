@@ -109,16 +109,16 @@ export function quantityFromUnionStaRanges(
   const spanSta = unionStaSpanDecimal(ranges);
   if (spanSta <= 0) return 0;
   const u = unit.trim().toUpperCase();
-  if (u === "STA") return spanSta;
+  const cf = conversionFactor > 0 ? conversionFactor : 1;
+  if (u === "STA" || u === "SF") return spanSta * cf;
   const physicalLf = spanSta * 100;
   if (u === "LF") {
-    if (conversionFactor <= 0) return 0;
-    return physicalLf * conversionFactor;
+    return physicalLf * cf;
   }
-  return physicalLf;
+  return physicalLf * cf;
 }
 
-/** Billable quantity from a STA range — unit-aware (STA stations vs LF). */
+/** Billable quantity from a STA range — unit-aware. */
 export function quantityFromStaRange(
   unit: string,
   beginSta: string,
@@ -126,13 +126,25 @@ export function quantityFromStaRange(
   conversionFactor = 1,
 ): number {
   const u = unit.trim().toUpperCase();
-  if (u === "STA") {
-    return stationSpanDecimal(beginSta, endSta);
-  }
+  const span = stationSpanDecimal(beginSta, endSta);
+  const cf = conversionFactor > 0 ? conversionFactor : 1;
+
   if (u === "LF") {
-    return reportedLfFromSta(beginSta, endSta, conversionFactor);
+    return reportedLfFromSta(beginSta, endSta, cf);
   }
-  return physicalLfFromSta(beginSta, endSta);
+  if (u === "STA" || u === "SF") {
+    return span * cf;
+  }
+  return physicalLfFromSta(beginSta, endSta) * cf;
+}
+
+/** Unit for STA-range billing when a pavement line type is selected. */
+export function staBillingUnit(
+  masterUnit: string,
+  lineTypeCode?: string | null,
+): string {
+  if (lineTypeCode?.trim()) return "LF";
+  return masterUnit;
 }
 
 /** Task progress estimate from work limits or reported totals. */
@@ -140,6 +152,7 @@ export function estimateTaskQuantity(input: {
   unit: string;
   formType: string;
   conversionFactor?: number | null;
+  estimatedQuantity?: number | null;
   beginSta?: string | null;
   endSta?: string | null;
   routeBeginSta?: string | null;
@@ -147,6 +160,12 @@ export function estimateTaskQuantity(input: {
   reportedApproved?: number;
   reportedPending?: number;
 }): number {
+  const explicit =
+    input.estimatedQuantity != null ? Number(input.estimatedQuantity) : null;
+  if (explicit != null && !Number.isNaN(explicit) && explicit > 0) {
+    return explicit;
+  }
+
   const begin = input.beginSta?.trim() || input.routeBeginSta?.trim();
   const end = input.endSta?.trim() || input.routeEndSta?.trim();
 

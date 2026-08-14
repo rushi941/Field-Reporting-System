@@ -3,8 +3,10 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Download,
   Loader2,
   Plus,
+  Upload,
 } from "lucide-react";
 import {
   adminFieldEntryPreview,
@@ -12,13 +14,17 @@ import {
   FORM_TYPE_LABELS,
   projectCreateTaskSchema,
   projectUpdateTaskSchema,
-  physicalLfFromSta,
-  stationSpanDecimal,
-  sanitizeStaInput,
+  PROJECT_TASK_IMPORT_HEADERS,
+  sanitizeNonNegativeDecimalInput,
 } from "@frs/shared";
 import { apiFetch } from "@/lib/api";
 import { firstZodIssueMessage } from "@/lib/zod-error";
 import { useAuth } from "@/auth/auth-context";
+import {
+  downloadProjectTaskSampleCsv,
+  downloadProjectTaskSampleExcel,
+  parseProjectTaskSpreadsheet,
+} from "@/lib/project-task-spreadsheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,6 +73,7 @@ type ProjectTask = {
   isActive: boolean;
   beginSta: string | null;
   endSta: string | null;
+  estimatedQuantity: number | null;
   taskMaster: {
     id: string;
     code: string;
@@ -106,6 +113,7 @@ type TableRow = {
   division: string;
   unit: string;
   formType: string;
+  fieldPerson: string;
   beginSta: string | null;
   endSta: string | null;
 };
@@ -126,8 +134,7 @@ const emptyTaskForm = {
   division: "",
   masterBidId: "",
   formType: "STA_WITH_CF",
-  beginSta: "",
-  endSta: "",
+  estimatedQuantity: "",
   description: "",
 };
 
@@ -178,8 +185,9 @@ function buildTaskRows(tasks: ProjectTask[]): TableRow[] {
       code: master.code,
       name: master.name,
       division: t.division,
-      unit: t.taskMaster.unit,
-      formType: t.taskMaster.formType,
+      unit: master.unit,
+      formType: master.formType,
+      fieldPerson: t.assignedTo?.name ?? "—",
       beginSta: t.beginSta,
       endSta: t.endSta,
     });
@@ -203,6 +211,9 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyTaskForm);
   const [formBaseline, setFormBaseline] = useState("");
@@ -274,6 +285,10 @@ export function ProjectDetailPage() {
     return filtered.map((row) => ({
       id: row.id,
       taskMasterId: row.taskMasterId,
+      assignedTo:
+        row.fieldPerson !== "—"
+          ? { name: row.fieldPerson, email: "" }
+          : null,
       taskMaster: {
         code: row.code,
         name: row.name,
@@ -302,6 +317,7 @@ export function ProjectDetailPage() {
         if (estimated > 0) return reported / estimated;
         return reported;
       },
+      lead: (row: BidItemTaskRow) => row.assignedTo?.name ?? "",
     }),
     [],
   );
@@ -309,7 +325,7 @@ export function ProjectDetailPage() {
   const tasksTable = useAdminTable({
     rows: bidItemRows,
     getSearchText: (row) =>
-      `${row.taskMaster.code} ${row.taskMaster.name}`,
+      `${row.taskMaster.code} ${row.taskMaster.name} ${row.assignedTo?.name ?? ""}`,
     sortAccessors: taskSortAccessors,
     defaultSort: { key: "code", direction: "asc" },
   });
@@ -368,18 +384,6 @@ export function ProjectDetailPage() {
     });
   }, [selectedMaster, form.division]);
 
-  const staPreview = useMemo(() => {
-    if (!form.beginSta.trim() || !form.endSta.trim()) return null;
-    try {
-      const span = stationSpanDecimal(form.beginSta, form.endSta);
-      if (span <= 0) return null;
-      const physical = physicalLfFromSta(form.beginSta, form.endSta);
-      return { span, physical };
-    } catch {
-      return null;
-    }
-  }, [form.beginSta, form.endSta]);
-
   function openCreate() {
     const defaultDivision = projectDivisions[0] ?? "PAVEMENT_MARKING";
     const next = { ...emptyTaskForm, division: defaultDivision };
@@ -397,8 +401,10 @@ export function ProjectDetailPage() {
       division: source?.division ?? "",
       masterBidId: master?.id ?? row.taskMasterId ?? "",
       formType: source?.taskMaster.formType ?? row.taskMaster.formType,
-      beginSta: source?.beginSta ?? "",
-      endSta: source?.endSta ?? "",
+      estimatedQuantity:
+        source?.estimatedQuantity != null
+          ? String(source.estimatedQuantity)
+          : "",
       description: "",
     };
     setEditingTaskId(row.id);
@@ -431,8 +437,7 @@ export function ProjectDetailPage() {
       division,
       masterBidId: "",
       formType: "STA_WITH_CF",
-      beginSta: "",
-      endSta: "",
+      estimatedQuantity: "",
     }));
   }
 
@@ -442,8 +447,7 @@ export function ProjectDetailPage() {
       ...f,
       masterBidId: id,
       formType: master?.formType ?? "STA_WITH_CF",
-      beginSta: "",
-      endSta: "",
+      estimatedQuantity: "",
     }));
   }
 
@@ -491,19 +495,22 @@ export function ProjectDetailPage() {
     try {
       const master = taskTree.find((m) => m.id === form.masterBidId);
       const masterFormType = master?.formType ?? form.formType;
-      const needsSta =
-        master &&
-        adminNeedsStaWorkLimits({
-          formType: masterFormType,
-          masterCode: master.code,
-          masterName: master.name,
+      const qtyRaw = form.estimatedQuantity.trim();
+      const estimatedQuantity =
+        qtyRaw === "" ? null : Number(qtyRaw);
+      if (qtyRaw !== "" && (Number.isNaN(estimatedQuantity) || estimatedQuantity <= 0)) {
+        toast.error("Enter a valid estimated quantity greater than 0", {
+          id: "project-tasks",
         });
+        return;
+      }
       const raw = {
         taskMasterId: form.masterBidId,
         division: form.division,
-        formType: needsSta ? masterFormType : "SINGLE_POINT",
-        beginSta: needsSta ? form.beginSta.trim() || null : null,
-        endSta: needsSta ? form.endSta.trim() || null : null,
+        formType: masterFormType,
+        estimatedQuantity,
+        beginSta: null,
+        endSta: null,
         description: form.description.trim() || null,
       };
       const schema = editingTaskId
@@ -548,6 +555,56 @@ export function ProjectDetailPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onImportTasks() {
+    if (!projectId || !importFile) {
+      toast.error("Choose a CSV or Excel file", { id: "project-import" });
+      return;
+    }
+    setImporting(true);
+    try {
+      const rows = await parseProjectTaskSpreadsheet(importFile);
+      if (!rows.length) {
+        toast.error(
+          "No valid task rows found. Download the sample file and match the column headers exactly.",
+          { id: "project-import" },
+        );
+        return;
+      }
+      const result = await apiFetch<{
+        created: number;
+        errorCount: number;
+        errors: { row: number; message: string }[];
+        project: ProjectDetail;
+      }>(`/api/v1/projects/${projectId}/tasks/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      setProject(result.project);
+      setImportOpen(false);
+      setImportFile(null);
+      if (result.errorCount > 0) {
+        const detail = result.errors
+          .slice(0, 3)
+          .map((e) => `Row ${e.row}: ${e.message}`)
+          .join(" · ");
+        toast.warning(
+          `Imported ${result.created} task(s), ${result.errorCount} error(s). ${detail}`,
+          { id: "project-import", duration: 8000 },
+        );
+      } else {
+        toast.success(`Imported ${result.created} task(s)`, {
+          id: "project-import",
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed", {
+        id: "project-import",
+      });
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -614,12 +671,15 @@ export function ProjectDetailPage() {
               </Link>
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="size-4" /> Import tasks
+          </Button>
           <Button
             size="sm"
             className="bg-asphalt-mid text-white hover:bg-asphalt"
             onClick={openCreate}
           >
-            <Plus className="size-4" /> Add task
+            <Plus className="size-4" /> Add bid
           </Button>
         </div>
       </div>
@@ -653,7 +713,8 @@ export function ProjectDetailPage() {
         }
         emptyMessage={
           <>
-            No tasks yet. Click <strong>Add task</strong> to add work scope.
+            No tasks yet. Click <strong>Add bid</strong> or{" "}
+            <strong>Import tasks</strong> to add work scope.
           </>
         }
         filteredEmptyMessage="No tasks match your search or filter."
@@ -686,17 +747,15 @@ export function ProjectDetailPage() {
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
             <div className="min-w-0">
               <h2 id="project-task-form-title" className="text-xl font-semibold">
-                {editingTaskId ? "Edit task" : "Add task"}
+                {editingTaskId ? "Edit task" : "Add bid"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {editingTaskId
-                  ? "Update this task on the project."
-                  : "Select a master bid to add to this project."}
-                {showStaWorkLimits
-                  ? " Set Begin/End STA work limits for this task."
-                  : fieldEntryPreview
-                    ? " Quantities are entered by location in the field app."
-                    : null}
+                  ? "Update this bid item on the project."
+                  : "Select a master bid and enter an estimated quantity for plan tracking."}
+                {fieldEntryPreview
+                  ? " Quantities are entered by location in the field app."
+                  : null}
                 {lineTypesAtFieldEntry
                   ? " Line types are chosen by the field lead when entering quantities."
                   : null}
@@ -758,64 +817,37 @@ export function ProjectDetailPage() {
 
             </FormSection>
 
-            {showStaWorkLimits && (
-              <FormSection title="Work limits">
-                <FormField>
-                  <Label>Begin STA *</Label>
+            {selectedMaster && (
+              <FormSection title="Plan quantity">
+                <FormField className="sm:col-span-2">
+                  <Label htmlFor="project-task-estimated-qty">
+                    Estimated quantity
+                  </Label>
                   <Input
-                    value={form.beginSta}
-                    required
+                    id="project-task-estimated-qty"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.estimatedQuantity}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        beginSta: sanitizeStaInput(e.target.value),
+                        estimatedQuantity: sanitizeNonNegativeDecimalInput(
+                          e.target.value,
+                        ),
                       }))
                     }
-                    placeholder="11+00"
-                  />
-                </FormField>
-                <FormField>
-                  <Label>End STA *</Label>
-                  <Input
-                    value={form.endSta}
-                    required
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        endSta: sanitizeStaInput(e.target.value),
-                      }))
+                    placeholder={
+                      selectedMaster.unit
+                        ? `e.g. 12345.56 ${selectedMaster.unit}`
+                        : "e.g. 12345.56"
                     }
-                    placeholder="23+00"
                   />
-                </FormField>
-                {lineTypesAtFieldEntry ? (
-                  <p className="sm:col-span-2 text-xs text-muted-foreground">
-                    Work limits only — line type and conversion factor are
-                    selected in the field app.
+                  <p className="text-xs text-muted-foreground">
+                    Enter the plan quantity for this bid item. Field crews enter
+                    their own STA ranges on daily reports — no corridor limits apply.
                   </p>
-                ) : null}
-                {staPreview ? (
-                  <div className="sm:col-span-2 rounded-md border border-border bg-card px-3 py-2 text-sm">
-                    <p className="font-medium">Calculation</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      STA span = End − Begin · Physical LF = span × 100
-                    </p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <p>
-                        STA span:{" "}
-                        <strong className="tabular-nums">
-                          {staPreview.span.toFixed(2)}
-                        </strong>
-                      </p>
-                      <p>
-                        Physical LF:{" "}
-                        <strong className="tabular-nums">
-                          {staPreview.physical.toLocaleString()} LF
-                        </strong>
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
+                </FormField>
               </FormSection>
             )}
 
@@ -865,10 +897,97 @@ export function ProjectDetailPage() {
               className="bg-asphalt-mid text-white hover:bg-asphalt"
               disabled={saving}
             >
-              {saving ? "Saving…" : editingTaskId ? "Save changes" : "Add task"}
+              {saving ? "Saving…" : editingTaskId ? "Save changes" : "Add bid"}
             </Button>
           </div>
         </form>
+      </ModalOverlay>
+
+      <ModalOverlay
+        open={importOpen}
+        onBackdropClick={() => {
+          setImportOpen(false);
+          setImportFile(null);
+        }}
+      >
+        <div
+          className="relative z-[2001] w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 className="text-lg font-semibold">Import project tasks</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upload a CSV or Excel file with task rows for this project.
+          </p>
+          <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {PROJECT_TASK_IMPORT_HEADERS.join(", ")}
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => downloadProjectTaskSampleCsv()}
+            >
+              <Download className="size-4" /> Sample CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => downloadProjectTaskSampleExcel()}
+            >
+              <Download className="size-4" /> Sample Excel
+            </Button>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="project-task-import-file">File</Label>
+            <Input
+              id="project-task-import-file"
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={(e) =>
+                setImportFile(e.target.files?.[0] ?? null)
+              }
+            />
+            {importFile ? (
+              <p className="text-xs text-muted-foreground">
+                Selected: {importFile.name}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={importing}
+              onClick={() => {
+                setImportOpen(false);
+                setImportFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-asphalt-mid text-white hover:bg-asphalt"
+              disabled={importing || !importFile}
+              onClick={() => void onImportTasks()}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Importing…
+                </>
+              ) : (
+                <>
+                  <Upload className="size-4" /> Import
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </ModalOverlay>
     </div>
   );

@@ -188,11 +188,9 @@ export function FieldProjectDetailPage() {
           {project.name}
           {project.location ? ` — ${project.location}` : ""}
         </h1>
-        {(project.clientName || project.generalContractor) && (
+        {project.generalContractor && (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {[project.clientName, project.generalContractor]
-              .filter(Boolean)
-              .join(" · ")}
+            {project.generalContractor}
           </p>
         )}
       </div>
@@ -248,11 +246,6 @@ export function FieldProjectDetailPage() {
                   estimated={progress.estimated}
                   approved={progress.approved}
                   pending={progress.pending}
-                  workLimits={
-                    t.beginSta && t.endSta
-                      ? { beginSta: t.beginSta, endSta: t.endSta }
-                      : null
-                  }
                 />
               </button>
             </li>

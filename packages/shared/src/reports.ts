@@ -16,6 +16,7 @@ import {
   physicalLfFromSta,
   quantityFromStaRange,
   reportedLfFromSta,
+  staBillingUnit,
 } from "./sta.js";
 
 export {
@@ -115,7 +116,7 @@ export const staRangeSegmentSchema = z
     endSta: z.string().min(1),
     conversionFactor: z.number().positive("Conversion factor must be greater than 0"),
     useManualLf: z.boolean().optional().default(false),
-    manualLf: z.number().positive("Manual LF must be greater than 0").optional().nullable(),
+    manualLf: z.number().positive("Manual STA must be greater than 0").optional().nullable(),
     lineTypeCode: z.string().max(40).optional().nullable(),
     side: lineSideEnum.optional().nullable(),
   })
@@ -135,7 +136,7 @@ export const staRangeSegmentSchema = z
       if (val.manualLf == null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Manual LF is required",
+          message: "Manual STA is required",
           path: ["manualLf"],
         });
       }
@@ -402,14 +403,23 @@ export function resolveStaSegment(
     };
   }
   const cf = segment.conversionFactor;
-  const finalQuantity = quantityFromStaRange(unit, beginSta, endSta, cf);
+  const billingUnit = staBillingUnit(unit, lineTypeCode);
+  const finalQuantity = quantityFromStaRange(
+    billingUnit,
+    beginSta,
+    endSta,
+    cf,
+  );
   if (finalQuantity <= 0) {
     throw new Error("Calculated quantity must be greater than 0");
   }
+  const billingUnitUpper = billingUnit.trim().toUpperCase();
   const calculatedLf =
-    unit.trim().toUpperCase() === "LF"
+    billingUnitUpper === "LF"
       ? finalQuantity
-      : physicalLfFromSta(beginSta, endSta);
+      : billingUnitUpper === "STA" || billingUnitUpper === "SF"
+        ? finalQuantity
+        : physicalLfFromSta(beginSta, endSta);
   return {
     beginSta,
     endSta,

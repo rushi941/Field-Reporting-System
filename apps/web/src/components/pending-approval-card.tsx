@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { noteTextareaClassName } from "@/lib/text-field-styles";
+import { GroupedReportLineItems } from "@/components/grouped-report-line-items";
 
 export type PendingReportSummary = {
   id: string;
@@ -392,35 +393,7 @@ export function PendingApprovalCard({
                 </div>
               )}
 
-              <ul className="space-y-1.5">
-                {detail.lineItems.map((li) => (
-                  <li
-                    key={li.id}
-                    className="flex items-start justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-mono text-[11px] text-muted-foreground">
-                        {li.taskMaster.code}
-                      </p>
-                      <p className="font-medium leading-snug">
-                        {li.taskMaster.name}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {li.beginSta && li.endSta
-                          ? `${li.beginSta} → ${li.endSta}`
-                          : null}
-                        {li.locationDescription
-                          ? li.locationDescription
-                          : null}
-                        {li.symbolItemType ? ` · ${li.symbolItemType}` : null}
-                      </p>
-                    </div>
-                    <p className="shrink-0 tabular-nums font-semibold">
-                      {li.finalQuantity.toLocaleString()} {li.taskMaster.unit}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              <GroupedReportLineItems lineItems={detail.lineItems} />
 
               {detail.attachments.length > 0 && (
                 <ul className="space-y-1">

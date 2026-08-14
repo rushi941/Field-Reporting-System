@@ -13,7 +13,6 @@ type TaskProgressBarProps = {
   estimated: number;
   approved: number;
   pending: number;
-  workLimits?: { beginSta: string; endSta: string } | null;
   className?: string;
 };
 
@@ -25,7 +24,6 @@ export function TaskProgressBar({
   estimated,
   approved,
   pending,
-  workLimits,
   className,
 }: TaskProgressBarProps) {
   const { approvedPct, pendingPct, totalPct } = computeProgressShares(
@@ -45,14 +43,6 @@ export function TaskProgressBar({
         </span>
       </div>
       <p className="text-sm font-semibold leading-snug">{name}</p>
-      {workLimits ? (
-        <p className="text-[11px] text-muted-foreground">
-          Work limits:{" "}
-          <span className="font-medium text-foreground">
-            {workLimits.beginSta} → {workLimits.endSta}
-          </span>
-        </p>
-      ) : null}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>
           Est:{" "}

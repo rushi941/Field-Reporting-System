@@ -129,6 +129,11 @@ export const projectCreateTaskSchema = z
     conversionFactor: z.number().nonnegative().optional(),
     description: z.string().max(500).optional().nullable(),
     assignedToId: z.string().min(1).optional().nullable(),
+    estimatedQuantity: z
+      .number()
+      .positive("Estimated quantity must be greater than 0")
+      .optional()
+      .nullable(),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
   })
@@ -148,21 +153,6 @@ export const projectCreateTaskSchema = z
           path: ["conversionFactor"],
         });
       }
-    }
-    if (!isStaFormType(val.formType)) return;
-    if (!val.beginSta?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Begin STA is required for STA range tasks",
-        path: ["beginSta"],
-      });
-    }
-    if (!val.endSta?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End STA is required for STA range tasks",
-        path: ["endSta"],
-      });
     }
   });
 
@@ -193,29 +183,155 @@ export const projectUpdateTaskSchema = z
     taskMasterId: z.string().min(1),
     division: divisionEnum.optional(),
     formType: optionalFormTypeInputSchema,
+    estimatedQuantity: z
+      .number()
+      .positive("Estimated quantity must be greater than 0")
+      .optional()
+      .nullable(),
     beginSta: z.string().trim().max(32).optional().nullable(),
     endSta: z.string().trim().max(32).optional().nullable(),
     description: z.string().max(500).optional().nullable(),
-  })
-  .superRefine((val, ctx) => {
-    if (!val.formType || !isStaFormType(val.formType)) return;
-    if (!val.beginSta?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Begin STA is required for STA range tasks",
-        path: ["beginSta"],
-      });
-    }
-    if (!val.endSta?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End STA is required for STA range tasks",
-        path: ["endSta"],
-      });
-    }
   });
 
 export type ProjectUpdateTaskInput = z.infer<typeof projectUpdateTaskSchema>;
+
+export const projectTaskImportRowSchema = z
+  .object({
+    masterBidCode: z.string().trim().max(40).optional(),
+    subBidCode: z.string().trim().max(40).optional(),
+    code: z.string().trim().max(40).optional(),
+    name: z.string().trim().max(200).optional(),
+    unit: z.string().trim().min(1).max(20).optional().default("LF"),
+    formType: formTypeInputSchema,
+    division: divisionEnum.optional(),
+    color: z.string().trim().max(40).optional().nullable(),
+    widthInches: z.number().int().positive().optional().nullable(),
+    conversionFactor: z.number().nonnegative().optional(),
+    fieldPersonEmail: z.string().trim().email(),
+    estimatedQuantity: z
+      .number()
+      .positive("Estimated quantity must be greater than 0")
+      .optional()
+      .nullable(),
+    beginSta: z.string().trim().max(32).optional().nullable(),
+    endSta: z.string().trim().max(32).optional().nullable(),
+    description: z.string().trim().max(500).optional().nullable(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.subBidCode?.trim() && !val.code?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "subBidCode (or code) is required",
+        path: ["subBidCode"],
+      });
+    }
+    if (!val.subBidCode?.trim()) {
+      if (!val.name?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "name is required when subBidCode is omitted",
+          path: ["name"],
+        });
+      }
+      if (val.conversionFactor == null || Number.isNaN(val.conversionFactor)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "conversionFactor is required when subBidCode is omitted",
+          path: ["conversionFactor"],
+        });
+      }
+    }
+  });
+
+export type ProjectTaskImportRow = z.infer<typeof projectTaskImportRowSchema>;
+
+export const PROJECT_TASK_IMPORT_HEADERS = [
+  "masterBidCode",
+  "subBidCode",
+  "division",
+  "fieldPersonEmail",
+  "estimatedQuantity",
+  "beginSta",
+  "endSta",
+  "description",
+] as const;
+
+export const PROJECT_TASK_IMPORT_SAMPLE_ROWS: string[][] = [
+  [
+    "BI-0035",
+    "WB-ELW4",
+    "PAVEMENT_MARKING",
+    "lead@frs.local",
+    "12500.50",
+    "100+00",
+    "105+00",
+    "Edge line right white",
+  ],
+  [
+    "BI-0035",
+    "WB-SLW2-4",
+    "PAVEMENT_MARKING",
+    "lead@frs.local",
+    "40",
+    "105+00",
+    "106+00",
+    "Stop line",
+  ],
+];
+
+/** Normalize spreadsheet row keys → import schema input */
+export function normalizeProjectTaskImportRow(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const pick = (...keys: string[]) => {
+    for (const key of keys) {
+      const hit = Object.entries(raw).find(
+        ([k]) => k.replace(/^\uFEFF/, "").trim().toLowerCase() === key.toLowerCase(),
+      );
+      if (hit && String(hit[1] ?? "").trim() !== "") {
+        return String(hit[1]).trim();
+      }
+    }
+    return "";
+  };
+
+  const widthRaw = pick("widthInches", "width_inches", "width");
+  const cfRaw = pick("conversionFactor", "conversion_factor", "cf");
+  const qtyRaw = pick(
+    "estimatedQuantity",
+    "estimated_quantity",
+    "planQty",
+    "plan_qty",
+    "quantity",
+  );
+  const division = pick("division");
+  const formTypeRaw = pick("formType", "form_type") || "STA_WITH_CF";
+
+  return {
+    masterBidCode: pick("masterBidCode", "master_bid_code", "masterCode", "master_code"),
+    subBidCode: pick("subBidCode", "sub_bid_code", "subCode", "sub_code", "code"),
+    code: pick("code", "lineCode", "line_code"),
+    name: pick("name"),
+    unit: pick("unit") || "LF",
+    formType: formTypeRaw,
+    division: division || undefined,
+    color: pick("color") || null,
+    widthInches: widthRaw && !Number.isNaN(Number(widthRaw)) ? Number(widthRaw) : null,
+    conversionFactor:
+      cfRaw && !Number.isNaN(Number(cfRaw)) ? Number(cfRaw) : undefined,
+    fieldPersonEmail: pick(
+      "fieldPersonEmail",
+      "field_person_email",
+      "assignedToEmail",
+      "assigned_to_email",
+    ),
+    estimatedQuantity:
+      qtyRaw && !Number.isNaN(Number(qtyRaw)) ? Number(qtyRaw) : null,
+    beginSta: pick("beginSta", "begin_sta") || null,
+    endSta: pick("endSta", "end_sta") || null,
+    description: pick("description") || null,
+  };
+}
 
 export const projectUpdateTaskLimitsSchema = z
   .object({

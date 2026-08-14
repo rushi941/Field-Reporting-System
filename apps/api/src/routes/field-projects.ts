@@ -132,6 +132,8 @@ async function buildFieldProjectPayload(
         id: t.id,
         beginSta: t.beginSta,
         endSta: t.endSta,
+        estimatedQuantity:
+          t.estimatedQuantity != null ? Number(t.estimatedQuantity) : null,
         taskMaster: {
           unit: t.taskMaster.unit,
           formType: t.taskMaster.formType,

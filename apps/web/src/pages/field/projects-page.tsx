@@ -52,7 +52,7 @@ export function FieldProjectsPage() {
         p.jobNumber.toLowerCase().includes(q) ||
         p.name.toLowerCase().includes(q) ||
         (p.location?.toLowerCase().includes(q) ?? false) ||
-        (p.clientName?.toLowerCase().includes(q) ?? false)
+        (p.generalContractor?.toLowerCase().includes(q) ?? false)
       );
     });
   }, [projects, query, division]);
@@ -116,8 +116,7 @@ export function FieldProjectsPage() {
       ) : (
         <ul className="space-y-3">
           {filtered.map((p) => {
-            const subtitle =
-              p.clientName || p.generalContractor || p.location || "—";
+            const subtitle = p.generalContractor || "—";
             const unread = isProjectNew(p.id);
             return (
               <li key={p.id}>

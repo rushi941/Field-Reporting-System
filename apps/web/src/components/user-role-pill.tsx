@@ -75,7 +75,7 @@ export function UserHeaderIdentity({
               ? "text-[11px] text-muted-foreground"
               : cn(
                   "font-semibold text-foreground",
-                  compact ? "hidden text-sm sm:block" : "text-sm lg:text-base",
+                  compact ? "text-sm" : "text-sm lg:text-base",
                 ),
           )}
         >

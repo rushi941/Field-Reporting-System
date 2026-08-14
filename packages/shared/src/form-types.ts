@@ -90,6 +90,7 @@ export function inferFormType(input: {
       return "STA_WITH_CF";
     }
     if (u === "LF") return "STA_NO_CF";
+    if (input.division === "PAVEMENT_MARKING") return "STA_WITH_CF";
     return "STA_WITH_CF";
   }
   return "SINGLE_POINT";

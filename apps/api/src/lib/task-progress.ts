@@ -18,6 +18,7 @@ type TaskForEstimate = {
   id: string;
   beginSta: string | null;
   endSta: string | null;
+  estimatedQuantity?: number | null;
   taskMaster: {
     unit: string;
     formType: string;
@@ -138,6 +139,7 @@ export async function fetchTaskProgressMap(
       unit: task.taskMaster.unit,
       formType: task.taskMaster.formType,
       conversionFactor: cf,
+      estimatedQuantity: task.estimatedQuantity,
       beginSta: task.beginSta,
       endSta: task.endSta,
       routeBeginSta: route?.beginSta,

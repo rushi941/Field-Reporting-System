@@ -12,6 +12,7 @@ import {
   projectCreateTaskSchema,
   projectUpdateTaskSchema,
   projectUpdateTaskLimitsSchema,
+  projectTaskImportRowSchema,
   projectDivisions,
   normalizeSta,
   physicalLfFromSta,
@@ -168,6 +169,8 @@ function mapProject(p: ProjectLoaded) {
       isActive: t.isActive,
       beginSta: t.beginSta,
       endSta: t.endSta,
+      estimatedQuantity:
+        t.estimatedQuantity != null ? Number(t.estimatedQuantity) : null,
       taskMaster: {
         ...t.taskMaster,
         conversionFactor:
@@ -912,6 +915,8 @@ async function addProjectTaskInternal(
       sortOrder: count,
       beginSta,
       endSta,
+      estimatedQuantity:
+        body.estimatedQuantity != null ? body.estimatedQuantity : null,
     },
   });
 
@@ -951,6 +956,128 @@ projectsRouter.post(
       include: projectInclude,
     });
     res.status(201).json({ project: mapProject(full) });
+  }),
+);
+
+function zImportRows(value: unknown): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new AppError("VALIDATION_ERROR", "rows must be an array", 400);
+  }
+  return value;
+}
+
+/** Bulk import project tasks from CSV / Excel rows */
+projectsRouter.post(
+  "/:id/tasks/import",
+  asyncHandler(async (req, res) => {
+    const projectId = routeParam(req.params.id);
+    const owned = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { projectAdminId: true },
+    });
+    if (!owned) throw new AppError("NOT_FOUND", "Project not found", 404);
+    assertCanManageProject(owned.projectAdminId, req.user!.id, req.user!.roles);
+
+    const rows = zImportRows(req.body?.rows);
+    let created = 0;
+    const errors: { row: number; message: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const parsed = projectTaskImportRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        errors.push({
+          row: i + 1,
+          message: parsed.error.issues[0]?.message ?? "Invalid row",
+        });
+        continue;
+      }
+      const row = parsed.data;
+
+      const user = await prisma.user.findFirst({
+        where: {
+          email: { equals: row.fieldPersonEmail, mode: "insensitive" },
+          isActive: true,
+          roles: { some: { role: "FIELD_LEAD" } },
+        },
+        select: { id: true },
+      });
+      if (!user) {
+        errors.push({
+          row: i + 1,
+          message: `Unknown field person email: ${row.fieldPersonEmail}`,
+        });
+        continue;
+      }
+
+      try {
+        let taskMasterId: string | undefined;
+        const subCode = (row.subBidCode ?? row.code)?.trim().toUpperCase();
+        if (subCode) {
+          const sub = await prisma.taskMaster.findUnique({
+            where: { code: subCode },
+            include: { parent: { select: { code: true } } },
+          });
+          if (!sub) {
+            errors.push({
+              row: i + 1,
+              message: `Unknown sub-bid code: ${subCode}`,
+            });
+            continue;
+          }
+          if (row.masterBidCode?.trim()) {
+            const masterCode = row.masterBidCode.trim().toUpperCase();
+            const parentCode = sub.parent?.code?.toUpperCase();
+            if (parentCode && parentCode !== masterCode) {
+              errors.push({
+                row: i + 1,
+                message: `Sub-bid ${subCode} belongs to master ${parentCode}, not ${masterCode}`,
+              });
+              continue;
+            }
+          }
+          taskMasterId = sub.id;
+        }
+
+        await addProjectTaskInternal(projectId, {
+          taskMasterId,
+          code: row.code,
+          name: row.name,
+          unit: row.unit,
+          formType: row.formType,
+          division: row.division,
+          color: row.color,
+          widthInches: row.widthInches,
+          conversionFactor: row.conversionFactor,
+          description: row.description,
+          assignedToId: user.id,
+          estimatedQuantity: row.estimatedQuantity,
+          beginSta: row.beginSta,
+          endSta: row.endSta,
+        });
+        created += 1;
+      } catch (err) {
+        errors.push({
+          row: i + 1,
+          message:
+            err instanceof AppError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Import failed",
+        });
+      }
+    }
+
+    const full = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: projectInclude,
+    });
+    res.json({
+      created,
+      errorCount: errors.length,
+      errors,
+      project: mapProject(full),
+    });
   }),
 );
 
@@ -1062,6 +1189,10 @@ projectsRouter.patch(
         division: taskDivision,
         beginSta,
         endSta,
+        estimatedQuantity:
+          body.estimatedQuantity !== undefined
+            ? body.estimatedQuantity
+            : undefined,
       },
     });
 
