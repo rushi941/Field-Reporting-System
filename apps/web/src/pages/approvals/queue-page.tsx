@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { InitialListLoad, RefreshBar } from "@/components/page-shell";
 import {
-  PendingApprovalCard,
   type PendingReportSummary,
 } from "@/components/pending-approval-card";
+import { PendingTaskCard } from "@/components/pending-task-card";
 import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/auth/auth-context";
 import { usePendingApprovalActivity } from "@/hooks/use-pending-approval-activity";
 import { usePendingQueueRefresh } from "@/hooks/use-pending-queue-refresh";
 import { markPendingApprovalSeen } from "@/lib/activity-seen";
+import { groupPendingReportsByTask } from "@/lib/group-pending-tasks";
 
 type PendingResponse = {
   reports: PendingReportSummary[];
@@ -27,16 +28,19 @@ export function ApprovalsQueuePage() {
   usePendingQueueRefresh(refresh);
 
   const reports = data?.reports ?? [];
+  const tasks = useMemo(() => groupPendingReportsByTask(reports), [reports]);
 
-  function toggleReport(id: string) {
+  function toggleTask(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  function handleSeen(report: PendingReportSummary) {
-    markPendingApprovalSeen(user?.id, {
-      id: report.id,
-      submittedAt: report.submittedAt,
-    });
+  function handleSeen(groupReports: PendingReportSummary[]) {
+    for (const report of groupReports) {
+      markPendingApprovalSeen(user?.id, {
+        id: report.id,
+        submittedAt: report.submittedAt,
+      });
+    }
   }
 
   function handleActionComplete() {
@@ -52,10 +56,10 @@ export function ApprovalsQueuePage() {
             Pending approval
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tap a report to review quantities and approve or return.
+            Tap a bid item to review submitted quantities.
           </p>
         </div>
-        <InitialListLoad label="Loading pending reports…" rows={4} />
+        <InitialListLoad label="Loading pending tasks…" rows={4} />
       </div>
     );
   }
@@ -68,31 +72,30 @@ export function ApprovalsQueuePage() {
           Pending approval
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tap a report to expand — tap again to collapse. Approve or return
-          without leaving the queue.
+          Each bid item appears once. Tap it to see every pending submission,
+          then approve or return.
         </p>
       </div>
 
-      {reports.length === 0 ? (
+      {tasks.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-12 text-center">
           <ClipboardCheck className="mx-auto size-8 text-muted-foreground/60" />
           <p className="mt-3 text-sm font-medium">Queue is clear</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            No reports waiting for approval.
+            No bid items waiting for approval.
           </p>
         </div>
       ) : (
         <ul className="space-y-2.5">
-          {reports.map((r) => (
-            <li key={r.id}>
-              <PendingApprovalCard
-                report={r}
-                expanded={expandedId === r.id}
-                unread={isUnread(r)}
+          {tasks.map((task) => (
+            <li key={task.key}>
+              <PendingTaskCard
+                group={task}
+                expanded={expandedId === task.key}
+                unread={task.reports.some((s) => isUnread(s.report))}
                 canApprove={can("reports.approve")}
-                canEditSubmitted={can("reports.edit_submitted")}
-                onToggle={() => toggleReport(r.id)}
-                onSeen={() => handleSeen(r)}
+                onToggle={() => toggleTask(task.key)}
+                onSeen={() => handleSeen(task.reports.map((s) => s.report))}
                 onActionComplete={handleActionComplete}
               />
             </li>

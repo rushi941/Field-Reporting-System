@@ -751,12 +751,12 @@ export function ProjectDetailPage() {
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {editingTaskId
-                  ? "Update this bid item on the project."
+                  ? "Update division, master bid, or plan quantity."
                   : "Select a master bid and enter an estimated quantity for plan tracking."}
-                {fieldEntryPreview
+                {!editingTaskId && fieldEntryPreview
                   ? " Quantities are entered by location in the field app."
                   : null}
-                {lineTypesAtFieldEntry
+                {!editingTaskId && lineTypesAtFieldEntry
                   ? " Line types are chosen by the field lead when entering quantities."
                   : null}
               </p>
@@ -851,7 +851,7 @@ export function ProjectDetailPage() {
               </FormSection>
             )}
 
-            {fieldEntryPreview && (
+            {fieldEntryPreview && !editingTaskId && (
               <FormSection title={fieldEntryPreview.title}>
                 <ul className="sm:col-span-2 space-y-2 text-sm text-muted-foreground">
                   {fieldEntryPreview.fields.map((field) => (
@@ -868,19 +868,21 @@ export function ProjectDetailPage() {
               </FormSection>
             )}
 
-            <FormSection title="Notes">
-              <FormField className="sm:col-span-2">
-                <Label>Notes</Label>
-                <textarea
-                  className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                  placeholder="Optional instructions for the field lead"
-                />
-              </FormField>
-            </FormSection>
+            {!editingTaskId && (
+              <FormSection title="Notes">
+                <FormField className="sm:col-span-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    className="min-h-24 w-full rounded-md border border-input bg-card px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, description: e.target.value }))
+                    }
+                    placeholder="Optional instructions for the field lead"
+                  />
+                </FormField>
+              </FormSection>
+            )}
           </div>
 
           <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4 sm:px-6">

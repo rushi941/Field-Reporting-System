@@ -120,7 +120,7 @@ export function FieldLayout() {
 
   return (
     <div className="flex min-h-svh overflow-x-hidden bg-background lg:h-svh lg:overflow-hidden">
-      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+      <div className="hidden h-full shrink-0 bg-sidebar lg:block">
         {sidebar}
       </div>
 

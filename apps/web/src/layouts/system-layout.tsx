@@ -198,8 +198,8 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
   );
 
   return (
-    <div className="flex min-h-svh bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+    <div className="flex min-h-svh bg-background lg:h-svh lg:overflow-hidden">
+      <div className="hidden h-full shrink-0 bg-sidebar lg:block">
         {sidebar}
       </div>
 
@@ -215,7 +215,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-hidden">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Button
@@ -260,7 +260,7 @@ export function WorkspaceLayout({ kind }: { kind: WorkspaceKind }) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-8 lg:py-8">
           <div className="mx-auto w-full max-w-6xl">
             <PageSuspense>
               <PageTransition>

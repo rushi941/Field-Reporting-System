@@ -33,6 +33,8 @@ export type PendingReportSummary = {
   status: string;
   submittedAt: string | null;
   lineCount: number;
+  bidItemCount?: number;
+  entryCount?: number;
   attachmentCount: number;
   ageLabel: string;
   ageHours: number;
@@ -45,6 +47,18 @@ export type PendingReportSummary = {
     division?: string;
   };
   submittedBy: { id: string; name: string; email: string };
+  lineItems?: {
+    id: string;
+    finalQuantity: number;
+    entryType?: string;
+    beginSta: string | null;
+    endSta: string | null;
+    locationDescription: string | null;
+    symbolItemType: string | null;
+    lineTypeCode?: string | null;
+    lineTypeLabel?: string | null;
+    taskMaster: { code: string; name: string; unit: string };
+  }[];
 };
 
 type ApprovalDetail = {
@@ -68,6 +82,8 @@ type ApprovalDetail = {
     endSta: string | null;
     locationDescription: string | null;
     symbolItemType: string | null;
+    lineTypeCode?: string | null;
+    lineTypeLabel?: string | null;
     taskMaster: { code: string; name: string; unit: string };
   }[];
   attachments: {
@@ -100,6 +116,15 @@ function shortPersonName(full: string): string {
   return `${parts[0]![0]}. ${parts[parts.length - 1]}`;
 }
 
+function formatBidItemSummary(report: PendingReportSummary): string {
+  const bidItems = report.bidItemCount ?? report.lineCount;
+  const entries = report.entryCount ?? report.lineCount;
+  const bidLabel = `${bidItems} bid item${bidItems === 1 ? "" : "s"}`;
+  if (entries > bidItems) {
+    return `${bidLabel} · ${entries} entries`;
+  }
+  return bidLabel;
+}
 function formatQueueDate(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
   return d.toLocaleDateString("en-US", {
@@ -361,7 +386,7 @@ export function PendingApprovalCard({
           <span> · </span>
           {formatQueueDate(report.reportDate)}
           <span> · </span>
-          {report.lineCount} bid item{report.lineCount === 1 ? "" : "s"}
+          {formatBidItemSummary(report)}
           {report.attachmentCount > 0 && (
             <>
               <span> · </span>

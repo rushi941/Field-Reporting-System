@@ -93,8 +93,8 @@ export function ApprovalsHistoryPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {showAllProjects
-            ? "All submitted reports across your projects."
-            : "Reports for the selected project."}
+            ? "Approved and returned reports across your projects. Pending reports are in the Pending queue tab."
+            : "Approved and returned reports for the selected project."}
         </p>
       </div>
 
@@ -140,8 +140,8 @@ export function ApprovalsHistoryPage() {
           ) : reports.length === 0 ? (
             <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
               {showAllProjects
-                ? "No submitted reports in your scope yet."
-                : "No submitted reports for this project yet."}
+                ? "No approved or returned reports in your scope yet."
+                : "No approved or returned reports for this project yet."}
             </p>
           ) : (
             <ul className="min-w-0 space-y-2.5">

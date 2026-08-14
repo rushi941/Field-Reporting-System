@@ -6,6 +6,7 @@ import {
   approveWithNotesSchema,
   formatReportAge,
   reportAgeHours,
+  resolveLineTypeLabel,
   returnReportSchema,
   TEXT_NOTE_MAX_LENGTH,
 } from "@frs/shared";
@@ -40,6 +41,26 @@ const queueInclude = {
     },
   },
   _count: { select: { lineItems: true, attachments: true } },
+  lineItems: {
+    select: {
+      id: true,
+      entryType: true,
+      beginSta: true,
+      endSta: true,
+      locationDescription: true,
+      symbolItemType: true,
+      lineTypeCode: true,
+      finalQuantity: true,
+      projectTask: {
+        select: {
+          taskMaster: {
+            select: { code: true, name: true, unit: true },
+          },
+        },
+      },
+    },
+    orderBy: { sortOrder: "asc" as const },
+  },
 } as const;
 
 const detailInclude = {
@@ -97,6 +118,7 @@ async function managerScopeWhere(
     { submittedBy: { managerId: userId } },
     { project: { projectManagerId: userId } },
     { divisionManagerId: userId },
+    { project: { divisionManagers: { some: { userId } } } },
     {
       submittedBy: {
         projectTasksAssigned: {
@@ -141,6 +163,7 @@ async function managerProjectScopeWhere(
 
   const or: Prisma.ProjectWhereInput[] = [
     { projectManagerId: userId },
+    { divisionManagers: { some: { userId } } },
     {
       tasks: {
         some: { isActive: true, assignedTo: { managerId: userId } },
@@ -209,6 +232,10 @@ function mapHistoryTask(t: HistoryTaskRow) {
 
 function withAge(r: QueueRow, now = new Date()) {
   const ageHours = reportAgeHours(r.submittedAt ?? r.createdAt, now);
+  const bidItemCount = new Set(
+    r.lineItems.map((li) => li.projectTask.taskMaster.code),
+  ).size;
+  const lineCount = r._count.lineItems;
   return {
     id: r.id,
     reportNumber: r.reportNumber,
@@ -216,7 +243,9 @@ function withAge(r: QueueRow, now = new Date()) {
     status: r.status,
     division: r.division,
     submittedAt: r.submittedAt,
-    lineCount: r._count.lineItems,
+    lineCount,
+    bidItemCount,
+    entryCount: lineCount,
     attachmentCount: r._count.attachments,
     project: r.project,
     submittedBy: {
@@ -226,6 +255,22 @@ function withAge(r: QueueRow, now = new Date()) {
     },
     ageHours: Math.round(ageHours * 10) / 10,
     ageLabel: formatReportAge(ageHours),
+    lineItems: r.lineItems.map((li) => ({
+      id: li.id,
+      entryType: li.entryType,
+      beginSta: li.beginSta,
+      endSta: li.endSta,
+      locationDescription: li.locationDescription,
+      symbolItemType: li.symbolItemType,
+      lineTypeCode: li.lineTypeCode,
+      lineTypeLabel: resolveLineTypeLabel(li.lineTypeCode),
+      finalQuantity: Number(li.finalQuantity),
+      taskMaster: {
+        code: li.projectTask.taskMaster.code,
+        name: li.projectTask.taskMaster.name,
+        unit: li.projectTask.taskMaster.unit,
+      },
+    })),
   };
 }
 
@@ -249,6 +294,8 @@ function mapDetail(r: DetailRow) {
       finalQuantity: Number(li.finalQuantity),
       locationDescription: li.locationDescription,
       symbolItemType: li.symbolItemType,
+      lineTypeCode: li.lineTypeCode,
+      lineTypeLabel: resolveLineTypeLabel(li.lineTypeCode),
       taskMaster: {
         ...li.projectTask.taskMaster,
         conversionFactor:
@@ -345,7 +392,7 @@ approvalsRouter.get(
 
     const reports = await prisma.report.findMany({
       where: {
-        status: { not: "DRAFT" },
+        status: { notIn: ["DRAFT", "SUBMITTED"] },
         ...scope,
         ...(projectId
           ? { projectId }

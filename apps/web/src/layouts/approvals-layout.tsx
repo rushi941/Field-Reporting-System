@@ -120,12 +120,12 @@ export function ApprovalsLayout() {
   );
 
   return (
-    <div className="flex min-h-svh overflow-x-hidden bg-background">
-      <div className="sticky top-0 hidden h-svh shrink-0 self-start bg-sidebar lg:block">
+    <div className="flex min-h-svh overflow-x-hidden bg-background lg:h-svh lg:overflow-hidden">
+      <div className="hidden h-full shrink-0 bg-sidebar lg:block">
         {sidebar}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-hidden">
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:h-14 lg:gap-3 lg:bg-card/95 lg:px-4 lg:pt-0">
           <div className="flex min-w-0 items-center gap-2">
             <BrandLogo
@@ -160,7 +160,7 @@ export function ApprovalsLayout() {
 
         <main
           className={cn(
-            "mx-auto w-full max-w-3xl flex-1 px-3 py-4 sm:px-4 sm:py-5",
+            "mx-auto w-full max-w-3xl flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
             showBottomNav
               ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-5"
               : "pb-4",

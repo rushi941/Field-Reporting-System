@@ -35,7 +35,7 @@ export function ModalOverlay({
           : undefined
       }
     >
-      <div className="flex h-full items-center justify-center overflow-y-auto overscroll-contain py-4">
+      <div className="flex h-full min-h-0 items-center justify-center overflow-hidden py-4">
         {children}
       </div>
     </div>,

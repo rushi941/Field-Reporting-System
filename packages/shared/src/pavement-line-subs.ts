@@ -101,3 +101,22 @@ export function catalogPavementLineTypes(): CatalogLineTypeOption[] {
     color: line.color,
   }));
 }
+
+/** Human-readable line type, e.g. `4" Broken Centerline Yellow`. */
+export function resolveLineTypeLabel(
+  code: string | null | undefined,
+): string | null {
+  const raw = code?.trim();
+  if (!raw) return null;
+  const catalog = catalogPavementLineTypes();
+  const upper = raw.toUpperCase();
+  const exact = catalog.find((c) => c.code.toUpperCase() === upper);
+  if (exact) return exact.label;
+  const bySuffix = catalog.find(
+    (c) =>
+      upper.endsWith(`-${c.code.toUpperCase()}`) ||
+      upper.endsWith(c.code.toUpperCase()),
+  );
+  if (bySuffix) return bySuffix.label;
+  return raw;
+}

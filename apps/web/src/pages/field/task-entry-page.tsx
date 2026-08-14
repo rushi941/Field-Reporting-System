@@ -77,7 +77,6 @@ type ProjectInfo = {
     id: string;
     beginSta: string | null;
     endSta: string | null;
-    completedStaRanges: { beginSta: string; endSta: string; reportNumber: string }[];
     lineTypes: LineTypeOption[];
     usesLineTypePicker: boolean;
     symbolTypes: SymbolTypeOption[];
@@ -787,18 +786,6 @@ export function FieldTaskEntryPage() {
 
       {isSta ? (
         <div className="space-y-2">
-          {(task.completedStaRanges?.length ?? 0) > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-              <p className="font-semibold">Already submitted on this task</p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5">
-                {task.completedStaRanges.map((r, idx) => (
-                  <li key={`${r.reportNumber}-${idx}`}>
-                    {r.beginSta} → {r.endSta} ({r.reportNumber})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
           {staSegs.map((seg, i) => {
             const err = segErrors[i] ?? {};
             return (

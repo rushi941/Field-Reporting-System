@@ -1,3 +1,5 @@
+import { resolveLineTypeLabel } from "@frs/shared";
+
 export type ReportLineItemView = {
   id: string;
   finalQuantity: number;
@@ -6,6 +8,8 @@ export type ReportLineItemView = {
   endSta: string | null;
   locationDescription: string | null;
   symbolItemType: string | null;
+  lineTypeCode?: string | null;
+  lineTypeLabel?: string | null;
   taskMaster: { code: string; name: string; unit: string };
 };
 
@@ -19,18 +23,14 @@ type LineItemGroup = {
 
 function formatLineItemDetail(li: ReportLineItemView): string {
   const parts: string[] = [];
-  if (li.entryType) {
-    parts.push(li.entryType.replaceAll("_", " "));
-  }
+  const lineType =
+    li.lineTypeLabel?.trim() || resolveLineTypeLabel(li.lineTypeCode);
+  if (lineType) parts.push(lineType);
   if (li.beginSta && li.endSta) {
     parts.push(`${li.beginSta} → ${li.endSta}`);
   }
-  if (li.locationDescription) {
-    parts.push(li.locationDescription);
-  }
-  if (li.symbolItemType) {
-    parts.push(li.symbolItemType);
-  }
+  if (li.locationDescription) parts.push(li.locationDescription);
+  if (li.symbolItemType) parts.push(li.symbolItemType);
   return parts.join(" · ");
 }
 
