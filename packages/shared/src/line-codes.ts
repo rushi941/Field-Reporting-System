@@ -104,13 +104,13 @@ export function physicalLf(beginSta: number, endSta: number): number {
   return span * 100;
 }
 
-/** Reported LF = (End STA − Begin STA) × 100 × CF */
-export function reportedLf(
+/** Reported STA = (End STA − Begin STA) × CF */
+export function reportedSta(
   beginSta: number,
   endSta: number,
   conversionFactor: number,
 ): number {
-  return physicalLf(beginSta, endSta) * conversionFactor;
+  return Math.abs(endSta - beginSta) * conversionFactor;
 }
 
 /**

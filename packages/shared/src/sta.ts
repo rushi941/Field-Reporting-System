@@ -100,60 +100,59 @@ export function unionStaSpanDecimal(
   return total;
 }
 
+/**
+ * Reported STA = (End STA − Begin STA) × conversion factor.
+ * Example: 1525+50 → 1680+60, CF 0.25 → 155.10 × 0.25 = 38.775 STA.
+ */
+export function reportedStaFromRange(
+  beginSta: string,
+  endSta: string,
+  conversionFactor = 1,
+): number {
+  const cf = conversionFactor > 0 ? conversionFactor : 1;
+  return stationSpanDecimal(beginSta, endSta) * cf;
+}
+
 /** Billable quantity from merged STA coverage (no double-count on overlaps). */
 export function quantityFromUnionStaRanges(
-  unit: string,
+  _unit: string,
   ranges: { beginSta: string; endSta: string }[],
   conversionFactor = 1,
 ): number {
   const spanSta = unionStaSpanDecimal(ranges);
   if (spanSta <= 0) return 0;
-  const u = unit.trim().toUpperCase();
   const cf = conversionFactor > 0 ? conversionFactor : 1;
-  if (u === "STA" || u === "SF") return spanSta * cf;
-  const physicalLf = spanSta * 100;
-  if (u === "LF") {
-    return physicalLf * cf;
-  }
-  return physicalLf * cf;
+  return spanSta * cf;
 }
 
-/** Billable quantity from a STA range — unit-aware. */
+/** Billable quantity from a STA range: (End − Begin) × CF, reported in STA. */
 export function quantityFromStaRange(
-  unit: string,
+  _unit: string,
   beginSta: string,
   endSta: string,
   conversionFactor = 1,
 ): number {
-  const u = unit.trim().toUpperCase();
-  const span = stationSpanDecimal(beginSta, endSta);
-  const cf = conversionFactor > 0 ? conversionFactor : 1;
-
-  if (u === "LF") {
-    return reportedLfFromSta(beginSta, endSta, cf);
-  }
-  if (u === "STA" || u === "SF") {
-    return span * cf;
-  }
-  return physicalLfFromSta(beginSta, endSta) * cf;
+  return reportedStaFromRange(beginSta, endSta, conversionFactor);
 }
 
-/** Unit for STA-range billing when a pavement line type is selected. */
+/** STA-range field work is billed in STA: (End − Begin) × CF. */
 export function staBillingUnit(
-  masterUnit: string,
+  masterUnit?: string,
   lineTypeCode?: string | null,
 ): string {
-  if (lineTypeCode?.trim()) return "LF";
-  return masterUnit;
+  if (lineTypeCode?.trim()) return "STA";
+  const u = (masterUnit ?? "STA").trim().toUpperCase();
+  if (u === "LF" || u === "SF" || u === "STA") return "STA";
+  return masterUnit ?? "STA";
 }
 
-/** Display unit for grouped line items (LF when any row has a line type). */
+/** Display unit for grouped STA line items. */
 export function staBillingUnitForEntries(
-  masterUnit: string,
-  entries: { lineTypeCode?: string | null }[],
+  masterUnit?: string,
+  entries: { lineTypeCode?: string | null }[] = [],
 ): string {
-  if (entries.some((e) => e.lineTypeCode?.trim())) return "LF";
-  return masterUnit;
+  if (entries.some((e) => e.lineTypeCode?.trim())) return "STA";
+  return staBillingUnit(masterUnit);
 }
 
 /** Task progress estimate from work limits or reported totals. */

@@ -1001,7 +1001,9 @@ export function FieldTaskEntryPage() {
                         )
                       }
                     />
-                    <p className={fieldHintClass}>1.0 = single · 2.0 = double line</p>
+                    <p className={fieldHintClass}>
+                      Qty = (End STA − Begin STA) × CF
+                    </p>
                     <FieldError message={err.conversionFactor} />
                   </div>
                   )}

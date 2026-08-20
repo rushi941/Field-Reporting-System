@@ -15,7 +15,6 @@ import {
   normalizeSta,
   physicalLfFromSta,
   quantityFromStaRange,
-  reportedLfFromSta,
   staBillingUnit,
 } from "./sta.js";
 
