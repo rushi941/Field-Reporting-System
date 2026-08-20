@@ -147,6 +147,15 @@ export function staBillingUnit(
   return masterUnit;
 }
 
+/** Display unit for grouped line items (LF when any row has a line type). */
+export function staBillingUnitForEntries(
+  masterUnit: string,
+  entries: { lineTypeCode?: string | null }[],
+): string {
+  if (entries.some((e) => e.lineTypeCode?.trim())) return "LF";
+  return masterUnit;
+}
+
 /** Task progress estimate from work limits or reported totals. */
 export function estimateTaskQuantity(input: {
   unit: string;

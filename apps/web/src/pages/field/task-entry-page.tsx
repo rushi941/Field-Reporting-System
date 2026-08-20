@@ -329,6 +329,13 @@ export function FieldTaskEntryPage() {
     });
   }, [project]);
 
+  const billingDisplayUnit = useMemo(() => {
+    const masterUnit = task?.taskMaster.unit ?? "LF";
+    if (!isSta) return masterUnit;
+    const withLineType = staSegs.find((s) => s.lineTypeCode?.trim());
+    return staBillingUnit(masterUnit, withLineType?.lineTypeCode ?? null);
+  }, [isSta, staSegs, task?.taskMaster.unit]);
+
   const reportTotal = useMemo(() => {
     if (isSta) {
       return staSegs.reduce((sum, s) => {
@@ -524,10 +531,12 @@ export function FieldTaskEntryPage() {
       ? staSegs.map(
           (s): Record<string, unknown> => {
             const lt = lineTypes.find((l) => l.id === s.lineTypeId);
+            const cf =
+              staNoCf ? 1 : lt?.conversionFactor ?? Number(s.conversionFactor);
             return {
               beginSta: s.beginSta.trim(),
               endSta: s.endSta.trim(),
-              conversionFactor: staNoCf ? 1 : Number(s.conversionFactor),
+              conversionFactor: cf,
               useManualLf: s.useManualLf,
               manualLf: s.useManualLf
                 ? s.manualLf.trim() === ""
@@ -998,10 +1007,7 @@ export function FieldTaskEntryPage() {
                   )}
                   <div className="space-y-1">
                     <Label className={fieldLabelClass} htmlFor={`lf-${i}`}>
-                      Calculated{" "}
-                      {task.taskMaster.unit.toUpperCase() === "LF"
-                        ? "LF"
-                        : task.taskMaster.unit}
+                      Calculated {staBillingUnit(task.taskMaster.unit, seg.lineTypeCode)}
                     </Label>
                     <Input
                       id={`lf-${i}`}
@@ -1389,7 +1395,7 @@ export function FieldTaskEntryPage() {
         <p className="text-xs font-medium text-sky-900">Report Total</p>
         <p className="tabular-nums text-sm font-bold text-sky-950">
           {reportTotal > 0
-            ? `${reportTotal.toLocaleString()} ${defaultUnit || task.taskMaster.unit}`
+            ? `${reportTotal.toLocaleString()} ${billingDisplayUnit}`
             : "—"}
         </p>
       </div>

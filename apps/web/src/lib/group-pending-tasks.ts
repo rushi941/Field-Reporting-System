@@ -1,3 +1,4 @@
+import { staBillingUnitForEntries } from "@frs/shared";
 import type { PendingReportSummary } from "@/components/pending-approval-card";
 
 export type PendingTaskEntry = {
@@ -80,5 +81,10 @@ export function groupPendingReportsByTask(
     }
   }
 
-  return order.map((key) => map.get(key)!);
+  return order.map((key) => {
+    const group = map.get(key)!;
+    const allEntries = group.reports.flatMap((s) => s.entries);
+    group.unit = staBillingUnitForEntries(group.unit, allEntries);
+    return group;
+  });
 }

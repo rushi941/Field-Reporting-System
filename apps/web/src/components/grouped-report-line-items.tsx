@@ -1,4 +1,4 @@
-import { resolveLineTypeLabel } from "@frs/shared";
+import { resolveLineTypeLabel, staBillingUnitForEntries } from "@frs/shared";
 
 export type ReportLineItemView = {
   id: string;
@@ -55,7 +55,7 @@ function groupLineItemsByTask(
     return {
       code,
       name: first.taskMaster.name,
-      unit: first.taskMaster.unit,
+      unit: staBillingUnitForEntries(first.taskMaster.unit, items),
       totalQty: items.reduce((sum, li) => sum + li.finalQuantity, 0),
       items,
     };
